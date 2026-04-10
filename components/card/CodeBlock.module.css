@@ -1,0 +1,76 @@
+.container {
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-muted);
+  margin: var(--spacing-sm) 0;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px var(--spacing-sm);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.language {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  font-weight: var(--font-weight-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.copyButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  transition: all var(--transition-fast);
+  font-weight: var(--font-weight-medium);
+}
+
+.copyButton:hover {
+  background: var(--color-bg-hover);
+  color: var(--color-text-primary);
+}
+
+.pre {
+  margin: 0;
+  padding: var(--spacing-sm) 0;
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.7;
+  -webkit-overflow-scrolling: touch;
+}
+
+.code {
+  display: block;
+  min-width: fit-content;
+}
+
+.line {
+  display: flex;
+  padding: 0 var(--spacing-sm);
+}
+
+.lineNumber {
+  flex-shrink: 0;
+  width: 32px;
+  color: var(--color-text-tertiary);
+  text-align: right;
+  padding-right: var(--spacing-sm);
+  user-select: none;
+  opacity: 0.4;
+}
+
+.lineContent {
+  flex: 1;
+  padding-left: var(--spacing-sm);
+  white-space: pre;
+}

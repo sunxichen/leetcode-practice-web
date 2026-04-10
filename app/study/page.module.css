@@ -1,0 +1,143 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100dvh - 120px);
+  padding: var(--spacing-md);
+  padding-bottom: calc(var(--safe-area-bottom) + 80px);
+}
+
+.cardArea {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-md) 0;
+}
+
+.cardWrapper {
+  width: 100%;
+  max-width: 480px;
+}
+
+.progress {
+  display: flex;
+  justify-content: center;
+  padding: var(--spacing-sm) 0;
+}
+
+.progressText {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+  font-weight: var(--font-weight-medium);
+  font-variant-numeric: tabular-nums;
+}
+
+/* === Gateway (Shadcn card-centered) === */
+.gateway {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100dvh - 120px);
+  padding: var(--spacing-lg);
+}
+
+.gatewayCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: var(--spacing-2xl) var(--spacing-xl);
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  width: 100%;
+  max-width: 380px;
+}
+
+.gatewayIconWrap {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-primary);
+  margin-bottom: var(--spacing-lg);
+}
+
+.gatewayTitle {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  letter-spacing: var(--tracking-tight);
+  margin-bottom: 6px;
+}
+
+.gatewaySubtitle {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  line-height: var(--line-height-normal);
+}
+
+.dueHighlight {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.gatewayDivider {
+  width: 40px;
+  height: 1px;
+  background: var(--color-border);
+  margin: var(--spacing-lg) 0;
+  transform-origin: center;
+}
+
+.startButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  height: 44px;
+  padding: 0 var(--spacing-xl);
+  border-radius: var(--radius-md);
+  background: var(--color-primary);
+  color: var(--color-primary-foreground);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: var(--tracking-normal);
+  transition: opacity var(--transition-fast);
+  width: 100%;
+  max-width: 240px;
+}
+
+.startButton:hover {
+  opacity: 0.9;
+}
+
+/* === Loading === */
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100dvh - 120px);
+}
+
+.loadingDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-text-tertiary);
+}
+
+@media (min-width: 640px) {
+  .cardArea {
+    padding: var(--spacing-xl) 0;
+  }
+  
+  .gatewayCard {
+    padding: 56px var(--spacing-xl);
+  }
+}

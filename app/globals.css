@@ -1,40 +1,37 @@
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/* === Global Styles — Shadcn/UI Design System === */
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* === CSS Reset === */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
 
 html {
-  height: 100%;
-}
-
-html,
-body {
-  max-width: 100vw;
-  overflow-x: hidden;
-}
-
-body {
-  min-height: 100%;
-  display: flex;
-  flex-direction: column;
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  -webkit-text-size-adjust: 100%;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
-* {
-  box-sizing: border-box;
-  padding: 0;
-  margin: 0;
+body {
+  font-family: var(--font-sans);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-normal);
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-primary);
+  min-height: 100dvh;
+  overflow-x: hidden;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  background: none;
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
 }
 
 a {
@@ -42,8 +39,202 @@ a {
   text-decoration: none;
 }
 
-@media (prefers-color-scheme: dark) {
-  html {
-    color-scheme: dark;
-  }
+ul, ol {
+  list-style: none;
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
+
+html, body {
+  overscroll-behavior: none;
+}
+
+/* === Shadcn-inspired Design Tokens === */
+
+:root {
+  /* ===== Color System (Shadcn slate/zinc palette) ===== */
+  --color-bg-primary: #fafafa;
+  --color-bg-secondary: #f4f4f5;
+  --color-bg-tertiary: #e4e4e7;
+  --color-bg-card: #ffffff;
+  --color-bg-hover: rgba(0, 0, 0, 0.04);
+  --color-bg-muted: #f4f4f5;
+
+  --color-text-primary: #09090b;
+  --color-text-secondary: #71717a;
+  --color-text-tertiary: #a1a1aa;
+
+  --color-border: #e4e4e7;
+  --color-border-strong: #d4d4d8;
+
+  --color-accent-blue: #2563eb;
+  --color-accent-green: #16a34a;
+  --color-accent-red: #dc2626;
+  --color-accent-orange: #ea580c;
+  --color-accent-purple: #7c3aed;
+
+  /* Primary (Shadcn default) */
+  --color-primary: #18181b;
+  --color-primary-foreground: #fafafa;
+
+  /* Difficulty colors */
+  --color-easy: #16a34a;
+  --color-medium: #ea580c;
+  --color-hard: #dc2626;
+
+  /* Feedback button colors (Shadcn-style muted backgrounds) */
+  --color-again: #dc2626;
+  --color-again-bg: rgba(220, 38, 38, 0.06);
+  --color-again-pressed: rgba(220, 38, 38, 0.15);
+  --color-hard-btn: #ea580c;
+  --color-hard-bg: rgba(234, 88, 12, 0.06);
+  --color-hard-pressed: rgba(234, 88, 12, 0.15);
+  --color-good: #16a34a;
+  --color-good-bg: rgba(22, 163, 74, 0.06);
+  --color-good-pressed: rgba(22, 163, 74, 0.15);
+  --color-easy-btn: #2563eb;
+  --color-easy-bg: rgba(37, 99, 235, 0.06);
+  --color-easy-pressed: rgba(37, 99, 235, 0.15);
+
+  /* ===== Typography (Geist/Inter stack) ===== */
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', 'Roboto', sans-serif;
+  --font-mono: 'SF Mono', 'Fira Code', 'JetBrains Mono', 'Cascadia Code', monospace;
+
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.875rem;
+  --font-size-base: 0.9375rem;
+  --font-size-lg: 1.125rem;
+  --font-size-xl: 1.25rem;
+  --font-size-2xl: 1.5rem;
+  --font-size-3xl: 1.875rem;
+
+  --line-height-tight: 1.25;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.75;
+
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  --tracking-tight: -0.025em;
+  --tracking-normal: 0;
+
+  /* ===== Spacing ===== */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+  --spacing-2xl: 48px;
+
+  /* ===== Border Radius (Shadcn rounded) ===== */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+
+  /* ===== Shadows (Shadcn layered) ===== */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+  --shadow-xl: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+  --shadow-card: 0 1px 3px 0 rgba(0, 0, 0, 0.06), 0 1px 2px -1px rgba(0, 0, 0, 0.06);
+
+  /* ===== Ring (focus) ===== */
+  --ring-color: #2563eb;
+  --ring: 0 0 0 2px var(--color-bg-primary), 0 0 0 4px var(--ring-color);
+
+  /* ===== Transitions ===== */
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-normal: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* ===== Glass effects ===== */
+  --glass-bg: rgba(250, 250, 250, 0.8);
+  --glass-blur: blur(12px) saturate(180%);
+
+  /* ===== Safe areas (iOS) ===== */
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* === Dark Mode (Shadcn zinc dark) === */
+[data-theme='dark'] {
+  --color-bg-primary: #09090b;
+  --color-bg-secondary: #18181b;
+  --color-bg-tertiary: #27272a;
+  --color-bg-card: #18181b;
+  --color-bg-hover: rgba(255, 255, 255, 0.06);
+  --color-bg-muted: #27272a;
+
+  --color-text-primary: #fafafa;
+  --color-text-secondary: #a1a1aa;
+  --color-text-tertiary: #71717a;
+
+  --color-border: #27272a;
+  --color-border-strong: #3f3f46;
+
+  --color-primary: #fafafa;
+  --color-primary-foreground: #18181b;
+
+  --shadow-card: 0 1px 3px 0 rgba(0, 0, 0, 0.3), 0 1px 2px -1px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.4);
+
+  --glass-bg: rgba(9, 9, 11, 0.8);
+
+  --ring-color: #3b82f6;
+
+  --color-again-bg: rgba(220, 38, 38, 0.1);
+  --color-again-pressed: rgba(220, 38, 38, 0.2);
+  --color-hard-bg: rgba(234, 88, 12, 0.1);
+  --color-hard-pressed: rgba(234, 88, 12, 0.2);
+  --color-good-bg: rgba(22, 163, 74, 0.1);
+  --color-good-pressed: rgba(22, 163, 74, 0.2);
+  --color-easy-bg: rgba(37, 99, 235, 0.1);
+  --color-easy-pressed: rgba(37, 99, 235, 0.2);
+}
+
+/* === Scrollbar === */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border-strong);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-tertiary);
+}
+
+/* === Selection === */
+::selection {
+  background: rgba(37, 99, 235, 0.2);
+  color: var(--color-text-primary);
+}
+
+/* === Focus visible (Shadcn ring) === */
+:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+
+/* === App layout container === */
+.app-container {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 0 var(--spacing-md);
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
 }

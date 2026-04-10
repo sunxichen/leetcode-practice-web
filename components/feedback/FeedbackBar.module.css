@@ -1,0 +1,92 @@
+.bar {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md);
+  max-width: 400px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 10px 4px;
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  transition: all var(--transition-fast);
+  position: relative;
+  overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  touch-action: manipulation;
+}
+
+.button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.label {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.3;
+}
+
+.sublabel {
+  font-size: 10px;
+  opacity: 0.5;
+  font-weight: var(--font-weight-normal);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Again */
+.again {
+  color: var(--color-again);
+  background: var(--color-again-bg);
+  border-color: rgba(220, 38, 38, 0.15);
+}
+.again:active {
+  background: var(--color-again-pressed);
+}
+
+/* Hard */
+.hard {
+  color: var(--color-hard-btn);
+  background: var(--color-hard-bg);
+  border-color: rgba(234, 88, 12, 0.15);
+}
+.hard:active {
+  background: var(--color-hard-pressed);
+}
+
+/* Good */
+.good {
+  color: var(--color-good);
+  background: var(--color-good-bg);
+  border-color: rgba(22, 163, 74, 0.15);
+}
+.good:active {
+  background: var(--color-good-pressed);
+}
+
+/* Easy */
+.easy {
+  color: var(--color-easy-btn);
+  background: var(--color-easy-bg);
+  border-color: rgba(37, 99, 235, 0.15);
+}
+.easy:active {
+  background: var(--color-easy-pressed);
+}
+
+@media (min-width: 640px) {
+  .bar {
+    max-width: 460px;
+  }
+  .button {
+    padding: 12px 8px;
+  }
+}
