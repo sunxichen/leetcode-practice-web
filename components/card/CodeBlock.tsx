@@ -52,14 +52,14 @@ export function CodeBlock({ code, language = 'python' }: CodeBlockProps) {
           <pre className={`${className} ${styles.pre}`} style={{ ...style, background: 'transparent' }}>
             <code className={styles.code}>
               {tokens.map((line, i) => {
-                const { key: _lineKey, ...restLineProps } = getLineProps({ line });
+                const lineProps = getLineProps({ line });
                 return (
-                  <div key={i} {...restLineProps} className={styles.line}>
+                  <div key={i} {...lineProps} className={styles.line}>
                     <span className={styles.lineNumber}>{i + 1}</span>
                     <span className={styles.lineContent}>
                       {line.map((token, j) => {
-                        const { key: _tokenKey, ...restTokenProps } = getTokenProps({ token });
-                        return <span key={j} {...restTokenProps} />;
+                        const tokenProps = getTokenProps({ token });
+                        return <span key={j} {...tokenProps} />;
                       })}
                     </span>
                   </div>

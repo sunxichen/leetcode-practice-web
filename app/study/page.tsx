@@ -96,10 +96,10 @@ export default function StudyPage() {
   const isAnimatingRef = useRef(false);
 
   const handleFlip = useCallback(() => {
-    if (isFlipped || !currentQuestion) return;
-    setIsFlipped(true);
+    if (!currentQuestion) return;
+    setIsFlipped(prev => !prev);
     triggerHaptic(10);
-  }, [isFlipped, currentQuestion, triggerHaptic]);
+  }, [currentQuestion, triggerHaptic]);
 
   const handleFeedback = useCallback((feedback: FeedbackType) => {
     if (!currentQuestion || isAnimatingRef.current) return;

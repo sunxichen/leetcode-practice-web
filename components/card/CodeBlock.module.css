@@ -42,21 +42,26 @@
 .pre {
   margin: 0;
   padding: var(--spacing-sm) 0;
+  max-width: 100%;
   overflow-x: auto;
   font-family: var(--font-mono);
   font-size: 12.5px;
   line-height: 1.7;
   -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x;
 }
 
 .code {
   display: block;
-  min-width: fit-content;
+  width: max-content;
+  min-width: 100%;
 }
 
 .line {
   display: flex;
   padding: 0 var(--spacing-sm);
+  min-width: max-content;
 }
 
 .lineNumber {
@@ -70,7 +75,8 @@
 }
 
 .lineContent {
-  flex: 1;
+  flex: 0 0 auto;
+  min-width: max-content;
   padding-left: var(--spacing-sm);
   white-space: pre;
 }

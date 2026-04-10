@@ -4,21 +4,25 @@ import { useState, useEffect, useCallback } from 'react';
 
 type Theme = 'light' | 'dark';
 
+function getInitialTheme(): Theme {
+  if (typeof window === 'undefined') {
+    return 'light';
+  }
+
+  const stored = localStorage.getItem('theme');
+  if (stored === 'light' || stored === 'dark') {
+    return stored;
+  }
+
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
 export function useTheme() {
-  const [theme, setTheme] = useState<Theme>('light');
+  const [theme, setTheme] = useState<Theme>(getInitialTheme);
 
   useEffect(() => {
-    const stored = localStorage.getItem('theme') as Theme | null;
-    if (stored) {
-      setTheme(stored);
-      document.documentElement.setAttribute('data-theme', stored);
-    } else {
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      const initial = prefersDark ? 'dark' : 'light';
-      setTheme(initial);
-      document.documentElement.setAttribute('data-theme', initial);
-    }
-  }, []);
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
 
   const toggleTheme = useCallback(() => {
     setTheme(prev => {

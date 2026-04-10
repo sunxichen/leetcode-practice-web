@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import type { Question, UserProgressData, QuestionProgress } from '@/lib/types';
 import { getAllQuestions, getQuestionById } from '@/lib/questions';
 import { LOW_WATER_MARK } from '@/lib/constants';
@@ -42,58 +42,53 @@ function generateStudyQueue(
 }
 
 export function useStudyQueue(progressData: UserProgressData) {
-  const [queue, setQueue] = useState<string[]>([]);
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const [sessionState, setSessionState] = useState<{ queue: string[]; currentIndex: number } | null>(null);
   const questions = getAllQuestions();
-  const isRefillingRef = useRef(false);
-  const initializedRef = useRef(false);
 
-  // Initialize queue (only once when progress is loaded)
-  useEffect(() => {
-    if (initializedRef.current) return;
-    if (!progressData || progressData.lastUpdatedAt === 0) return;
+  const initialState = useMemo(() => {
+    if (!progressData || progressData.lastUpdatedAt === 0) {
+      return { queue: [] as string[], currentIndex: 0 };
+    }
 
-    // Try to restore session cursor
     const cursor = progressData.lastSessionCursor;
     if (cursor && cursor.queue.length > 0 && cursor.queueIndex < cursor.queue.length) {
-      setQueue(cursor.queue);
-      setCurrentIndex(cursor.queueIndex);
-    } else {
-      const initialQueue = generateStudyQueue(questions, progressData.progress);
-      setQueue(initialQueue);
-      setCurrentIndex(0);
+      return { queue: cursor.queue, currentIndex: cursor.queueIndex };
     }
-    initializedRef.current = true;
+
+    return {
+      queue: generateStudyQueue(questions, progressData.progress),
+      currentIndex: 0,
+    };
   }, [progressData, questions]);
 
-  // Low water mark refill
-  useEffect(() => {
-    if (!initializedRef.current) return;
-    const remaining = queue.length - currentIndex;
-    if (remaining <= LOW_WATER_MARK && remaining > 0 && !isRefillingRef.current) {
-      isRefillingRef.current = true;
-
-      const existingIds = new Set(queue);
-      const refillBatch = generateStudyQueue(
-        questions,
-        progressData.progress,
-        existingIds,
-      );
-
-      if (refillBatch.length > 0) {
-        setQueue(prev => {
-          isRefillingRef.current = false;
-          return [...prev, ...refillBatch];
-        });
-      } else {
-        isRefillingRef.current = false;
-      }
-    }
-  }, [currentIndex, queue.length, questions, progressData.progress, queue]);
+  const queue = sessionState?.queue ?? initialState.queue;
+  const currentIndex = sessionState?.currentIndex ?? initialState.currentIndex;
 
   const goNext = useCallback(() => {
-    setCurrentIndex(prev => prev + 1);
-  }, []);
+    setSessionState(prev => {
+      const state = prev ?? initialState;
+      const nextIndex = state.currentIndex + 1;
+      const remaining = state.queue.length - nextIndex;
+
+      if (remaining > 0 && remaining <= LOW_WATER_MARK) {
+        const refillBatch = generateStudyQueue(
+          questions,
+          progressData.progress,
+          new Set(state.queue),
+        );
+
+        return {
+          queue: refillBatch.length > 0 ? [...state.queue, ...refillBatch] : state.queue,
+          currentIndex: nextIndex,
+        };
+      }
+
+      return {
+        queue: state.queue,
+        currentIndex: nextIndex,
+      };
+    });
+  }, [initialState, progressData.progress, questions]);
 
   const isEmpty = queue.length === 0 || currentIndex >= queue.length;
   const currentQuestion = isEmpty ? null : getQuestionById(queue[currentIndex]) ?? null;
@@ -107,8 +102,7 @@ export function useStudyQueue(progressData: UserProgressData) {
     entries.sort((a, b) => a[1].easeFactor - b[1].easeFactor);
     const weakestIds = entries.slice(0, 10).map(([id]) => id);
     if (weakestIds.length > 0) {
-      setQueue(weakestIds);
-      setCurrentIndex(0);
+      setSessionState({ queue: weakestIds, currentIndex: 0 });
     }
   }, [progressData.progress]);
 
