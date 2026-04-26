@@ -1,7 +1,7 @@
 'use client';
 
 import { AnimatePresence, motion } from 'framer-motion';
-import type { Question } from '@/lib/types';
+import type { Question, CardState } from '@/lib/types';
 import { CardFront } from './CardFront';
 import { CardBack } from './CardBack';
 import { SPRING_CONFIG } from '@/lib/constants';
@@ -13,6 +13,9 @@ interface FlashCardProps {
   onFlip: () => void;
   activeSolutionIndex: number;
   onSolutionIndexChange: (index: number) => void;
+  cardState?: CardState;
+  learningStep?: number;
+  intervalDays?: number;
 }
 
 export function FlashCard({
@@ -21,6 +24,9 @@ export function FlashCard({
   onFlip,
   activeSolutionIndex,
   onSolutionIndexChange,
+  cardState,
+  learningStep,
+  intervalDays,
 }: FlashCardProps) {
   return (
     <div className={styles.perspective}>
@@ -50,7 +56,12 @@ export function FlashCard({
             </div>
           ) : (
             <div className={styles.face}>
-              <CardFront question={question} />
+              <CardFront
+                question={question}
+                cardState={cardState}
+                learningStep={learningStep}
+                intervalDays={intervalDays}
+              />
               <button type="button" className={styles.flipButton} onClick={onFlip}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <polyline points="1 4 1 10 7 10" />

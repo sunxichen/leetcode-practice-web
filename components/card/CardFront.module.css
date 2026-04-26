@@ -23,6 +23,40 @@
   font-variant-numeric: tabular-nums;
 }
 
+.stateBadge {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: var(--font-weight-medium);
+  letter-spacing: 0.02em;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  background: var(--color-bg-muted);
+  margin-left: auto;
+}
+
+.stateBadge_new {
+  color: var(--color-accent-blue);
+  border-color: color-mix(in oklab, var(--color-accent-blue) 30%, transparent);
+  background: color-mix(in oklab, var(--color-accent-blue) 10%, transparent);
+}
+
+.stateBadge_learning,
+.stateBadge_relearning {
+  color: var(--color-hard-btn, var(--color-text-primary));
+  border-color: color-mix(in oklab, var(--color-hard-btn, currentColor) 30%, transparent);
+  background: var(--color-hard-bg, var(--color-bg-muted));
+}
+
+.stateBadge_review {
+  color: var(--color-good, var(--color-text-primary));
+  border-color: color-mix(in oklab, var(--color-good, currentColor) 30%, transparent);
+  background: var(--color-good-bg, var(--color-bg-muted));
+}
+
 .title {
   font-size: var(--font-size-lg);
   font-weight: var(--font-weight-semibold);

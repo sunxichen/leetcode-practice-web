@@ -1,16 +1,48 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import type { Question } from '@/lib/types';
+import type { Question, CardState } from '@/lib/types';
 import { DifficultyBadge } from '@/components/ui/DifficultyBadge';
 import { TagChip } from '@/components/ui/TagChip';
 import styles from './CardFront.module.css';
 
 interface CardFrontProps {
   question: Question;
+  cardState?: CardState;
+  learningStep?: number;
+  intervalDays?: number;
 }
 
-export function CardFront({ question }: CardFrontProps) {
+const STATE_LABEL: Record<CardState, string> = {
+  new: '新题',
+  learning: '学习中',
+  review: '复习',
+  relearning: '补习',
+};
+
+function StateBadge({
+  state,
+  learningStep,
+  intervalDays,
+}: {
+  state: CardState;
+  learningStep?: number;
+  intervalDays?: number;
+}) {
+  let detail = '';
+  if (state === 'learning' || state === 'relearning') {
+    detail = ` ${(learningStep ?? 0) + 1}`;
+  } else if (state === 'review' && intervalDays && intervalDays > 0) {
+    detail = ` · ${intervalDays}d`;
+  }
+  return (
+    <span className={`${styles.stateBadge} ${styles[`stateBadge_${state}`]}`}>
+      {STATE_LABEL[state]}{detail}
+    </span>
+  );
+}
+
+export function CardFront({ question, cardState, learningStep, intervalDays }: CardFrontProps) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = useCallback(async () => {
@@ -26,6 +58,13 @@ export function CardFront({ question }: CardFrontProps) {
         <div className={styles.titleRow}>
           <span className={styles.questionId}>#{question.id}</span>
           <DifficultyBadge difficulty={question.difficulty} />
+          {cardState && (
+            <StateBadge
+              state={cardState}
+              learningStep={learningStep}
+              intervalDays={intervalDays}
+            />
+          )}
         </div>
         <h2 className={styles.title}>{question.title}</h2>
         <div className={styles.tags}>

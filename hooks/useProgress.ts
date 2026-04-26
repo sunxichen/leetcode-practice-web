@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import type { UserProgressData, FeedbackType, QuestionProgress } from '@/lib/types';
+import type { UserProgressData, FeedbackType } from '@/lib/types';
 import { createStorageAdapter, reconcileProgress } from '@/lib/storage';
-import { calculateSM2, getFeedbackQuality } from '@/lib/sm2';
+import { scheduleNext } from '@/lib/sm2';
 import { DEBOUNCE_MS, LOCAL_STORAGE_KEY } from '@/lib/constants';
 
 export function useProgress() {
@@ -25,10 +25,19 @@ export function useProgress() {
 
   // Initialize: dual-source reconciliation
   useEffect(() => {
-    reconcileProgress(adapter).then((data) => {
-      setProgressData(data);
-      setIsLoading(false);
-    });
+    let cancelled = false;
+    reconcileProgress(adapter)
+      .then((data) => {
+        if (cancelled) return;
+        setProgressData(data);
+      })
+      .catch((err) => {
+        console.error('[useProgress] reconcile failed', err);
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
+    return () => { cancelled = true; };
   }, [adapter]);
 
   // Remote flush
@@ -45,24 +54,7 @@ export function useProgress() {
   // Update progress for a question
   const updateProgress = useCallback((questionId: string, feedback: FeedbackType) => {
     setProgressData(prev => {
-      const currentProgress = prev.progress[questionId];
-      const quality = getFeedbackQuality(feedback);
-
-      const sm2Result = calculateSM2({
-        quality,
-        repetition: currentProgress?.level ?? 0,
-        easeFactor: currentProgress?.easeFactor ?? 2.5,
-        interval: currentProgress?.interval ?? 0,
-      });
-
-      const newQuestionProgress: QuestionProgress = {
-        level: sm2Result.repetition,
-        nextReviewDate: sm2Result.nextReviewDate,
-        easeFactor: sm2Result.easeFactor,
-        interval: sm2Result.interval,
-        proficiency: feedback,
-        lastReviewDate: Date.now(),
-      };
+      const newQuestionProgress = scheduleNext(prev.progress[questionId], feedback);
 
       const updated: UserProgressData = {
         ...prev,

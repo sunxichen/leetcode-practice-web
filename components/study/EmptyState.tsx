@@ -7,9 +7,21 @@ import styles from './EmptyState.module.css';
 
 interface EmptyStateProps {
   onReviewWeakest: () => void;
+  learningSoon?: number;
+  nextLearningDueAt?: number | null;
 }
 
-export function EmptyState({ onReviewWeakest }: EmptyStateProps) {
+function formatMinutesUntil(ts: number): string {
+  const ms = ts - Date.now();
+  if (ms <= 0) return '马上';
+  const mins = Math.max(1, Math.round(ms / 60000));
+  if (mins < 60) return `${mins} 分钟后`;
+  const hrs = Math.round(mins / 60);
+  return `${hrs} 小时后`;
+}
+
+export function EmptyState({ onReviewWeakest, learningSoon = 0, nextLearningDueAt }: EmptyStateProps) {
+  const hasLearning = learningSoon > 0 && nextLearningDueAt;
   return (
     <div className={styles.container}>
       <motion.div
@@ -24,11 +36,19 @@ export function EmptyState({ onReviewWeakest }: EmptyStateProps) {
           animate={{ scale: 1 }}
           transition={{ ...SPRING_CONFIG.enter, delay: 0.1 }}
         >
-          🎉
+          {hasLearning ? '⏳' : '🎉'}
         </motion.div>
-        <h2 className={styles.title}>太棒了！</h2>
-        <p className={styles.subtitle}>今天的复习任务已全部完成</p>
-        <p className={styles.hint}>明天再来继续保持吧</p>
+        <h2 className={styles.title}>{hasLearning ? '稍等一下' : '太棒了！'}</h2>
+        <p className={styles.subtitle}>
+          {hasLearning
+            ? `还有 ${learningSoon} 张学习中的卡片`
+            : '今天的复习任务已全部完成'}
+        </p>
+        <p className={styles.hint}>
+          {hasLearning && nextLearningDueAt
+            ? `最近一张 ${formatMinutesUntil(nextLearningDueAt)}到期`
+            : '明天再来继续保持吧'}
+        </p>
         <div className={styles.divider} />
         <div className={styles.actions}>
           <motion.button

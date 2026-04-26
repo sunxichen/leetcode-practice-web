@@ -1,25 +1,47 @@
 'use client';
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import type { FeedbackType } from '@/lib/types';
+import type { FeedbackType, QuestionProgress } from '@/lib/types';
 import { ParticleEffect } from '@/components/ui/ParticleEffect';
 import { SPRING_CONFIG } from '@/lib/constants';
+import { scheduleNext } from '@/lib/sm2';
 import styles from './FeedbackBar.module.css';
 
 interface FeedbackBarProps {
   onFeedback: (type: FeedbackType) => void;
   disabled?: boolean;
+  currentProgress?: QuestionProgress;
 }
 
-const FEEDBACK_OPTIONS: { type: FeedbackType; label: string; sublabel: string; className: string }[] = [
-  { type: 'again', label: '重来', sublabel: '<10分钟', className: 'again' },
-  { type: 'hard', label: '困难', sublabel: '1天', className: 'hard' },
-  { type: 'good', label: '良好', sublabel: '3天', className: 'good' },
-  { type: 'easy', label: '简单', sublabel: '7天', className: 'easy' },
+const FEEDBACK_BASE: { type: FeedbackType; label: string; className: string }[] = [
+  { type: 'again', label: '重来', className: 'again' },
+  { type: 'hard', label: '困难', className: 'hard' },
+  { type: 'good', label: '良好', className: 'good' },
+  { type: 'easy', label: '简单', className: 'easy' },
 ];
 
-export function FeedbackBar({ onFeedback, disabled }: FeedbackBarProps) {
+function formatPreview(dueAtMs: number): string {
+  const ms = dueAtMs - Date.now();
+  if (ms <= 0) return '马上';
+  const min = ms / 60000;
+  if (min < 60) return `<${Math.max(1, Math.round(min))}分钟`;
+  const hr = min / 60;
+  if (hr < 24) return `${Math.round(hr)}小时`;
+  const days = Math.round(hr / 24);
+  return `${days}天`;
+}
+
+export function FeedbackBar({ onFeedback, disabled, currentProgress }: FeedbackBarProps) {
+  const options = useMemo(
+    () =>
+      FEEDBACK_BASE.map(opt => {
+        const preview = scheduleNext(currentProgress, opt.type);
+        return { ...opt, sublabel: formatPreview(preview.dueAt) };
+      }),
+    [currentProgress],
+  );
+
   const [particles, setParticles] = useState<{ x: number; y: number; active: boolean }>({
     x: 0, y: 0, active: false,
   });
@@ -46,7 +68,7 @@ export function FeedbackBar({ onFeedback, disabled }: FeedbackBarProps) {
   return (
     <>
       <div className={styles.bar}>
-        {FEEDBACK_OPTIONS.map((option, i) => (
+        {options.map((option, i) => (
           <motion.button
             key={option.type}
             ref={(el) => { buttonRefs.current[i] = el; }}

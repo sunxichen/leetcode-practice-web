@@ -19,14 +19,33 @@ export interface Question {
   solutions: Solution[];
 }
 
+/** Card lifecycle state (Anki-style) */
+export type CardState = 'new' | 'learning' | 'review' | 'relearning';
+
 /** Single question progress */
 export interface QuestionProgress {
-  level: number;
-  nextReviewDate: number;
+  /** Card lifecycle state */
+  state: CardState;
+  /** Index in learning steps array (only meaningful in learning/relearning) */
+  learningStep: number;
+  /** Absolute ms timestamp of next due time (sub-day for learning, day-level for review) */
+  dueAt: number;
+  /** Interval in days for review state */
+  intervalDays: number;
+  /** SM-2 ease factor */
   easeFactor: number;
-  interval: number;
+  /** Successful graduations / repetition count */
+  level: number;
+  /** Last user feedback */
   proficiency: 'again' | 'hard' | 'good' | 'easy' | 'new';
+  /** Last review timestamp */
   lastReviewDate: number;
+
+  // ---- Legacy fields, kept for backward compatibility with existing KV / browse page ----
+  /** @deprecated use dueAt */
+  nextReviewDate?: number;
+  /** @deprecated use intervalDays */
+  interval?: number;
 }
 
 /** Session cursor for resume */

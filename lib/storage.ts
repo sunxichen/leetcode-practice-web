@@ -1,5 +1,42 @@
-import type { UserProgressData } from '@/lib/types';
-import { LOCAL_STORAGE_KEY } from '@/lib/constants';
+import type { UserProgressData, QuestionProgress } from '@/lib/types';
+import { LOCAL_STORAGE_KEY, EF_DEFAULT } from '@/lib/constants';
+
+/**
+ * Migrate a single QuestionProgress entry from any prior shape to the current one.
+ * Idempotent: if `state` and `dueAt` are already present, returns input unchanged.
+ */
+function migrateProgressEntry(raw: Partial<QuestionProgress>): QuestionProgress {
+  if (raw.state && typeof raw.dueAt === 'number') {
+    return raw as QuestionProgress;
+  }
+
+  const proficiency = (raw.proficiency ?? 'new') as QuestionProgress['proficiency'];
+  const isNew = proficiency === 'new' || (!raw.nextReviewDate && !raw.dueAt);
+
+  const dueAt = raw.dueAt ?? raw.nextReviewDate ?? 0;
+  const intervalDays = raw.intervalDays ?? raw.interval ?? 0;
+
+  return {
+    state: isNew ? 'new' : 'review',
+    learningStep: 0,
+    dueAt,
+    intervalDays,
+    easeFactor: raw.easeFactor ?? EF_DEFAULT,
+    level: raw.level ?? 0,
+    proficiency,
+    lastReviewDate: raw.lastReviewDate ?? 0,
+    nextReviewDate: dueAt,
+    interval: intervalDays,
+  };
+}
+
+function migrateProgressData(data: UserProgressData): UserProgressData {
+  const migrated: Record<string, QuestionProgress> = {};
+  for (const [id, raw] of Object.entries(data.progress ?? {})) {
+    migrated[id] = migrateProgressEntry(raw as Partial<QuestionProgress>);
+  }
+  return { ...data, progress: migrated };
+}
 
 interface StorageAdapter {
   get(): Promise<UserProgressData | null>;
@@ -62,6 +99,16 @@ function createInitialProgress(): UserProgressData {
   };
 }
 
+function safeParse(raw: string | null): UserProgressData | null {
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch (err) {
+    console.warn('[storage] failed to parse local progress, dropping', err);
+    return null;
+  }
+}
+
 export async function reconcileProgress(
   remoteAdapter: StorageAdapter,
 ): Promise<UserProgressData> {
@@ -72,7 +119,7 @@ export async function reconcileProgress(
     ),
   ]);
 
-  const localData: UserProgressData | null = localRaw ? JSON.parse(localRaw) : null;
+  const localData: UserProgressData | null = safeParse(localRaw);
 
   const remoteTs = remoteData?.lastUpdatedAt ?? 0;
   const localTs = localData?.lastUpdatedAt ?? 0;
@@ -87,6 +134,8 @@ export async function reconcileProgress(
   } else {
     winner = remoteData!;
   }
+
+  winner = migrateProgressData(winner);
 
   if (typeof window !== 'undefined') {
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(winner));

@@ -13,7 +13,32 @@ import { SPRING_CONFIG, EXIT_ANIMATIONS, ENTER_ANIMATION } from '@/lib/constants
 import type { FeedbackType } from '@/lib/types';
 import styles from './page.module.css';
 
-function StudyGateway({ onStart, dueCount }: { onStart: () => void; dueCount: number }) {
+interface GatewayCounters {
+  dueReview: number;
+  learningNow: number;
+  learningSoon: number;
+  newCount: number;
+  nextLearningDueAt: number | null;
+}
+
+function formatMinutesUntil(ts: number): string {
+  const ms = ts - Date.now();
+  if (ms <= 0) return '马上';
+  const mins = Math.max(1, Math.round(ms / 60000));
+  if (mins < 60) return `${mins} 分钟后`;
+  const hrs = Math.round(mins / 60);
+  return `${hrs} 小时后`;
+}
+
+function StudyGateway({
+  onStart,
+  dueCount,
+  counters,
+}: {
+  onStart: () => void;
+  dueCount: number;
+  counters: GatewayCounters;
+}) {
   return (
     <motion.div
       className={styles.gateway}
@@ -53,8 +78,24 @@ function StudyGateway({ onStart, dueCount }: { onStart: () => void; dueCount: nu
           transition={{ ...SPRING_CONFIG.enter, delay: 0.3 }}
         >
           {dueCount > 0 ? (
-            <>今日有 <span className={styles.dueHighlight}>{dueCount}</span> 道题等你复习</>
-          ) : '开始探索题库吧'}
+            <>
+              今日有 <span className={styles.dueHighlight}>{dueCount}</span> 道题等你复习
+              {counters.learningSoon > 0 && counters.nextLearningDueAt && (
+                <>
+                  {' · '}
+                  <span className={styles.dueHighlight}>{counters.learningSoon}</span> 张学习中（最近 {formatMinutesUntil(counters.nextLearningDueAt)}）
+                </>
+              )}
+            </>
+          ) : counters.learningSoon > 0 && counters.nextLearningDueAt ? (
+            <>
+              <span className={styles.dueHighlight}>{counters.learningSoon}</span> 张学习中，最近 {formatMinutesUntil(counters.nextLearningDueAt)}到期
+            </>
+          ) : counters.newCount > 0 ? (
+            <>题库还有 <span className={styles.dueHighlight}>{counters.newCount}</span> 道新题等你探索</>
+          ) : (
+            '开始探索题库吧'
+          )}
         </motion.p>
         <motion.div
           className={styles.gatewayDivider}
@@ -85,7 +126,7 @@ function StudyGateway({ onStart, dueCount }: { onStart: () => void; dueCount: nu
 export default function StudyPage() {
   const [started, setStarted] = useState(false);
   const { progressData, updateProgress, saveSessionCursor, isLoading } = useProgressContext();
-  const { queue, currentQuestion, currentIndex, goNext, isEmpty, todayDueCount, reviewWeakest } = useStudyQueue(progressData);
+  const { queue, currentQuestion, currentIndex, goNext, isEmpty, todayDueCount, counters, reviewWeakest } = useStudyQueue(progressData);
   const { trigger: triggerHaptic } = useHaptics();
 
   // Card UI transient state
@@ -158,19 +199,25 @@ export default function StudyPage() {
   }
 
   if (!started) {
-    return <StudyGateway onStart={() => setStarted(true)} dueCount={todayDueCount} />;
+    return <StudyGateway onStart={() => setStarted(true)} dueCount={todayDueCount} counters={counters} />;
   }
 
   if (isEmpty) {
     return (
       <div className={styles.container}>
-        <EmptyState onReviewWeakest={reviewWeakest} />
+        <EmptyState
+          onReviewWeakest={reviewWeakest}
+          learningSoon={counters.learningSoon}
+          nextLearningDueAt={counters.nextLearningDueAt}
+        />
       </div>
     );
   }
 
   if (!currentQuestion) return null;
 
+  const currentProg = progressData.progress[currentQuestion.id];
+  const cardState = currentProg?.state ?? 'new';
   const exitAnim = exitDirection ? EXIT_ANIMATIONS[exitDirection] : undefined;
 
   return (
@@ -194,6 +241,9 @@ export default function StudyPage() {
               onFlip={handleFlip}
               activeSolutionIndex={activeSolutionIndex}
               onSolutionIndexChange={setActiveSolutionIndex}
+              cardState={cardState}
+              learningStep={currentProg?.learningStep}
+              intervalDays={currentProg?.intervalDays}
             />
           </motion.div>
         </AnimatePresence>
@@ -210,6 +260,7 @@ export default function StudyPage() {
             <FeedbackBar
               onFeedback={handleFeedback}
               disabled={!!exitDirection}
+              currentProgress={currentProg}
             />
           </motion.div>
         )}
