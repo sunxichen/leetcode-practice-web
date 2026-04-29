@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import type { Question, UserProgressData, QuestionProgress } from '@/lib/types';
 import { getAllQuestions, getQuestionById } from '@/lib/questions';
 
@@ -9,21 +9,27 @@ import { getAllQuestions, getQuestionById } from '@/lib/questions';
  * Build a fresh study queue snapshot.
  *
  * Priority (woven so users see progress on new material too):
- *   1. learning / relearning cards whose dueAt is "soon" (now + lookahead) — interleaved aggressively
- *   2. review cards that are overdue (sorted by how overdue)
+ *   1. learning / relearning cards whose dueAt is already past — at the very front
+ *   2. review cards that are overdue (sorted by how overdue), woven 3:1 with new cards
  *   3. brand-new cards (sorted by question id, ascending)
+ *   4. learning cards whose dueAt is in the future — spliced into 2-3 at clamped
+ *      positions [LEARNING_REINSERT_MIN, LEARNING_REINSERT_MAX] so they recur
+ *      within the current ~10-min session window (Ebbinghaus loop).
  *
- * `excludeIds` is intentionally minimal — typically only the currently displayed card.
+ * `excludeIds` is intentionally minimal — typically not used at all because the clamp
+ * already prevents the just-shown card from reappearing immediately.
  */
-/** Estimated number of cards a user can blow through before a learning card becomes due. */
-const CARDS_PER_MINUTE = 2;
+/** Estimated number of cards a user can blow through before a learning card becomes due.
+ *  LeetCode-tuned: ~4 min per problem → 0.25 cards / minute. */
+const CARDS_PER_MINUTE = 0.25;
 
-/** Lower bound for re-showing a learning card. Prevents the immediate "I just saw this" feel. */
-const LEARNING_REINSERT_MIN = 3;
+/** Lower bound for re-showing a learning card. Prevents the immediate "I just saw this" feel.
+ *  At 4 min/problem, MIN=1 ⇒ at least one other problem (~4 min) before recurrence. */
+const LEARNING_REINSERT_MIN = 1;
 
-/** Upper bound for re-showing a learning card. Prevents "I'll never see it again in this session" feel
- *  — critical for short (10–15 min) sessions where the user otherwise blows past the dueAt by quitting. */
-const LEARNING_REINSERT_MAX = 10;
+/** Upper bound for re-showing a learning card. Prevents "I'll never see it again in this session" feel.
+ *  At 4 min/problem, MAX=4 ⇒ guaranteed recurrence within ~16 min, well inside a 10–15 problem session. */
+const LEARNING_REINSERT_MAX = 4;
 
 function generateStudyQueue(
   questions: Question[],
@@ -93,7 +99,17 @@ function generateStudyQueue(
   //   - lower bound: don't show it on the very next card (no spaced effect)
   //   - upper bound: ensure the same card recurs within a 10–15 min window even if
   //     the user is moving slower than CARDS_PER_MINUTE assumes.
-  for (const item of learningPending) {
+  //
+  // Iteration order is CRITICAL: each splice pushes previously-spliced items deeper.
+  // When many cards want the same clamped position (e.g. several learning cards all
+  // hit the MAX clamp of 10), the LAST iterated card ends up at the shallowest spot.
+  // We therefore iterate from LATEST-due to EARLIEST-due so that the most-overdue
+  // (earliest-due, longest-waited) learning card lands closest to the front. Without
+  // this, the very first card a user just answered would be pushed to the back of
+  // the queue and effectively never recur — which is exactly the "endless new cards"
+  // bug users were experiencing.
+  for (let i = learningPending.length - 1; i >= 0; i--) {
+    const item = learningPending[i];
     const minutesAway = Math.max(0, (item.dueAt - now) / 60000);
     const expected = Math.ceil(minutesAway * CARDS_PER_MINUTE);
     const clamped = Math.min(LEARNING_REINSERT_MAX, Math.max(LEARNING_REINSERT_MIN, expected));
@@ -106,92 +122,66 @@ function generateStudyQueue(
   return queue;
 }
 
-function isStillRelevant(
-  prog: QuestionProgress | undefined,
-  now: number,
-): boolean {
-  if (!prog || prog.state === 'new' || prog.proficiency === 'new') return true;
-  if (prog.state === 'learning' || prog.state === 'relearning') {
-    // Always relevant — a learning card stays in the queue until it graduates.
-    return true;
-  }
-  const due = prog.dueAt ?? prog.nextReviewDate ?? 0;
-  return due <= now;
-}
-
-function dedupe(ids: string[]): string[] {
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const id of ids) {
-    if (!seen.has(id)) {
-      seen.add(id);
-      out.push(id);
-    }
-  }
-  return out;
-}
-
 export function useStudyQueue(progressData: UserProgressData) {
   const [sessionState, setSessionState] = useState<{ queue: string[]; currentIndex: number } | null>(null);
   const questions = getAllQuestions();
 
-  const initialState = useMemo(() => {
-    if (!progressData || progressData.lastUpdatedAt === 0) {
-      return { queue: [] as string[], currentIndex: 0 };
-    }
+  // Initialize sessionState exactly once when the user's progress data has loaded.
+  //
+  // Why a useEffect (not useMemo as a fallback for `queue`):
+  // The previous design fell back to `initialState` whenever `sessionState` was null,
+  // which meant that any change to `progressData.lastSessionCursor` (saved by
+  // handleFeedback BEFORE goNext fires) would silently advance `currentIndex`
+  // through the cursor — causing a double-advance and visual flicker.
+  // With this useEffect, the cursor is consulted ONLY at session start.
+  useEffect(() => {
+    if (sessionState !== null) return;
+    if (!progressData || progressData.lastUpdatedAt === 0) return;
 
     const cursor = progressData.lastSessionCursor;
     if (cursor && cursor.queue.length > 0 && cursor.queueIndex < cursor.queue.length) {
-      return { queue: cursor.queue, currentIndex: cursor.queueIndex };
+      setSessionState({ queue: cursor.queue, currentIndex: cursor.queueIndex });
+    } else {
+      setSessionState({
+        queue: generateStudyQueue(questions, progressData.progress),
+        currentIndex: 0,
+      });
     }
+  }, [sessionState, progressData, questions]);
 
-    return {
-      queue: generateStudyQueue(questions, progressData.progress),
-      currentIndex: 0,
-    };
-  }, [progressData, questions]);
-
-  const queue = sessionState?.queue ?? initialState.queue;
-  const currentIndex = sessionState?.currentIndex ?? initialState.currentIndex;
+  const queue = sessionState?.queue ?? [];
+  const currentIndex = sessionState?.currentIndex ?? 0;
 
   const goNext = useCallback(() => {
     setSessionState(prev => {
-      const state = prev ?? initialState;
-      const nextIndex = state.currentIndex + 1;
-      const now = Date.now();
+      if (!prev) return prev;
+      const nextIndex = prev.currentIndex + 1;
 
-      // Keep the slice that hasn't been shown yet, and re-evaluate which ones
-      // are still relevant (e.g. a learning card we already queued might have been
-      // re-scheduled or graduated).
-      const remainingTail = state.queue
-        .slice(nextIndex)
-        .filter(id => isStillRelevant(progressData.progress[id], now));
+      // Regenerate the FUTURE part of the queue from scratch using the latest progress.
+      //
+      // Why regenerate fresh rather than merge/dedupe with the old tail:
+      //   - The just-shown card has just transitioned (e.g. brand-new -> learning),
+      //     so it now needs to be RE-INSERTED at its expected reveal position
+      //     (clamped to LEARNING_REINSERT_MIN..MAX cards from now).
+      //   - The previous merge-then-dedupe approach put the re-inserted card AFTER
+      //     the unshown brand-new tail, then deduped it away because it already
+      //     existed in the prefix. Net effect: learning cards never reappeared,
+      //     and the user just saw an endless stream of new questions.
+      //   - generateStudyQueue's clamp (LEARNING_REINSERT_MIN = 3) guarantees the
+      //     just-shown card won't reappear immediately, so we don't need any
+      //     exclusion set.
+      const futureQueue = generateStudyQueue(questions, progressData.progress);
 
-      // Refill: re-derive due / new candidates. Only exclude the card the user is
-      // currently looking at (state.queue[state.currentIndex]) — NOT the entire
-      // session history, so that "Again" / "Hard" cards can re-appear.
-      const currentId = state.queue[state.currentIndex];
-      const excludeFromRefill = new Set<string>(currentId ? [currentId] : []);
-      remainingTail.forEach(id => excludeFromRefill.add(id));
-
-      const refill = generateStudyQueue(
-        questions,
-        progressData.progress,
-        excludeFromRefill,
-      );
-
-      const merged = dedupe([
-        ...state.queue.slice(0, nextIndex),
-        ...remainingTail,
-        ...refill,
-      ]);
-
+      // Keep the prefix (cards already shown in this session) so the X / Y
+      // progress indicator stays meaningful. Duplicates across the prefix/future
+      // boundary are intentional — the prefix is dead history, the future is live.
+      const prefix = prev.queue.slice(0, nextIndex);
       return {
-        queue: merged,
+        queue: [...prefix, ...futureQueue],
         currentIndex: nextIndex,
       };
     });
-  }, [initialState, progressData.progress, questions]);
+  }, [progressData.progress, questions]);
 
   const isEmpty = queue.length === 0 || currentIndex >= queue.length;
   const currentQuestion = isEmpty ? null : getQuestionById(queue[currentIndex]) ?? null;

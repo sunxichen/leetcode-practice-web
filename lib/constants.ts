@@ -23,13 +23,17 @@ export const LOCAL_STORAGE_KEY = 'user_progress:hot100';
 // === Spaced-repetition scheduling (Anki-like) ===
 
 /** Learning steps for new cards, in minutes.
- * Tuned for short (10–15 min) sessions: at ~2 cards/min, step 1 re-shows after ~2 cards,
- * step 2 after ~10 cards — so a brand-new card is seen 3 times within a typical session
- * before graduating to a 1-day review. */
-export const LEARNING_STEPS_MIN = [1, 5];
+ * Tuned for LeetCode-paced study (~3–5 min per problem, 10–15 problems/day):
+ *   - step 0 (3 min) re-shows after roughly 1 problem in between (~4 min wall-clock)
+ *   - step 1 (15 min) re-shows after roughly 3–4 problems (~12–16 min wall-clock)
+ *   - then graduates to a 1-day review.
+ * Aggressive density on purpose: a new card is seen 3 times within a single session,
+ * back-to-back enough to imprint while problems are still fresh. */
+export const LEARNING_STEPS_MIN = [3, 15];
 
-/** Relearning steps after a lapse on a review card, in minutes */
-export const RELEARNING_STEPS_MIN = [5];
+/** Relearning steps after a lapse on a review card, in minutes.
+ * Kept short so a "Again"-marked review problem comes back inside the same session. */
+export const RELEARNING_STEPS_MIN = [10];
 
 /** First review interval after graduating from learning (days) */
 export const GRADUATING_INTERVAL_DAYS = 1;
