@@ -40,6 +40,8 @@ export interface QuestionProgress {
   proficiency: 'again' | 'hard' | 'good' | 'easy' | 'new';
   /** Last review timestamp */
   lastReviewDate: number;
+  /** Cumulative lapse count (review → relearning transitions) */
+  lapses?: number;
 
   // ---- Legacy fields, kept for backward compatibility with existing KV / browse page ----
   /** @deprecated use dueAt */
@@ -57,11 +59,35 @@ export interface SessionCursor {
   timestamp: number;
 }
 
+/** Per-day aggregate counters for streaks + summary */
+export interface DailyStat {
+  reviewedCount: number;   // total feedbacks given
+  graduatedCount: number;  // new/learning → review transitions
+  lapseCount: number;      // review → relearning transitions
+}
+
+/** Streak tracking (consecutive active days) */
+export interface StreakInfo {
+  currentDays: number;
+  longestDays: number;
+  lastActiveDay: string;   // YYYY-MM-DD in local timezone
+}
+
 /** Complete user progress data stored in KV */
 export interface UserProgressData {
   lastUpdatedAt: number;
   lastSessionCursor: SessionCursor | null;
   progress: Record<string, QuestionProgress>;
+  dailyStats?: Record<string, DailyStat>;
+  streak?: StreakInfo;
 }
 
 export type FeedbackType = 'again' | 'hard' | 'good' | 'easy';
+
+/** A study-session configuration: drives which queue useStudyQueue builds. */
+export type SessionMode =
+  | { kind: 'smart' }
+  | { kind: 'difficulty'; value: 'Easy' | 'Medium' | 'Hard' }
+  | { kind: 'tag'; value: string }
+  | { kind: 'weakest' }
+  | { kind: 'single'; questionId: string };

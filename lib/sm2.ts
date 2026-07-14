@@ -5,6 +5,8 @@ import {
   EASY_INTERVAL_DAYS,
   HARD_INTERVAL_FACTOR,
   EASY_BONUS_FACTOR,
+  MAX_REVIEW_INTERVAL_DAYS,
+  LAPSE_RECOVERY_INTERVAL_DAYS,
   EF_PENALTY_AGAIN,
   EF_PENALTY_HARD,
   EF_BONUS_EASY,
@@ -102,19 +104,25 @@ export function scheduleNext(
         next.dueAt = now + RELEARNING_STEPS_MIN[0] * 60_000;
       } else if (feedback === 'hard') {
         next.easeFactor = clampEF(cur.easeFactor - EF_PENALTY_HARD);
-        const newInterval = Math.max(1, Math.round(cur.intervalDays * HARD_INTERVAL_FACTOR));
+        const newInterval = Math.min(
+          MAX_REVIEW_INTERVAL_DAYS,
+          Math.max(1, Math.round(cur.intervalDays * HARD_INTERVAL_FACTOR)),
+        );
         next.intervalDays = newInterval;
         next.dueAt = startOfDay(now) + newInterval * DAY_MS;
       } else if (feedback === 'good') {
-        const newInterval = Math.max(1, Math.round(cur.intervalDays * cur.easeFactor));
+        const newInterval = Math.min(
+          MAX_REVIEW_INTERVAL_DAYS,
+          Math.max(1, Math.round(cur.intervalDays * cur.easeFactor)),
+        );
         next.intervalDays = newInterval;
         next.dueAt = startOfDay(now) + newInterval * DAY_MS;
         next.level = cur.level + 1;
       } else if (feedback === 'easy') {
         next.easeFactor = cur.easeFactor + EF_BONUS_EASY;
-        const newInterval = Math.max(
-          1,
-          Math.round(cur.intervalDays * cur.easeFactor * EASY_BONUS_FACTOR),
+        const newInterval = Math.min(
+          MAX_REVIEW_INTERVAL_DAYS,
+          Math.max(1, Math.round(cur.intervalDays * cur.easeFactor * EASY_BONUS_FACTOR)),
         );
         next.intervalDays = newInterval;
         next.dueAt = startOfDay(now) + newInterval * DAY_MS;
@@ -126,15 +134,18 @@ export function scheduleNext(
       if (feedback === 'again' || feedback === 'hard') {
         next.dueAt = now + RELEARNING_STEPS_MIN[0] * 60_000;
       } else if (feedback === 'good') {
+        // Reset to a short interval rather than halving the prior one.
+        // If you forgot it at N days, the pattern wasn't internalised — restart
+        // from day-1 and rebuild the interval from there.
+        next.state = 'review';
+        next.intervalDays = LAPSE_RECOVERY_INTERVAL_DAYS;
+        next.dueAt = startOfDay(now) + LAPSE_RECOVERY_INTERVAL_DAYS * DAY_MS;
+      } else if (feedback === 'easy') {
+        // Easy on relearning: keep half the prior interval as a small mercy.
         next.state = 'review';
         const recovered = Math.max(1, Math.round((cur.intervalDays || 1) * 0.5));
-        next.intervalDays = recovered;
-        next.dueAt = startOfDay(now) + recovered * DAY_MS;
-      } else if (feedback === 'easy') {
-        next.state = 'review';
-        const recovered = Math.max(1, cur.intervalDays || 1);
-        next.intervalDays = recovered;
-        next.dueAt = startOfDay(now) + recovered * DAY_MS;
+        next.intervalDays = Math.min(MAX_REVIEW_INTERVAL_DAYS, recovered);
+        next.dueAt = startOfDay(now) + next.intervalDays * DAY_MS;
       }
       break;
     }

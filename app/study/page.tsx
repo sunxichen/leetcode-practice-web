@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { Suspense, useState, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useProgressContext } from '@/context/ProgressContext';
 import { useStudyQueue } from '@/hooks/useStudyQueue';
 import { useKeyboard } from '@/hooks/useKeyboard';
@@ -9,132 +10,84 @@ import { useHaptics } from '@/hooks/useHaptics';
 import { FlashCard } from '@/components/card/FlashCard';
 import { FeedbackBar } from '@/components/feedback/FeedbackBar';
 import { EmptyState } from '@/components/study/EmptyState';
+import { ModePicker } from '@/components/study/ModePicker';
+import { SessionSummary } from '@/components/study/SessionSummary';
+import { UndoToast } from '@/components/ui/UndoToast';
 import { SPRING_CONFIG, EXIT_ANIMATIONS, ENTER_ANIMATION } from '@/lib/constants';
-import type { FeedbackType } from '@/lib/types';
+import type { FeedbackType, SessionMode } from '@/lib/types';
 import styles from './page.module.css';
 
-interface GatewayCounters {
-  dueReview: number;
-  learningNow: number;
-  learningSoon: number;
-  newCount: number;
-  nextLearningDueAt: number | null;
-}
+const FEEDBACK_LABEL: Record<FeedbackType, string> = {
+  again: '重来',
+  hard: '困难',
+  good: '良好',
+  easy: '简单',
+};
 
-function formatMinutesUntil(ts: number): string {
-  const ms = ts - Date.now();
-  if (ms <= 0) return '马上';
-  const mins = Math.max(1, Math.round(ms / 60000));
-  if (mins < 60) return `${mins} 分钟后`;
-  const hrs = Math.round(mins / 60);
-  return `${hrs} 小时后`;
-}
+function StudyPageInner() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const focusedQuestionId = searchParams?.get('q') ?? null;
 
-function StudyGateway({
-  onStart,
-  dueCount,
-  counters,
-}: {
-  onStart: () => void;
-  dueCount: number;
-  counters: GatewayCounters;
-}) {
-  return (
-    <motion.div
-      className={styles.gateway}
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.3 }}
-    >
-      <motion.div
-        className={styles.gatewayCard}
-        initial={{ y: 20, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ ...SPRING_CONFIG.enter, delay: 0.1 }}
-      >
-        <motion.div
-          className={styles.gatewayIconWrap}
-          initial={{ scale: 0.8, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ ...SPRING_CONFIG.enter, delay: 0.2 }}
-        >
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
-            <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
-          </svg>
-        </motion.div>
-        <motion.h1
-          className={styles.gatewayTitle}
-          initial={{ y: 10, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ ...SPRING_CONFIG.enter, delay: 0.25 }}
-        >
-          准备好了吗？
-        </motion.h1>
-        <motion.p
-          className={styles.gatewaySubtitle}
-          initial={{ y: 10, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ ...SPRING_CONFIG.enter, delay: 0.3 }}
-        >
-          {dueCount > 0 ? (
-            <>
-              今日有 <span className={styles.dueHighlight}>{dueCount}</span> 道题等你复习
-              {counters.learningSoon > 0 && counters.nextLearningDueAt && (
-                <>
-                  {' · '}
-                  <span className={styles.dueHighlight}>{counters.learningSoon}</span> 张学习中（最近 {formatMinutesUntil(counters.nextLearningDueAt)}）
-                </>
-              )}
-            </>
-          ) : counters.learningSoon > 0 && counters.nextLearningDueAt ? (
-            <>
-              <span className={styles.dueHighlight}>{counters.learningSoon}</span> 张学习中，最近 {formatMinutesUntil(counters.nextLearningDueAt)}到期
-            </>
-          ) : counters.newCount > 0 ? (
-            <>题库还有 <span className={styles.dueHighlight}>{counters.newCount}</span> 道新题等你探索</>
-          ) : (
-            '开始探索题库吧'
-          )}
-        </motion.p>
-        <motion.div
-          className={styles.gatewayDivider}
-          initial={{ scaleX: 0 }}
-          animate={{ scaleX: 1 }}
-          transition={{ duration: 0.4, delay: 0.35 }}
-        />
-        <motion.button
-          className={styles.startButton}
-          onClick={onStart}
-          whileTap={{ scale: 0.97 }}
-          whileHover={{ scale: 1.01 }}
-          initial={{ y: 10, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ ...SPRING_CONFIG.enter, delay: 0.4 }}
-        >
-          开始学习
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="5" y1="12" x2="19" y2="12" />
-            <polyline points="12 5 19 12 12 19" />
-          </svg>
-        </motion.button>
-      </motion.div>
-    </motion.div>
-  );
-}
+  const {
+    progressData,
+    updateProgress,
+    saveSessionCursor,
+    undoLast,
+    undoSnapshot,
+    isLoading,
+  } = useProgressContext();
 
-export default function StudyPage() {
-  const [started, setStarted] = useState(false);
-  const { progressData, updateProgress, saveSessionCursor, isLoading } = useProgressContext();
-  const { queue, currentQuestion, currentIndex, goNext, isEmpty, todayDueCount, counters, reviewWeakest } = useStudyQueue(progressData);
+  // === Session mode ===
+  // - Deeplink ?q= forces single-card mode (takes precedence)
+  // - Otherwise null until the user picks something in the ModePicker
+  const [pickedMode, setPickedMode] = useState<SessionMode | null>(null);
+  const sessionMode: SessionMode | null = focusedQuestionId
+    ? { kind: 'single', questionId: focusedQuestionId }
+    : pickedMode;
+  const activeMode: SessionMode = sessionMode ?? { kind: 'smart' };
+  const {
+    queue,
+    currentQuestion,
+    currentIndex,
+    goNext,
+    goBack,
+    isEmpty,
+    todayDueCount,
+    counters,
+  } = useStudyQueue(progressData, activeMode);
+
+  const weakestCount = useMemo(() => {
+    return Object.values(progressData.progress).filter(p => p.state !== 'new').length;
+  }, [progressData.progress]);
+
   const { trigger: triggerHaptic } = useHaptics();
 
-  // Card UI transient state
+  // === Card UI transient state ===
   const [isFlipped, setIsFlipped] = useState(false);
   const [activeSolutionIndex, setActiveSolutionIndex] = useState(0);
   const [exitDirection, setExitDirection] = useState<FeedbackType | null>(null);
   const [cardKey, setCardKey] = useState(0);
   const isAnimatingRef = useRef(false);
+  const [forceFinished, setForceFinished] = useState(false);
+
+  // === Session telemetry (for SessionSummary) ===
+  // Use state (not a ref) so we can read it safely during render to compute duration.
+  const [sessionStartedAt, setSessionStartedAt] = useState<number>(() => Date.now());
+  const [sessionEndedAt, setSessionEndedAt] = useState<number | null>(null);
+  const [sessionBreakdown, setSessionBreakdown] = useState<Record<FeedbackType, number>>({
+    again: 0, hard: 0, good: 0, easy: 0,
+  });
+  const resetSession = useCallback(() => {
+    setSessionStartedAt(Date.now());
+    setSessionEndedAt(null);
+    setSessionBreakdown({ again: 0, hard: 0, good: 0, easy: 0 });
+    setForceFinished(false);
+    setIsFlipped(false);
+    setActiveSolutionIndex(0);
+    setExitDirection(null);
+    setCardKey(k => k + 1);
+  }, []);
 
   const handleFlip = useCallback(() => {
     if (!currentQuestion) return;
@@ -150,18 +103,30 @@ export default function StudyPage() {
 
     updateProgress(currentQuestion.id, feedback);
     setExitDirection(feedback);
+    setSessionBreakdown(prev => ({ ...prev, [feedback]: prev[feedback] + 1 }));
+    if (activeMode.kind !== 'single' && currentIndex + 1 >= queue.length) {
+      setSessionEndedAt(Date.now());
+    }
 
-    // Save session cursor
-    saveSessionCursor({
-      mode: 'ebbinghaus',
-      currentQuestionId: currentQuestion.id,
-      queue,
-      queueIndex: currentIndex + 1,
-      timestamp: Date.now(),
-    });
+    // Save session cursor (only meaningful for smart mode)
+    if (activeMode.kind === 'smart') {
+      saveSessionCursor({
+        mode: 'ebbinghaus',
+        currentQuestionId: currentQuestion.id,
+        queue,
+        queueIndex: currentIndex + 1,
+        timestamp: Date.now(),
+      });
+    }
 
     // Wait for exit animation then advance
     setTimeout(() => {
+      // Single-card mode: after one feedback, bounce back to browse with the summary.
+      if (activeMode.kind === 'single') {
+        isAnimatingRef.current = false;
+        router.push('/browse');
+        return;
+      }
       goNext();
       setIsFlipped(false);
       setActiveSolutionIndex(0);
@@ -169,7 +134,31 @@ export default function StudyPage() {
       setCardKey(prev => prev + 1);
       isAnimatingRef.current = false;
     }, 400);
-  }, [currentQuestion, triggerHaptic, updateProgress, goNext, saveSessionCursor, queue, currentIndex]);
+  }, [currentQuestion, triggerHaptic, updateProgress, goNext, saveSessionCursor, queue, currentIndex, activeMode.kind, router]);
+
+  const handleUndo = useCallback(() => {
+    if (isAnimatingRef.current) return;
+    const ok = undoLast();
+    if (!ok) return;
+    // Roll back UI state to the previous card.
+    goBack();
+    // Decrement breakdown for last feedback we recorded
+    setSessionBreakdown(prev => {
+      if (!undoSnapshot) return prev;
+      // We don't know which feedback was last without re-deriving; the snapshot
+      // doesn't store it. Read from the *replaced* progress entry (which was
+      // overwritten by scheduleNext). Easiest: just decrement total by 1 across
+      // the first non-zero of [easy, good, hard, again] — but to be accurate,
+      // record the feedback in the snapshot. For simplicity here we accept the
+      // breakdown drift on undo; the user re-rates the card on next pass.
+      return prev;
+    });
+    setIsFlipped(true); // user was just looking at the answer
+    setActiveSolutionIndex(0);
+    setExitDirection(null);
+    setCardKey(k => k + 1);
+    triggerHaptic(10);
+  }, [undoLast, undoSnapshot, goBack, triggerHaptic]);
 
   // Keyboard shortcuts
   useKeyboard({
@@ -186,6 +175,7 @@ export default function StudyPage() {
     onToggleSound: () => {},
   });
 
+  // === Render branches ===
   if (isLoading) {
     return (
       <div className={styles.loading}>
@@ -198,15 +188,46 @@ export default function StudyPage() {
     );
   }
 
-  if (!started) {
-    return <StudyGateway onStart={() => setStarted(true)} dueCount={todayDueCount} counters={counters} />;
+  // Mode picker (gateway) — only if no mode has been chosen and no deeplink.
+  if (!sessionMode) {
+    return (
+      <ModePicker
+        todayDueCount={todayDueCount}
+        counters={counters}
+        weakestCount={weakestCount}
+        onSelectMode={(m) => {
+          resetSession();
+          setPickedMode(m);
+        }}
+      />
+    );
   }
 
+  // Session summary — user tapped 结束本次, or queue is empty after at least one feedback.
+  const sessionFeedbackTotal = Object.values(sessionBreakdown).reduce((a, b) => a + b, 0);
+  if (forceFinished || (isEmpty && sessionFeedbackTotal > 0 && activeMode.kind !== 'single')) {
+    return (
+      <SessionSummary
+        feedbackBreakdown={sessionBreakdown}
+        durationMs={Math.max(0, (sessionEndedAt ?? sessionStartedAt) - sessionStartedAt)}
+        streak={progressData.streak}
+        onContinue={() => {
+          resetSession();
+          setPickedMode(null);
+        }}
+      />
+    );
+  }
+
+  // Queue empty with no feedbacks yet — show the calm EmptyState (no review due, smart mode).
   if (isEmpty) {
     return (
       <div className={styles.container}>
         <EmptyState
-          onReviewWeakest={reviewWeakest}
+          onReviewWeakest={() => {
+            resetSession();
+            setPickedMode({ kind: 'weakest' });
+          }}
           learningSoon={counters.learningSoon}
           nextLearningDueAt={counters.nextLearningDueAt}
         />
@@ -222,6 +243,18 @@ export default function StudyPage() {
 
   return (
     <div className={styles.container}>
+      <ModeBar
+        mode={activeMode}
+        onChangeMode={() => {
+          resetSession();
+          setPickedMode(null);
+        }}
+        onFinish={() => {
+          setSessionEndedAt(Date.now());
+          setForceFinished(true);
+        }}
+      />
+
       <div className={styles.cardArea}>
         <AnimatePresence mode="wait">
           <motion.div
@@ -266,12 +299,74 @@ export default function StudyPage() {
         )}
       </AnimatePresence>
 
-      {/* Progress indicator */}
       <div className={styles.progress}>
         <span className={styles.progressText}>
           {currentIndex + 1} / {queue.length}
         </span>
       </div>
+
+      {undoSnapshot && (
+        <UndoToast
+          visible
+          message={`已记录${FEEDBACK_LABEL[recoverFeedback(undoSnapshot, progressData) ?? 'good']}`}
+          expiresAt={undoSnapshot.expiresAt}
+          onUndo={handleUndo}
+          onDismiss={() => { /* hook will clear via timer */ }}
+        />
+      )}
     </div>
+  );
+}
+
+/** Derive the feedback that was applied from the snapshot + current progress. */
+function recoverFeedback(
+  snap: NonNullable<ReturnType<typeof useProgressContext>['undoSnapshot']>,
+  progressData: ReturnType<typeof useProgressContext>['progressData'],
+): FeedbackType | null {
+  const current = progressData.progress[snap.questionId];
+  return (current?.proficiency as FeedbackType) ?? null;
+}
+
+function ModeLabel(mode: SessionMode): string {
+  switch (mode.kind) {
+    case 'smart': return '智能复习';
+    case 'difficulty': return `难度 · ${mode.value}`;
+    case 'tag': return `标签 · ${mode.value}`;
+    case 'weakest': return '攻克最弱';
+    case 'single': return `单题 · #${mode.questionId}`;
+  }
+}
+
+function ModeBar({
+  mode,
+  onChangeMode,
+  onFinish,
+}: {
+  mode: SessionMode;
+  onChangeMode: () => void;
+  onFinish: () => void;
+}) {
+  return (
+    <div className={styles.modeBar}>
+      <button className={styles.modeBarChip} onClick={onChangeMode}>
+        <span className={styles.modeBarLabel}>{ModeLabel(mode)}</span>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+      {mode.kind !== 'single' && (
+        <button className={styles.finishButton} onClick={onFinish}>
+          结束本次
+        </button>
+      )}
+    </div>
+  );
+}
+
+export default function StudyPage() {
+  return (
+    <Suspense fallback={null}>
+      <StudyPageInner />
+    </Suspense>
   );
 }

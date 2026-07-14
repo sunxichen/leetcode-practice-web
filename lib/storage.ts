@@ -35,7 +35,12 @@ function migrateProgressData(data: UserProgressData): UserProgressData {
   for (const [id, raw] of Object.entries(data.progress ?? {})) {
     migrated[id] = migrateProgressEntry(raw as Partial<QuestionProgress>);
   }
-  return { ...data, progress: migrated };
+  return {
+    ...data,
+    progress: migrated,
+    dailyStats: data.dailyStats ?? {},
+    streak: data.streak ?? { currentDays: 0, longestDays: 0, lastActiveDay: '' },
+  };
 }
 
 interface StorageAdapter {

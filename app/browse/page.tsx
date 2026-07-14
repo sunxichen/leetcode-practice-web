@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { useProgressContext } from '@/context/ProgressContext';
 import { getAllQuestions } from '@/lib/questions';
 import { DifficultyBadge } from '@/components/ui/DifficultyBadge';
-import { FilterPanel } from '@/components/filters/FilterPanel';
+import { FilterPanel, type SemanticFilter } from '@/components/filters/FilterPanel';
+import { DAY_MS } from '@/lib/constants';
 import styles from './page.module.css';
 
 const PROFICIENCY_LABELS: Record<string, string> = {
@@ -41,31 +42,78 @@ export default function BrowsePage() {
   const questions = getAllQuestions();
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [difficultyFilter, setDifficultyFilter] = useState('全部');
-  const [proficiencyFilter, setProficiencyFilter] = useState('全部');
+  const [difficulties, setDifficulties] = useState<Set<string>>(new Set());
+  const [tagsFilter, setTagsFilter] = useState<Set<string>>(new Set());
+  const [semantic, setSemantic] = useState<SemanticFilter>('all');
+
+  const toggleDifficulty = useCallback((d: string) => {
+    setDifficulties(prev => {
+      const next = new Set(prev);
+      if (next.has(d)) next.delete(d); else next.add(d);
+      return next;
+    });
+  }, []);
+
+  const toggleTag = useCallback((t: string) => {
+    setTagsFilter(prev => {
+      const next = new Set(prev);
+      if (next.has(t)) next.delete(t); else next.add(t);
+      return next;
+    });
+  }, []);
 
   const filteredQuestions = useMemo(() => {
+    // eslint-disable-next-line react-hooks/purity -- snapshot now() for the filter; results are derived from current progress
+    const now = Date.now();
     return questions.filter((q) => {
-      // Search filter
+      // Search filter (id / title / tag)
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
-        if (!q.id.toLowerCase().includes(query) && !q.title.toLowerCase().includes(query)) {
-          return false;
-        }
+        const matchIdTitle =
+          q.id.toLowerCase().includes(query) ||
+          q.title.toLowerCase().includes(query);
+        const matchTag = q.tags.some(t => t.toLowerCase().includes(query));
+        if (!matchIdTitle && !matchTag) return false;
       }
-      // Difficulty filter
-      if (difficultyFilter !== '全部' && q.difficulty !== difficultyFilter) {
+      // Difficulty (multi-select; empty = all)
+      if (difficulties.size > 0 && !difficulties.has(q.difficulty)) {
         return false;
       }
-      // Proficiency filter
-      if (proficiencyFilter !== '全部') {
+      // Tag filter — question must include ALL selected tags
+      if (tagsFilter.size > 0) {
+        for (const t of tagsFilter) {
+          if (!q.tags.includes(t)) return false;
+        }
+      }
+      // Semantic
+      if (semantic !== 'all') {
         const prog = progressData.progress[q.id];
-        const prof = prog?.proficiency ?? 'new';
-        if (prof !== proficiencyFilter) return false;
+        switch (semantic) {
+          case 'due-today': {
+            if (!prog || prog.state === 'new') return false;
+            const due = prog.dueAt ?? prog.nextReviewDate ?? 0;
+            if (due > now) return false;
+            break;
+          }
+          case 'due-soon': {
+            if (!prog || prog.state === 'new') return false;
+            const due = prog.dueAt ?? prog.nextReviewDate ?? 0;
+            if (due <= now || due > now + 7 * DAY_MS) return false;
+            break;
+          }
+          case 'lapse-prone': {
+            if (!prog || (prog.lapses ?? 0) < 1) return false;
+            break;
+          }
+          case 'new': {
+            if (prog && prog.state !== 'new') return false;
+            break;
+          }
+        }
       }
       return true;
     });
-  }, [questions, searchQuery, difficultyFilter, proficiencyFilter, progressData.progress]);
+  }, [questions, searchQuery, difficulties, tagsFilter, semantic, progressData.progress]);
 
   if (isLoading) {
     return (
@@ -85,10 +133,12 @@ export default function BrowsePage() {
       <FilterPanel
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
-        difficultyFilter={difficultyFilter}
-        onDifficultyChange={setDifficultyFilter}
-        proficiencyFilter={proficiencyFilter}
-        onProficiencyChange={setProficiencyFilter}
+        difficulties={difficulties}
+        onToggleDifficulty={toggleDifficulty}
+        tags={tagsFilter}
+        onToggleTag={toggleTag}
+        semantic={semantic}
+        onSemanticChange={setSemantic}
       />
 
       <div className={styles.list}>
@@ -103,11 +153,16 @@ export default function BrowsePage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: Math.min(i * 0.02, 0.5) }}
             >
-              <Link href={`/study?q=${q.id}`} className={styles.item}>
+              <Link href={`/study?q=${encodeURIComponent(q.id)}`} className={styles.item}>
                 <div className={styles.itemLeft}>
                   <div className={styles.itemHeader}>
                     <span className={styles.itemId}>#{q.id}</span>
                     <DifficultyBadge difficulty={q.difficulty} />
+                    {(prog?.lapses ?? 0) > 0 && (
+                      <span className={styles.lapseBadge} title={`已遗忘 ${prog!.lapses} 次`}>
+                        🔁 {prog!.lapses}
+                      </span>
+                    )}
                   </div>
                   <span className={styles.itemTitle}>{q.title}</span>
                   <div className={styles.itemTags}>

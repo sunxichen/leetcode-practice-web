@@ -1,0 +1,62 @@
+.toast {
+  position: fixed;
+  bottom: calc(var(--safe-area-bottom) + 90px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: 10px var(--spacing-md);
+  background: var(--color-text-primary);
+  color: var(--color-bg-primary);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  box-shadow: var(--shadow-lg);
+  z-index: 250;
+  min-width: 240px;
+  max-width: calc(100vw - 32px);
+  overflow: hidden;
+}
+
+.message {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.undoButton {
+  background: transparent;
+  color: var(--color-bg-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  transition: background var(--transition-fast);
+  flex-shrink: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.95;
+}
+
+.undoButton:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.progressTrack {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.progressBar {
+  height: 100%;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.5);
+  transform-origin: left center;
+  /* No transition — animated by RAF in JS for accuracy */
+}

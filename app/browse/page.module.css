@@ -76,6 +76,19 @@
   margin-bottom: 4px;
 }
 
+.lapseBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--color-again-bg);
+  color: var(--color-again);
+  font-size: 10px;
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
 .itemTags {
   display: flex;
   gap: 4px;

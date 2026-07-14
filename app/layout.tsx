@@ -4,6 +4,11 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'LeetCode 复习',
   description: 'LeetCode 抽卡式间隔重复学习工具',
+  appleWebApp: {
+    capable: true,
+    title: 'LC 复习',
+    statusBarStyle: 'default',
+  },
 };
 
 export const viewport: Viewport = {
@@ -12,6 +17,10 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   viewportFit: 'cover',
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#fafafa' },
+    { media: '(prefers-color-scheme: dark)', color: '#0a0a0a' },
+  ],
 };
 
 export default function RootLayout({

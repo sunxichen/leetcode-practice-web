@@ -1,52 +1,35 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useCallback, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import type { Question, CardState } from '@/lib/types';
 import { DifficultyBadge } from '@/components/ui/DifficultyBadge';
 import { TagChip } from '@/components/ui/TagChip';
+import { SPRING_CONFIG } from '@/lib/constants';
 import styles from './CardFront.module.css';
 
 interface CardFrontProps {
   question: Question;
   cardState?: CardState;
-  learningStep?: number;
-  intervalDays?: number;
 }
 
-const STATE_LABEL: Record<CardState, string> = {
-  new: '新题',
-  learning: '学习中',
-  review: '复习',
-  relearning: '补习',
-};
-
-function StateBadge({
-  state,
-  learningStep,
-  intervalDays,
-}: {
-  state: CardState;
-  learningStep?: number;
-  intervalDays?: number;
-}) {
-  let detail = '';
-  if (state === 'learning' || state === 'relearning') {
-    detail = ` ${(learningStep ?? 0) + 1}`;
-  } else if (state === 'review' && intervalDays && intervalDays > 0) {
-    detail = ` · ${intervalDays}d`;
-  }
-  return (
-    <span className={`${styles.stateBadge} ${styles[`stateBadge_${state}`]}`}>
-      {STATE_LABEL[state]}{detail}
-    </span>
-  );
+/**
+ * Simplified state badge — intentionally drops the learningStep / intervalDays
+ * detail that was previously shown on the FRONT. Those numbers leak how
+ * confident the user "should" feel and bias self-rating; the back of the
+ * card is the correct place for the full scheduling context.
+ */
+function StateBadge({ state }: { state: CardState }) {
+  const label = state === 'new' ? '新题' : '学过';
+  return <span className={`${styles.stateBadge} ${styles[`stateBadge_${state === 'new' ? 'new' : 'seen'}`]}`}>{label}</span>;
 }
 
-export function CardFront({ question, cardState, learningStep, intervalDays }: CardFrontProps) {
+export function CardFront({ question, cardState }: CardFrontProps) {
   const [copied, setCopied] = useState(false);
+  const [hintShown, setHintShown] = useState(false);
 
   const handleCopy = useCallback(async () => {
-    const text = `${question.id}. ${question.title}\n\n${question.description}\n\n核心模式: ${question.core_pattern}\n\n边界用例:\n${question.corner_cases.map(c => `- ${c}`).join('\n')}`;
+    const text = `${question.id}. ${question.title}\n\n${question.description}`;
     await navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -58,13 +41,7 @@ export function CardFront({ question, cardState, learningStep, intervalDays }: C
         <div className={styles.titleRow}>
           <span className={styles.questionId}>#{question.id}</span>
           <DifficultyBadge difficulty={question.difficulty} />
-          {cardState && (
-            <StateBadge
-              state={cardState}
-              learningStep={learningStep}
-              intervalDays={intervalDays}
-            />
-          )}
+          {cardState && <StateBadge state={cardState} />}
         </div>
         <h2 className={styles.title}>{question.title}</h2>
         <div className={styles.tags}>
@@ -75,36 +52,41 @@ export function CardFront({ question, cardState, learningStep, intervalDays }: C
       </div>
 
       <div className={styles.body}>
-        <div className={styles.section}>
-          <p className={styles.description}>{question.description}</p>
-        </div>
+        <p className={styles.description}>{question.description}</p>
 
-        <div className={styles.section}>
-          <div className={styles.sectionLabel}>核心模式</div>
-          <p className={styles.pattern}>{question.core_pattern}</p>
-        </div>
-
-        {question.corner_cases.length > 0 && (
-          <div className={styles.section}>
-            <div className={styles.sectionLabel}>边界用例</div>
-            <ul className={styles.cornerCases}>
-              {question.corner_cases.map((c, i) => (
-                <li key={i} className={styles.cornerCase}>
-                  <span className={styles.bullet}>•</span>
-                  {c}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
+        <AnimatePresence initial={false}>
+          {hintShown && (
+            <motion.div
+              key="hint"
+              className={styles.hintBox}
+              initial={{ opacity: 0, y: -6, height: 0 }}
+              animate={{ opacity: 1, y: 0, height: 'auto' }}
+              exit={{ opacity: 0, y: -6, height: 0 }}
+              transition={SPRING_CONFIG.enter}
+            >
+              <div className={styles.hintLabel}>💡 思路提示</div>
+              <p className={styles.hintText}>{question.core_pattern}</p>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       <div className={styles.footer}>
+        {!hintShown && (
+          <button
+            type="button"
+            className={styles.hintButton}
+            onClick={() => setHintShown(true)}
+          >
+            <span className={styles.hintIcon}>💡</span>
+            卡住了，给我个提示
+          </button>
+        )}
         <button className={styles.copyButton} onClick={handleCopy}>
           {copied ? (
             <>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12" /></svg>
-              已复制到剪贴板
+              已复制
             </>
           ) : (
             <>

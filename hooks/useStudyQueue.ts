@@ -1,12 +1,17 @@
 'use client';
 
-import { useState, useMemo, useCallback, useEffect } from 'react';
-import type { Question, UserProgressData, QuestionProgress } from '@/lib/types';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import type {
+  Question,
+  UserProgressData,
+  QuestionProgress,
+  SessionMode,
+} from '@/lib/types';
 import { getAllQuestions, getQuestionById } from '@/lib/questions';
 
 
 /**
- * Build a fresh study queue snapshot.
+ * Build a fresh study queue snapshot for SMART mode (SM-2 driven).
  *
  * Priority (woven so users see progress on new material too):
  *   1. learning / relearning cards whose dueAt is already past — at the very front
@@ -24,17 +29,18 @@ import { getAllQuestions, getQuestionById } from '@/lib/questions';
 const CARDS_PER_MINUTE = 0.25;
 
 /** Lower bound for re-showing a learning card. Prevents the immediate "I just saw this" feel.
- *  At 4 min/problem, MIN=1 ⇒ at least one other problem (~4 min) before recurrence. */
-const LEARNING_REINSERT_MIN = 1;
+ *  At 4 min/problem, MIN=2 ⇒ at least two other problems (~8 min) before recurrence,
+ *  slightly under the 10-min step-0 interval. */
+const LEARNING_REINSERT_MIN = 2;
 
 /** Upper bound for re-showing a learning card. Prevents "I'll never see it again in this session" feel.
- *  At 4 min/problem, MAX=4 ⇒ guaranteed recurrence within ~16 min, well inside a 10–15 problem session. */
-const LEARNING_REINSERT_MAX = 4;
+ *  At 4 min/problem, MAX=15 ⇒ guaranteed recurrence within ~60 min, matching the
+ *  60-min step-1 interval. If the session is shorter, the card simply appears next session. */
+const LEARNING_REINSERT_MAX = 15;
 
-function generateStudyQueue(
+function generateSmartQueue(
   questions: Question[],
   progress: Record<string, QuestionProgress>,
-  excludeIds?: Set<string>,
 ): string[] {
   const now = Date.now();
   const learningOverdue: Array<{ id: string; dueAt: number }> = [];
@@ -43,7 +49,6 @@ function generateStudyQueue(
   const brandNew: string[] = [];
 
   for (const q of questions) {
-    if (excludeIds?.has(q.id)) continue;
     const prog = progress[q.id];
 
     if (!prog || prog.state === 'new' || prog.proficiency === 'new') {
@@ -52,9 +57,6 @@ function generateStudyQueue(
     }
 
     if (prog.state === 'learning' || prog.state === 'relearning') {
-      // ALWAYS include learning cards in the queue. dueAt determines priority,
-      // not eligibility — otherwise a card scheduled "in 6 min" would be invisible
-      // for 5 of those 6 minutes and the user just sees an endless stream of new cards.
       if (prog.dueAt <= now) {
         learningOverdue.push({ id: q.id, dueAt: prog.dueAt });
       } else {
@@ -70,20 +72,15 @@ function generateStudyQueue(
     }
   }
 
-  learningOverdue.sort((a, b) => a.dueAt - b.dueAt); // most overdue first
-  learningPending.sort((a, b) => a.dueAt - b.dueAt); // soonest first
+  learningOverdue.sort((a, b) => a.dueAt - b.dueAt);
+  learningPending.sort((a, b) => a.dueAt - b.dueAt);
   reviewOverdue.sort((a, b) => b.urgency - a.urgency);
 
   const queue: string[] = [];
-
-  // 1) All overdue learning cards — they're the whole point of the spaced repetition feel.
   for (const item of learningOverdue) queue.push(item.id);
 
-  // 2) Weave review (3:1 with new), but for each pending learning card insert it
-  //    at roughly the position where it will be due, based on assumed pace.
   const reviewNewWoven: string[] = [];
-  let ri = 0,
-    ni = 0;
+  let ri = 0, ni = 0;
   while (ri < reviewOverdue.length || ni < brandNew.length) {
     for (let i = 0; i < 3 && ri < reviewOverdue.length; i++) {
       reviewNewWoven.push(reviewOverdue[ri++].id);
@@ -93,21 +90,6 @@ function generateStudyQueue(
     }
   }
 
-  // Insert each pending learning card at its expected reveal position, but clamp
-  // into [LEARNING_REINSERT_MIN, LEARNING_REINSERT_MAX]. The clamp is what makes
-  // short sessions feel like Ebbinghaus instead of "endless new cards":
-  //   - lower bound: don't show it on the very next card (no spaced effect)
-  //   - upper bound: ensure the same card recurs within a 10–15 min window even if
-  //     the user is moving slower than CARDS_PER_MINUTE assumes.
-  //
-  // Iteration order is CRITICAL: each splice pushes previously-spliced items deeper.
-  // When many cards want the same clamped position (e.g. several learning cards all
-  // hit the MAX clamp of 10), the LAST iterated card ends up at the shallowest spot.
-  // We therefore iterate from LATEST-due to EARLIEST-due so that the most-overdue
-  // (earliest-due, longest-waited) learning card lands closest to the front. Without
-  // this, the very first card a user just answered would be pushed to the back of
-  // the queue and effectively never recur — which is exactly the "endless new cards"
-  // bug users were experiencing.
   for (let i = learningPending.length - 1; i >= 0; i--) {
     const item = learningPending[i];
     const minutesAway = Math.max(0, (item.dueAt - now) / 60000);
@@ -118,36 +100,96 @@ function generateStudyQueue(
   }
 
   for (const id of reviewNewWoven) queue.push(id);
-
   return queue;
 }
 
-export function useStudyQueue(progressData: UserProgressData) {
+/** Sort filtered questions: overdue first, then most-lapsed, then by id. */
+function sortFilteredQueue(
+  ids: string[],
+  progress: Record<string, QuestionProgress>,
+): string[] {
+  const now = Date.now();
+  return [...ids].sort((a, b) => {
+    const pa = progress[a];
+    const pb = progress[b];
+    const aDue = pa?.dueAt ?? pa?.nextReviewDate ?? 0;
+    const bDue = pb?.dueAt ?? pb?.nextReviewDate ?? 0;
+    const aOver = aDue > 0 && aDue <= now ? now - aDue : -1;
+    const bOver = bDue > 0 && bDue <= now ? now - bDue : -1;
+    if (aOver !== bOver) return bOver - aOver;
+    const aLap = pa?.lapses ?? 0;
+    const bLap = pb?.lapses ?? 0;
+    if (aLap !== bLap) return bLap - aLap;
+    return a.localeCompare(b, 'zh-Hans-CN-u-kn-true');
+  });
+}
+
+function generateQueue(
+  mode: SessionMode,
+  questions: Question[],
+  progress: Record<string, QuestionProgress>,
+): string[] {
+  switch (mode.kind) {
+    case 'smart':
+      return generateSmartQueue(questions, progress);
+    case 'difficulty': {
+      const ids = questions.filter(q => q.difficulty === mode.value).map(q => q.id);
+      return sortFilteredQueue(ids, progress);
+    }
+    case 'tag': {
+      const ids = questions.filter(q => q.tags.includes(mode.value)).map(q => q.id);
+      return sortFilteredQueue(ids, progress);
+    }
+    case 'weakest': {
+      // Bottom 10 by easeFactor (cards user struggles with most), plus high-lapse cards.
+      const seen = questions.filter(q => progress[q.id] && progress[q.id].state !== 'new');
+      const ranked = seen
+        .map(q => {
+          const p = progress[q.id];
+          return {
+            id: q.id,
+            score: (p.easeFactor ?? 2.5) - (p.lapses ?? 0) * 0.3,
+          };
+        })
+        .sort((a, b) => a.score - b.score)
+        .slice(0, 10)
+        .map(x => x.id);
+      return ranked;
+    }
+    case 'single': {
+      return getQuestionById(mode.questionId) ? [mode.questionId] : [];
+    }
+  }
+}
+
+export function useStudyQueue(progressData: UserProgressData, mode: SessionMode) {
   const [sessionState, setSessionState] = useState<{ queue: string[]; currentIndex: number } | null>(null);
   const questions = getAllQuestions();
+  const modeKey = JSON.stringify(mode);
 
-  // Initialize sessionState exactly once when the user's progress data has loaded.
-  //
-  // Why a useEffect (not useMemo as a fallback for `queue`):
-  // The previous design fell back to `initialState` whenever `sessionState` was null,
-  // which meant that any change to `progressData.lastSessionCursor` (saved by
-  // handleFeedback BEFORE goNext fires) would silently advance `currentIndex`
-  // through the cursor — causing a double-advance and visual flicker.
-  // With this useEffect, the cursor is consulted ONLY at session start.
+  // Ref mirror of progress so goNext (called from setTimeout in handleFeedback)
+  // always sees the latest data, avoiding a stale-closure bug where the just-
+  // applied feedback is invisible to queue regeneration.
+  const progressRef = useRef(progressData.progress);
   useEffect(() => {
-    if (sessionState !== null) return;
+    progressRef.current = progressData.progress;
+  }, [progressData.progress]);
+
+  // (Re)initialize sessionState when progress is loaded OR mode changes.
+  //
+  // Always regenerate a fresh queue from current progress — the persisted
+  // session cursor is NOT used to restore a stale queue because due/learning
+  // state may have shifted since the cursor was saved (e.g. resuming the next
+  // day). A dynamic smart queue must reflect the actual SM-2 schedule.
+  useEffect(() => {
     if (!progressData || progressData.lastUpdatedAt === 0) return;
 
-    const cursor = progressData.lastSessionCursor;
-    if (cursor && cursor.queue.length > 0 && cursor.queueIndex < cursor.queue.length) {
-      setSessionState({ queue: cursor.queue, currentIndex: cursor.queueIndex });
-    } else {
-      setSessionState({
-        queue: generateStudyQueue(questions, progressData.progress),
-        currentIndex: 0,
-      });
-    }
-  }, [sessionState, progressData, questions]);
+    setSessionState({
+      queue: generateQueue(mode, questions, progressData.progress),
+      currentIndex: 0,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modeKey, progressData.lastUpdatedAt === 0]);
 
   const queue = sessionState?.queue ?? [];
   const currentIndex = sessionState?.currentIndex ?? 0;
@@ -157,38 +199,39 @@ export function useStudyQueue(progressData: UserProgressData) {
       if (!prev) return prev;
       const nextIndex = prev.currentIndex + 1;
 
-      // Regenerate the FUTURE part of the queue from scratch using the latest progress.
-      //
-      // Why regenerate fresh rather than merge/dedupe with the old tail:
-      //   - The just-shown card has just transitioned (e.g. brand-new -> learning),
-      //     so it now needs to be RE-INSERTED at its expected reveal position
-      //     (clamped to LEARNING_REINSERT_MIN..MAX cards from now).
-      //   - The previous merge-then-dedupe approach put the re-inserted card AFTER
-      //     the unshown brand-new tail, then deduped it away because it already
-      //     existed in the prefix. Net effect: learning cards never reappeared,
-      //     and the user just saw an endless stream of new questions.
-      //   - generateStudyQueue's clamp (LEARNING_REINSERT_MIN = 3) guarantees the
-      //     just-shown card won't reappear immediately, so we don't need any
-      //     exclusion set.
-      const futureQueue = generateStudyQueue(questions, progressData.progress);
+      // For non-smart modes, the queue is fixed — just advance the cursor.
+      if (mode.kind !== 'smart') {
+        return { queue: prev.queue, currentIndex: nextIndex };
+      }
 
-      // Keep the prefix (cards already shown in this session) so the X / Y
-      // progress indicator stays meaningful. Duplicates across the prefix/future
-      // boundary are intentional — the prefix is dead history, the future is live.
+      // Smart mode: regenerate future tail from latest progress (via ref so
+      // we always see the post-feedback state), preserve prefix so the X / Y
+      // indicator stays meaningful.
+      const futureQueue = generateSmartQueue(questions, progressRef.current);
       const prefix = prev.queue.slice(0, nextIndex);
       return {
         queue: [...prefix, ...futureQueue],
         currentIndex: nextIndex,
       };
     });
-  }, [progressData.progress, questions]);
+  }, [mode.kind, questions]);
+
+  /** Roll back the cursor by one (used by undo). Returns true if anything was rolled back. */
+  const goBack = useCallback((): boolean => {
+    let rolled = false;
+    setSessionState(prev => {
+      if (!prev || prev.currentIndex === 0) return prev;
+      rolled = true;
+      return { queue: prev.queue, currentIndex: prev.currentIndex - 1 };
+    });
+    return rolled;
+  }, []);
 
   const isEmpty = queue.length === 0 || currentIndex >= queue.length;
   const currentQuestion = isEmpty ? null : getQuestionById(queue[currentIndex]) ?? null;
 
   // === Counters for gateway / empty-state UX ===
   const counters = useMemo(() => {
-    // eslint-disable-next-line react-hooks/purity -- snapshot-on-render is acceptable for due counts
     const now = Date.now();
     let dueReview = 0;
     let learningNow = 0;
@@ -203,11 +246,8 @@ export function useStudyQueue(progressData: UserProgressData) {
         continue;
       }
       if (prog.state === 'learning' || prog.state === 'relearning') {
-        if (prog.dueAt <= now) {
-          learningNow++;
-        } else {
-          learningSoon++;
-        }
+        if (prog.dueAt <= now) learningNow++;
+        else learningSoon++;
         if (nextLearningDueAt === null || prog.dueAt < nextLearningDueAt) {
           nextLearningDueAt = prog.dueAt;
         }
@@ -222,24 +262,14 @@ export function useStudyQueue(progressData: UserProgressData) {
 
   const todayDueCount = counters.dueReview + counters.learningNow + counters.learningSoon;
 
-  // Force review weakest
-  const reviewWeakest = useCallback(() => {
-    const entries = Object.entries(progressData.progress);
-    entries.sort((a, b) => (a[1].easeFactor ?? 2.5) - (b[1].easeFactor ?? 2.5));
-    const weakestIds = entries.slice(0, 10).map(([id]) => id);
-    if (weakestIds.length > 0) {
-      setSessionState({ queue: weakestIds, currentIndex: 0 });
-    }
-  }, [progressData.progress]);
-
   return {
     queue,
     currentQuestion,
     currentIndex,
     goNext,
+    goBack,
     isEmpty,
     todayDueCount,
     counters,
-    reviewWeakest,
   };
 }

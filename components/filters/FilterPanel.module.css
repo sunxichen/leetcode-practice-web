@@ -64,12 +64,49 @@
   gap: var(--spacing-xs);
 }
 
+.filterLabelRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
 .filterLabel {
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-tertiary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
+}
+
+.clearTagsButton {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  background: transparent;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  transition: color var(--transition-fast);
+}
+
+.clearTagsButton:hover {
+  color: var(--color-text-primary);
+}
+
+.expandButton {
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-tertiary);
+  background: transparent;
+  border: 1px dashed var(--color-border);
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+
+.expandButton:hover {
+  color: var(--color-text-primary);
+  border-color: var(--color-border-strong);
+  border-style: solid;
 }
 
 .chips {

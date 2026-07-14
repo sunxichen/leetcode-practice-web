@@ -1,24 +1,98 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import type { UserProgressData, FeedbackType } from '@/lib/types';
+import type {
+  UserProgressData,
+  FeedbackType,
+  QuestionProgress,
+  DailyStat,
+  StreakInfo,
+} from '@/lib/types';
 import { createStorageAdapter, reconcileProgress } from '@/lib/storage';
 import { scheduleNext } from '@/lib/sm2';
-import { DEBOUNCE_MS, LOCAL_STORAGE_KEY } from '@/lib/constants';
+import { DEBOUNCE_MS, LOCAL_STORAGE_KEY, UNDO_WINDOW_MS } from '@/lib/constants';
+
+/** Snapshot stored to make the last feedback reversible. */
+export interface UndoSnapshot {
+  questionId: string;
+  prevProgress: QuestionProgress | undefined;
+  prevDailyStats: Record<string, DailyStat>;
+  prevStreak: StreakInfo;
+  expiresAt: number;
+}
+
+function ymd(ts: number): string {
+  const d = new Date(ts);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function isPreviousDay(prev: string, today: string): boolean {
+  if (!prev) return false;
+  const p = new Date(prev + 'T00:00:00');
+  const t = new Date(today + 'T00:00:00');
+  const diff = Math.round((t.getTime() - p.getTime()) / 86_400_000);
+  return diff === 1;
+}
+
+function emptyStreak(): StreakInfo {
+  return { currentDays: 0, longestDays: 0, lastActiveDay: '' };
+}
+
+function bumpDailyStats(
+  stats: Record<string, DailyStat>,
+  today: string,
+  prevState: QuestionProgress | undefined,
+  nextState: QuestionProgress,
+): Record<string, DailyStat> {
+  const cur: DailyStat = stats[today] ?? {
+    reviewedCount: 0,
+    graduatedCount: 0,
+    lapseCount: 0,
+  };
+  const graduated =
+    (!prevState || prevState.state === 'new' || prevState.state === 'learning') &&
+    nextState.state === 'review';
+  const lapsed = prevState?.state === 'review' && nextState.state === 'relearning';
+  return {
+    ...stats,
+    [today]: {
+      reviewedCount: cur.reviewedCount + 1,
+      graduatedCount: cur.graduatedCount + (graduated ? 1 : 0),
+      lapseCount: cur.lapseCount + (lapsed ? 1 : 0),
+    },
+  };
+}
+
+function bumpStreak(streak: StreakInfo, today: string): StreakInfo {
+  const s = streak ?? emptyStreak();
+  if (s.lastActiveDay === today) return s;
+  const nextDays = isPreviousDay(s.lastActiveDay, today) ? s.currentDays + 1 : 1;
+  return {
+    currentDays: nextDays,
+    longestDays: Math.max(s.longestDays, nextDays),
+    lastActiveDay: today,
+  };
+}
 
 export function useProgress() {
   const [progressData, setProgressData] = useState<UserProgressData>({
     lastUpdatedAt: 0,
     lastSessionCursor: null,
     progress: {},
+    dailyStats: {},
+    streak: emptyStreak(),
   });
   const [isLoading, setIsLoading] = useState(true);
+  const [undoSnapshot, setUndoSnapshot] = useState<UndoSnapshot | null>(null);
   const dirtyRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const progressRef = useRef(progressData);
   const adapter = useMemo(() => createStorageAdapter(), []);
 
-  // Keep ref in sync
   useEffect(() => {
     progressRef.current = progressData;
   }, [progressData]);
@@ -37,7 +111,9 @@ export function useProgress() {
       .finally(() => {
         if (!cancelled) setIsLoading(false);
       });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [adapter]);
 
   // Remote flush
@@ -51,38 +127,95 @@ export function useProgress() {
     }
   }, [adapter]);
 
-  // Update progress for a question
-  const updateProgress = useCallback((questionId: string, feedback: FeedbackType) => {
-    setProgressData(prev => {
-      const newQuestionProgress = scheduleNext(prev.progress[questionId], feedback);
-
-      const updated: UserProgressData = {
-        ...prev,
-        lastUpdatedAt: Date.now(),
-        progress: {
-          ...prev.progress,
-          [questionId]: newQuestionProgress,
-        },
-      };
-
-      // Immediate localStorage dual-write
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
-
-      return updated;
-    });
-
+  const writeData = useCallback((next: UserProgressData) => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(next));
+    }
     dirtyRef.current = true;
-
-    // Debounce remote sync
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => flushToRemote(), DEBOUNCE_MS);
   }, [flushToRemote]);
 
+  // Update progress for a question — also bumps stats + streak and records an undo snapshot.
+  const updateProgress = useCallback((questionId: string, feedback: FeedbackType) => {
+    const today = ymd(Date.now());
+    setProgressData((prev) => {
+      const prevQ = prev.progress[questionId];
+      const nextQ = scheduleNext(prevQ, feedback);
+      // Track lapses on the question for the "易遗忘" semantic filter in browse.
+      if (prevQ?.state === 'review' && nextQ.state === 'relearning') {
+        nextQ.lapses = (prevQ.lapses ?? 0) + 1;
+      } else {
+        nextQ.lapses = prevQ?.lapses ?? 0;
+      }
+
+      const prevStats = prev.dailyStats ?? {};
+      const prevStreak = prev.streak ?? emptyStreak();
+      const nextStats = bumpDailyStats(prevStats, today, prevQ, nextQ);
+      const nextStreak = bumpStreak(prevStreak, today);
+
+      const updated: UserProgressData = {
+        ...prev,
+        lastUpdatedAt: Date.now(),
+        progress: { ...prev.progress, [questionId]: nextQ },
+        dailyStats: nextStats,
+        streak: nextStreak,
+      };
+      writeData(updated);
+
+      // Capture undo snapshot
+      const snapshot: UndoSnapshot = {
+        questionId,
+        prevProgress: prevQ,
+        prevDailyStats: prevStats,
+        prevStreak,
+        expiresAt: Date.now() + UNDO_WINDOW_MS,
+      };
+      setUndoSnapshot(snapshot);
+      if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+      undoTimerRef.current = setTimeout(() => setUndoSnapshot(null), UNDO_WINDOW_MS);
+
+      return updated;
+    });
+  }, [writeData]);
+
+  // Undo the last feedback — restores prior progress/stats/streak. Returns whether anything was undone.
+  const undoLast = useCallback((): boolean => {
+    let undone = false;
+    setProgressData((prev) => {
+      const snap = undoSnapshot;
+      if (!snap) return prev;
+      undone = true;
+      const newProgress = { ...prev.progress };
+      if (snap.prevProgress) {
+        newProgress[snap.questionId] = snap.prevProgress;
+      } else {
+        delete newProgress[snap.questionId];
+      }
+      const restored: UserProgressData = {
+        ...prev,
+        lastUpdatedAt: Date.now(),
+        progress: newProgress,
+        dailyStats: snap.prevDailyStats,
+        streak: snap.prevStreak,
+      };
+      writeData(restored);
+      return restored;
+    });
+    if (undone) {
+      setUndoSnapshot(null);
+      if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+    }
+    return undone;
+  }, [undoSnapshot, writeData]);
+
   // Save session cursor
   const saveSessionCursor = useCallback((cursor: UserProgressData['lastSessionCursor']) => {
-    setProgressData(prev => {
+    setProgressData((prev) => {
       const updated = { ...prev, lastSessionCursor: cursor, lastUpdatedAt: Date.now() };
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
+      }
       return updated;
     });
     dirtyRef.current = true;
@@ -112,5 +245,12 @@ export function useProgress() {
     return () => window.removeEventListener('online', handleOnline);
   }, [flushToRemote]);
 
-  return { progressData, updateProgress, saveSessionCursor, isLoading };
+  return {
+    progressData,
+    updateProgress,
+    saveSessionCursor,
+    undoLast,
+    undoSnapshot,
+    isLoading,
+  };
 }

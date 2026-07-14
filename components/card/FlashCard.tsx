@@ -45,6 +45,9 @@ export function FlashCard({
                 question={question}
                 activeSolutionIndex={activeSolutionIndex}
                 onSolutionIndexChange={onSolutionIndexChange}
+                cardState={cardState}
+                learningStep={learningStep}
+                intervalDays={intervalDays}
               />
               <button type="button" className={styles.flipButton} onClick={onFlip}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -56,12 +59,7 @@ export function FlashCard({
             </div>
           ) : (
             <div className={styles.face}>
-              <CardFront
-                question={question}
-                cardState={cardState}
-                learningStep={learningStep}
-                intervalDays={intervalDays}
-              />
+              <CardFront question={question} cardState={cardState} />
               <button type="button" className={styles.flipButton} onClick={onFlip}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <polyline points="1 4 1 10 7 10" />
