@@ -40,12 +40,15 @@ function makeInitial(): QuestionProgress {
 /**
  * Compute the next progress entry given the current one and the feedback.
  * Implements an Anki-like FSM: new/learning -> learning/review, review -> review/relearning, etc.
+ *
+ * `now` is the current time in ms. Callers may inject it to make scheduling
+ * deterministic; omitting it falls back to the system clock.
  */
 export function scheduleNext(
   current: QuestionProgress | undefined,
   feedback: FeedbackType,
+  now: number = Date.now(),
 ): QuestionProgress {
-  const now = Date.now();
   const cur: QuestionProgress = current ? { ...current } : makeInitial();
 
   // Normalise legacy/missing fields just in case.

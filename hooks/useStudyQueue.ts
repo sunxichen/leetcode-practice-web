@@ -41,8 +41,8 @@ const LEARNING_REINSERT_MAX = 15;
 function generateSmartQueue(
   questions: Question[],
   progress: Record<string, QuestionProgress>,
+  now: number = Date.now(),
 ): string[] {
-  const now = Date.now();
   const learningOverdue: Array<{ id: string; dueAt: number }> = [];
   const learningPending: Array<{ id: string; dueAt: number }> = [];
   const reviewOverdue: Array<{ id: string; urgency: number }> = [];
@@ -107,8 +107,8 @@ function generateSmartQueue(
 function sortFilteredQueue(
   ids: string[],
   progress: Record<string, QuestionProgress>,
+  now: number = Date.now(),
 ): string[] {
-  const now = Date.now();
   return [...ids].sort((a, b) => {
     const pa = progress[a];
     const pb = progress[b];
@@ -124,21 +124,28 @@ function sortFilteredQueue(
   });
 }
 
-function generateQueue(
+/**
+ * Single entry point for queue generation across all session modes.
+ *
+ * Exported so the queue order can be asserted without mounting the hook; the
+ * caller may inject `now` to make the result deterministic.
+ */
+export function generateQueue(
   mode: SessionMode,
   questions: Question[],
   progress: Record<string, QuestionProgress>,
+  now: number = Date.now(),
 ): string[] {
   switch (mode.kind) {
     case 'smart':
-      return generateSmartQueue(questions, progress);
+      return generateSmartQueue(questions, progress, now);
     case 'difficulty': {
       const ids = questions.filter(q => q.difficulty === mode.value).map(q => q.id);
-      return sortFilteredQueue(ids, progress);
+      return sortFilteredQueue(ids, progress, now);
     }
     case 'tag': {
       const ids = questions.filter(q => q.tags.includes(mode.value)).map(q => q.id);
-      return sortFilteredQueue(ids, progress);
+      return sortFilteredQueue(ids, progress, now);
     }
     case 'weakest': {
       // Bottom 10 by easeFactor (cards user struggles with most), plus high-lapse cards.
