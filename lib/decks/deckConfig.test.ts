@@ -57,9 +57,11 @@ describe('题集注册表：面试题集（票 8）', () => {
     expect(typeof deck.components.CardBack).toBe('function');
   });
 
-  it('背面没有轮播：每张卡的分页数恒为 1', () => {
+  it('背面分页数 = 代码段数（票 9 多段代码轮播的钳制边界），无代码也是 1', () => {
     for (const card of cards) {
-      expect(deck.getBackPageCount(card)).toBe(1);
+      // 当前真实数据每卡至多一段代码，所以逐卡都是 1；多段的合成用例见
+      // lib/interview-back.test.ts。
+      expect(deck.getBackPageCount(card)).toBe(Math.max(1, card.answer.code?.length ?? 0));
     }
   });
 

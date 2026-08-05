@@ -1,0 +1,24 @@
+.snippetHeader {
+  margin-bottom: var(--spacing-xs);
+}
+
+/* 代码段标签（如「朴素实现」「带 mask 的版本」）：多段时也是轮播圆点的
+   aria 文案。 */
+.snippetLabel {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  letter-spacing: var(--tracking-tight);
+}
+
+/* 可选说明（复杂度、注意事项）：完整渲染，不截断。 */
+.snippetNote {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  line-height: var(--line-height-normal);
+  margin-top: var(--spacing-xs);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--color-bg-muted);
+  border-radius: var(--radius-md);
+  border-left: 2px solid var(--color-accent-blue);
+}

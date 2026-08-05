@@ -1,8 +1,11 @@
 'use client';
 
+import { useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import type { InterviewCard, InterviewCategory, Priority } from '@/lib/interview-types';
 import type { CardState } from '@/lib/types';
 import { TagChip } from '@/components/ui/TagChip';
+import { SPRING_CONFIG } from '@/lib/constants';
 import styles from './InterviewCardFront.module.css';
 
 interface InterviewCardFrontProps {
@@ -33,13 +36,20 @@ function StateBadge({ state }: { state: CardState }) {
 }
 
 /**
- * 面试卡正面（票 8 最小可用）：问题、分类徽章、重要度徽章、标签，以及常驻
- * 显示的要点数量——它是自评的锚（ADR-0003），用户翻卡前就要知道"这题该
- * 说几点"，因此常驻渲染，不折叠、不靠 hover 出现。
+ * 面试卡正面：问题、分类徽章、重要度徽章、标签，以及常驻显示的要点数量
+ * ——它是自评的锚（ADR-0003），用户翻卡前就要知道"这题该说几点"，因此常驻
+ * 渲染，不折叠、不靠 hover 出现。
  *
- * 提示按钮（hint）属于票 9，本票不渲染。
+ * 提示按钮（票 9）：只在 card.hint 写了内容时出现，点击后才显示；hint 是
+ * 一句话方向指引，不是答案，这里只渲染 hint 本身，不碰任何答案字段。
+ * 视觉与交互沿用 LeetCode 正面的提示（虚线按钮 + 展开动画），但文案不叫
+ * "思路提示"——那是算法题 core_pattern 的语义。
  */
 export function InterviewCardFront({ card, cardState }: InterviewCardFrontProps) {
+  const [hintShown, setHintShown] = useState(false);
+  // schema 已保证 hint 写了就非空，这里再兜一次空白串，没有就不留按钮占位。
+  const hint = card.hint && card.hint.trim().length > 0 ? card.hint : null;
+
   return (
     <div className={styles.front}>
       <div className={styles.header}>
@@ -60,12 +70,38 @@ export function InterviewCardFront({ card, cardState }: InterviewCardFrontProps)
         </div>
       </div>
 
-      <div className={styles.body} />
+      <div className={styles.body}>
+        <AnimatePresence initial={false}>
+          {hint && hintShown && (
+            <motion.div
+              key="hint"
+              className={styles.hintBox}
+              initial={{ opacity: 0, y: -6, height: 0 }}
+              animate={{ opacity: 1, y: 0, height: 'auto' }}
+              exit={{ opacity: 0, y: -6, height: 0 }}
+              transition={SPRING_CONFIG.enter}
+            >
+              <div className={styles.hintLabel}>💡 提示</div>
+              <p className={styles.hintText}>{hint}</p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
 
       <div className={styles.footer}>
         <span className={styles.keyPointCount}>
           {card.answer.key_points.length} 个要点
         </span>
+        {hint && !hintShown && (
+          <button
+            type="button"
+            className={styles.hintButton}
+            onClick={() => setHintShown(true)}
+          >
+            <span className={styles.hintIcon}>💡</span>
+            卡住了，给我个提示
+          </button>
+        )}
       </div>
     </div>
   );
