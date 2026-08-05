@@ -13,9 +13,11 @@ import type { SchedulingParams } from '@/lib/schedulingParams';
  *
  * Moved verbatim out of the hook — LeetCode 题集 queue output is bit-identical
  * to the pre-extraction implementation, including known quirks pinned by the
- * regression tests (new cards are NOT re-sorted; pending learning cards are
- * spliced into the woven segment, not the final queue; the learning branch
- * does not fall back to the legacy nextReviewDate field).
+ * regression tests (pending learning cards are spliced into the woven segment,
+ * not the final queue; the learning branch does not fall back to the legacy
+ * nextReviewDate field). Brand-new cards keep question-bank array order unless
+ * the deck injects a sorter via QueueOptions (面试题集按重要度，ADR-0004) —
+ * Hot100 不注入，其顺序逐位不变，由回归测试钉死。
  */
 
 /**
@@ -33,33 +35,59 @@ export interface SessionCard {
 }
 
 /**
+ * smart 队列的可选行为注入（票 10）。全部缺省时行为与注入前逐位一致，
+ * 现有调用方不传本参数即零变化。
+ *
+ * 引擎本身不认识任何题集特定字段——排序能力由题集配置以函数注入
+ * （DeckConfig.sortNewCards），引擎不在通用代码里引用 priority 等字段。
+ */
+export interface QueueOptions<C extends SessionCard = SessionCard> {
+  /**
+   * 今日已引入的新卡数：由调用方从当前题集的 dailyStats 按本地日期读取
+   * （`dailyStats?.[today]?.newIntroducedCount ?? 0`）。与调度参数的
+   * newCardsPerDay 共同决定 smart 队列的剩余新卡额度；未传时按 0 处理。
+   * newCardsPerDay 为 null 的题集（Hot100）无上限，本值不被消费。
+   */
+  newCardsIntroducedToday?: number;
+  /**
+   * brand-new 段的引入顺序（每日新卡额度花在哪些卡上）。只作用于
+   * brand-new 段——learning 逾期、review 逾期、3:1 编织与 learning 插回
+   * 的既有顺序不受影响。缺省 = 保持输入题库数组顺序（Hot100 现状）。
+   */
+  sortNewCards?: (cards: C[]) => C[];
+}
+
+/**
  * Build a fresh study queue snapshot for SMART mode (SM-2 driven).
  *
  * Priority (woven so users see progress on new material too):
  *   1. learning / relearning cards whose dueAt is already past — at the very front
  *   2. review cards that are overdue (sorted by how overdue), woven 3:1 with new cards
- *   3. brand-new cards, in question-bank array order (deliberately NOT re-sorted;
- *      pinned by the '30', '4', '100' regression test)
+ *   3. brand-new cards — order injected via options.sortNewCards (default:
+ *      question-bank array order, pinned by the '30', '4', '100' regression
+ *      test), then capped to today's remaining new-card allowance
+ *      (params.newCardsPerDay; null = unlimited)
  *   4. learning cards whose dueAt is in the future — spliced into 2-3 at clamped
  *      positions [params.learningReinsertMin, params.learningReinsertMax] so they
  *      recur within the current ~10-min session window (Ebbinghaus loop).
  */
-function generateSmartQueue(
-  cards: SessionCard[],
+function generateSmartQueue<C extends SessionCard>(
+  cards: C[],
   progress: Record<string, QuestionProgress>,
   params: SchedulingParams,
-  now: number = Date.now(),
+  now: number,
+  options?: QueueOptions<C>,
 ): string[] {
   const learningOverdue: Array<{ id: string; dueAt: number }> = [];
   const learningPending: Array<{ id: string; dueAt: number }> = [];
   const reviewOverdue: Array<{ id: string; urgency: number }> = [];
-  const brandNew: string[] = [];
+  const brandNew: C[] = [];
 
   for (const card of cards) {
     const prog = progress[card.id];
 
     if (!prog || prog.state === 'new' || prog.proficiency === 'new') {
-      brandNew.push(card.id);
+      brandNew.push(card);
       continue;
     }
 
@@ -83,17 +111,28 @@ function generateSmartQueue(
   learningPending.sort((a, b) => a.dueAt - b.dueAt);
   reviewOverdue.sort((a, b) => b.urgency - a.urgency);
 
+  // brand-new 段：先按题集注入的顺序排（缺省保持题库数组顺序），再按今日
+  // 剩余额度截断——额度先花在最该引入的卡上。今日已引入数超过上限
+  // （旧数据/手工编辑）按 0 剩余额度处理：不截断已存在进度，只是今天不再
+  // 引入；到期的 learning/review 卡不受额度影响。
+  const orderedNew = options?.sortNewCards ? options.sortNewCards(brandNew) : brandNew;
+  const newCardAllowance =
+    params.newCardsPerDay === null
+      ? orderedNew.length
+      : Math.max(0, params.newCardsPerDay - (options?.newCardsIntroducedToday ?? 0));
+  const brandNewIds = orderedNew.slice(0, newCardAllowance).map(card => card.id);
+
   const queue: string[] = [];
   for (const item of learningOverdue) queue.push(item.id);
 
   const reviewNewWoven: string[] = [];
   let ri = 0, ni = 0;
-  while (ri < reviewOverdue.length || ni < brandNew.length) {
+  while (ri < reviewOverdue.length || ni < brandNewIds.length) {
     for (let i = 0; i < 3 && ri < reviewOverdue.length; i++) {
       reviewNewWoven.push(reviewOverdue[ri++].id);
     }
-    if (ni < brandNew.length) {
-      reviewNewWoven.push(brandNew[ni++]);
+    if (ni < brandNewIds.length) {
+      reviewNewWoven.push(brandNewIds[ni++]);
     }
   }
 
@@ -135,31 +174,34 @@ function sortFilteredQueue(
  * Single entry point for queue generation across all session modes.
  *
  * The queue order can be asserted without mounting the hook; the caller may
- * inject `now` to make the result deterministic.
+ * inject `now` to make the result deterministic. `options`（新卡额度与
+ * brand-new 排序）只被 smart 模式消费——'single' 深链不是新卡引入队列，
+ * 即使今日额度已用尽也照常返回请求的卡；其他非 smart 模式语义不变。
  */
-export function generateQueue(
+export function generateQueue<C extends SessionCard = SessionCard>(
   mode: SessionMode,
-  cards: SessionCard[],
+  cards: C[],
   progress: Record<string, QuestionProgress>,
   params: SchedulingParams,
   now: number = Date.now(),
+  options?: QueueOptions<C>,
 ): string[] {
   switch (mode.kind) {
     case 'smart':
-      return generateSmartQueue(cards, progress, params, now);
+      return generateSmartQueue(cards, progress, params, now, options);
     case 'difficulty': {
       // 按难度是 LeetCode 题集的模式：它要求卡片带 difficulty 字段，这个要求
       // 属于模式自身，所以收进本分支而不是抬进 SessionCard。类型上靠这里的
       // 结构化收窄编译；语义上由题集配置的可选会话模式清单保证——卡片没有
       // difficulty 的题集（面试题集）不提供这个模式。
-      const ids = (cards as Array<SessionCard & { difficulty: Difficulty }>)
+      const ids = (cards as unknown as Array<SessionCard & { difficulty: Difficulty }>)
         .filter(card => card.difficulty === mode.value)
         .map(card => card.id);
       return sortFilteredQueue(ids, progress, now);
     }
     case 'tag': {
       // 同上：tags 字段要求属于按标签模式自身。
-      const ids = (cards as Array<SessionCard & { tags: string[] }>)
+      const ids = (cards as unknown as Array<SessionCard & { tags: string[] }>)
         .filter(card => card.tags.includes(mode.value))
         .map(card => card.id);
       return sortFilteredQueue(ids, progress, now);

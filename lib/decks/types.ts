@@ -18,6 +18,7 @@ import type { DeckId } from '@/lib/decks/ids';
  * - components：会话外壳经 FlashCard 容器渲染卡片正反面
  * - getBackPageCount：会话外壳钳制键盘"上一/下一"键的背面分页下标
  * - getModePickerData：ModePicker 的标签云与难度分布统计
+ * - sortNewCards：useStudyQueue 注入纯队列函数的 brand-new 段排序（票 10）
  *
  * 本文件只含类型，不引用任何具体题集的实现，因此可以被 hook、页面、配置
  * 任意方向 import 而不构成环。
@@ -105,4 +106,12 @@ export interface DeckConfig<C extends SessionCard = SessionCard> {
    * 四个按钮一击完成。
    */
   getFeedbackAnchors?(card: C): Record<FeedbackType, string>;
+  /**
+   * smart 队列 brand-new 段的引入顺序：有限的新卡额度先花在哪些卡上
+   * （面试题集按重要度，ADR-0004）。由 useStudyQueue 注入纯队列函数，
+   * 只作用于 brand-new 段——learning 逾期、review 逾期、3:1 编织与
+   * learning 插回的既有顺序不受影响。缺省 = 保持输入题库数组顺序
+   * （LeetCode 题集现状，逐位钉死）。实现不得改动入参数组。
+   */
+  sortNewCards?(cards: C[]): C[];
 }

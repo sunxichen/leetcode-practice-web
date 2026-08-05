@@ -68,6 +68,13 @@ export interface DailyStat {
   reviewedCount: number;   // total feedbacks given
   graduatedCount: number;  // new/learning → review transitions
   lapseCount: number;      // review → relearning transitions
+  /**
+   * 当天首次引入的新卡数：对一张全新卡的首次自评记 1（四档自评同等），
+   * 同卡再次自评不再计入。它是统计字段——每日新卡上限 (ADR-0004) 的
+   * 额度消费凭据，不是从进度条目推断的累计值。票 10 之前的旧文档缺此
+   * 字段，由 storage 迁移补 0。
+   */
+  newIntroducedCount: number;
 }
 
 /** Streak tracking (consecutive active days) */

@@ -7,7 +7,7 @@ import {
 } from '@/lib/storage';
 import { DECK_IDS, isDeckId } from '@/lib/decks/ids';
 import { HOT100_SCHEDULING_PARAMS, type SchedulingParams } from '@/lib/schedulingParams';
-import type { UserProgressData, QuestionProgress } from '@/lib/types';
+import type { DailyStat, UserProgressData, QuestionProgress } from '@/lib/types';
 
 /**
  * 缝三：进度归并（PRD Testing Decisions）——全项目最坏失败模式（丢进度）所在。
@@ -313,6 +313,61 @@ describe('进度归并 (reconcileProgress)', () => {
   });
 });
 
+describe('日统计迁移 (migrateDailyStats，票 10)', () => {
+  it('票 10 之前的日统计缺 newIntroducedCount：补 0，其余计数逐字段保留', async () => {
+    const legacy = doc({
+      lastUpdatedAt: 9000,
+      dailyStats: {
+        '2026-08-03': { reviewedCount: 12, graduatedCount: 3, lapseCount: 1 },
+      } as unknown as Record<string, DailyStat>,
+    });
+    storage.setItem(HOT100_KEY, JSON.stringify(legacy));
+    const remote = fakeRemote(null);
+
+    const winner = await reconcileProgress('hot100', remote.adapter, HOT100_SCHEDULING_PARAMS);
+
+    expect(winner.dailyStats).toEqual({
+      '2026-08-03': { reviewedCount: 12, graduatedCount: 3, lapseCount: 1, newIntroducedCount: 0 },
+    });
+  });
+
+  it('已有 newIntroducedCount 的日统计保留原值，迁移幂等', async () => {
+    const current = doc({
+      lastUpdatedAt: 9000,
+      dailyStats: {
+        '2026-08-03': { reviewedCount: 12, graduatedCount: 3, lapseCount: 1, newIntroducedCount: 7 },
+      },
+    });
+    storage.setItem(HOT100_KEY, JSON.stringify(current));
+    const remote = fakeRemote(null);
+
+    const first = await reconcileProgress('hot100', remote.adapter, HOT100_SCHEDULING_PARAMS);
+    expect(first.dailyStats?.['2026-08-03'].newIntroducedCount).toBe(7);
+
+    const second = await reconcileProgress('hot100', remote.adapter, HOT100_SCHEDULING_PARAMS);
+    expect(second).toEqual(first);
+  });
+
+  it('损坏的日统计条目安全丢弃，历史日期不因此抛错', async () => {
+    const corrupt = doc({
+      lastUpdatedAt: 9000,
+      dailyStats: {
+        good: { reviewedCount: 1, graduatedCount: 0, lapseCount: 0, newIntroducedCount: 1 },
+        bad1: null,
+        bad2: 42,
+        bad3: [1, 2],
+      } as unknown as Record<string, DailyStat>,
+    });
+    storage.setItem(HOT100_KEY, JSON.stringify(corrupt));
+    const remote = fakeRemote(null);
+
+    const winner = await reconcileProgress('hot100', remote.adapter, HOT100_SCHEDULING_PARAMS);
+
+    expect(Object.keys(winner.dailyStats ?? {})).toEqual(['good']);
+    expect(winner.dailyStats?.good.newIntroducedCount).toBe(1);
+  });
+});
+
 describe('存储适配器 (createStorageAdapter)', () => {
   it('KV 适配器按题集标识请求 API', async () => {
     const calls: Array<{ url: string; init?: RequestInit }> = [];
@@ -456,8 +511,13 @@ describe('历史进度文档逐字段无损（刻薄夹具）', () => {
     // 损坏条目被丢弃
     expect(winner.progress['99']).toBeUndefined();
 
-    // 每日统计与连续天数：题集内概念，随文档逐字段保留
-    expect(winner.dailyStats).toEqual(FIXTURE.dailyStats);
+    // 每日统计与连续天数：题集内概念，随文档逐字段保留。
+    // （票 10 机械适配：DailyStat 新增必填字段 newIntroducedCount，这份
+    // 票 10 之前的夹具条目缺它，由迁移补 0，其余计数逐字段不变。）
+    expect(winner.dailyStats).toEqual({
+      '2026-08-03': { ...FIXTURE.dailyStats['2026-08-03'], newIntroducedCount: 0 },
+      '2026-08-04': { ...FIXTURE.dailyStats['2026-08-04'], newIntroducedCount: 0 },
+    });
     expect(winner.streak).toEqual(FIXTURE.streak);
 
     // 落盘的本地文档与返回值一致（迁移后的形态）

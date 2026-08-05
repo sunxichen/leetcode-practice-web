@@ -86,6 +86,28 @@ describe('题集注册表：面试题集（票 8）', () => {
     expect(hot100.getFeedbackAnchors).toBeUndefined();
     expect(hot100.browsePath).toBe('/browse');
   });
+
+  it('面试题集注入新卡排序（票 10）：真实题库排序后 must 全在 common 前、common 全在 bonus 前，同级按 id，且不改动题库数组', () => {
+    expect(typeof deck.sortNewCards).toBe('function');
+    const before = cards.map(c => c.id);
+    const sorted = deck.sortNewCards!(cards);
+    // 不改动入参：题库数组顺序对其他消费者保持原样
+    expect(cards.map(c => c.id)).toEqual(before);
+
+    const rank = { must: 0, common: 1, bonus: 2 } as const;
+    for (let i = 1; i < sorted.length; i++) {
+      const prev = sorted[i - 1];
+      const cur = sorted[i];
+      expect(rank[cur.priority]).toBeGreaterThanOrEqual(rank[prev.priority]);
+      if (cur.priority === prev.priority) {
+        expect(cur.id > prev.id).toBe(true);
+      }
+    }
+  });
+
+  it('LeetCode 题集不注入新卡排序：brand-new 保持题库数组顺序（票 10 零回归）', () => {
+    expect(getDeckConfig('hot100').sortNewCards).toBeUndefined();
+  });
 });
 
 describe('题集配置的会话外壳能力（票 6）', () => {

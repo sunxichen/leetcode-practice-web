@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { generateQueue } from '@/lib/studyQueue';
-import { HOT100_SCHEDULING_PARAMS } from '@/lib/schedulingParams';
+import { HOT100_SCHEDULING_PARAMS, INTERVIEW_SCHEDULING_PARAMS } from '@/lib/schedulingParams';
+import { sortInterviewNewCards } from '@/lib/interview';
+import type { InterviewCard, Priority } from '@/lib/interview-types';
 import type { Question, QuestionProgress } from '@/lib/types';
 
 /**
@@ -298,5 +300,173 @@ describe('single-card queue', () => {
     const questions = [question('7')];
     const queue = generateQueue({ kind: 'single', questionId: 'nope' }, questions, {}, HOT100_SCHEDULING_PARAMS, NOW);
     expect(queue).toEqual([]);
+  });
+});
+
+/**
+ * 票 10：brand-new 排序注入与每日新卡上限。
+ *
+ * 上面的全部用例都不传 options——它们逐位钉死 Hot100 的既有行为，本组
+ * 新增断言不得影响它们。排序与上限只作用于 smart 模式的 brand-new 段；
+ * 引擎本身不认识 priority，排序能力由题集配置以函数注入（这里是面试
+ * 题集真实的 sortInterviewNewCards）。
+ */
+
+function interviewCard(id: string, priority: Priority): InterviewCard {
+  return {
+    id,
+    question: `卡 ${id}`,
+    category: 'dl-basics',
+    tags: [],
+    priority,
+    answer: { key_points: ['a', 'b', 'c'] },
+  };
+}
+
+describe('smart queue — brand-new 排序注入（票 10）', () => {
+  it('面试新卡按重要度引入：must → common → bonus，同级按 id', () => {
+    const cards = [
+      interviewCard('dl-bonus-b', 'bonus'),
+      interviewCard('dl-common-b', 'common'),
+      interviewCard('dl-must-b', 'must'),
+      interviewCard('dl-bonus-a', 'bonus'),
+      interviewCard('dl-must-a', 'must'),
+      interviewCard('dl-common-a', 'common'),
+    ];
+    const queue = generateQueue({ kind: 'smart' }, cards, {}, INTERVIEW_SCHEDULING_PARAMS, NOW, {
+      sortNewCards: sortInterviewNewCards,
+    });
+    expect(queue).toEqual([
+      'dl-must-a', 'dl-must-b',
+      'dl-common-a', 'dl-common-b',
+      'dl-bonus-a', 'dl-bonus-b',
+    ]);
+  });
+
+  it('排序函数不改动入参数组（题库顺序对其他消费者保持原样）', () => {
+    const cards = [interviewCard('dl-bonus-a', 'bonus'), interviewCard('dl-must-a', 'must')];
+    const before = cards.map(c => c.id);
+    sortInterviewNewCards(cards);
+    expect(cards.map(c => c.id)).toEqual(before);
+  });
+
+  it('未传 sorter 时输入顺序保持不变——通用队列没有暗含排序', () => {
+    const cards = [
+      interviewCard('dl-bonus-b', 'bonus'),
+      interviewCard('dl-must-a', 'must'),
+      interviewCard('dl-common-a', 'common'),
+    ];
+    // 即使传了 options（只有额度统计），顺序仍是题库数组顺序。
+    const queue = generateQueue({ kind: 'smart' }, cards, {}, INTERVIEW_SCHEDULING_PARAMS, NOW, {
+      newCardsIntroducedToday: 0,
+    });
+    expect(queue).toEqual(['dl-bonus-b', 'dl-must-a', 'dl-common-a']);
+  });
+
+  it('排序只作用于 brand-new 段：learning 逾期与 review 逾期的既有顺序不变', () => {
+    const cards = [
+      interviewCard('n-bonus', 'bonus'),
+      interviewCard('L1', 'must'),
+      interviewCard('R1', 'bonus'),
+      interviewCard('n-must', 'must'),
+      interviewCard('L2', 'bonus'),
+      interviewCard('R2', 'must'),
+    ];
+    const queue = generateQueue({ kind: 'smart' }, cards, {
+      L1: learningProgress(NOW - 5 * MIN),
+      L2: learningProgress(NOW - 60 * MIN),
+      R1: reviewProgress(NOW - DAY),
+      R2: reviewProgress(NOW - 2 * DAY),
+    }, INTERVIEW_SCHEDULING_PARAMS, NOW, { sortNewCards: sortInterviewNewCards });
+    // L/R 卡带什么 priority 都不影响：learning 逾期按 dueAt、review 逾期按
+    // 逾期时长排；只有 brand-new 两张按重要度交换了位置。
+    expect(queue).toEqual(['L2', 'L1', 'R2', 'R1', 'n-must', 'n-bonus']);
+  });
+});
+
+describe('smart queue — 每日新卡上限（票 10，INTERVIEW newCardsPerDay = 15）', () => {
+  const twentyNew = Array.from({ length: 20 }, (_, i) =>
+    interviewCard(`n${String(i).padStart(2, '0')}`, 'must'));
+
+  function cappedQueue(introducedToday: number): string[] {
+    return generateQueue({ kind: 'smart' }, twentyNew, {}, INTERVIEW_SCHEDULING_PARAMS, NOW, {
+      newCardsIntroducedToday: introducedToday,
+    });
+  }
+
+  it('今日已引入 0 张时取前 15 张新卡', () => {
+    expect(cappedQueue(0)).toEqual(twentyNew.slice(0, 15).map(c => c.id));
+  });
+
+  it('今日已引入 14 张时只剩 1 张额度', () => {
+    expect(cappedQueue(14)).toEqual(['n00']);
+  });
+
+  it('今日已引入 15 张时额度为 0，不含任何新卡', () => {
+    expect(cappedQueue(15)).toEqual([]);
+  });
+
+  it('今日已引入 20 张（旧数据超限）按 0 剩余额度处理，不抛错', () => {
+    expect(cappedQueue(20)).toEqual([]);
+  });
+
+  it('额度先给最重要的卡：排序先于截断', () => {
+    const cards = [
+      ...Array.from({ length: 10 }, (_, i) => interviewCard(`bonus-${i}`, 'bonus')),
+      ...Array.from({ length: 5 }, (_, i) => interviewCard(`common-${i}`, 'common')),
+      interviewCard('must-2', 'must'),
+      interviewCard('must-1', 'must'),
+    ];
+    const queue = generateQueue({ kind: 'smart' }, cards, {}, INTERVIEW_SCHEDULING_PARAMS, NOW, {
+      newCardsIntroducedToday: 14,
+      sortNewCards: sortInterviewNewCards,
+    });
+    expect(queue).toEqual(['must-1']);
+
+    const full = generateQueue({ kind: 'smart' }, cards, {}, INTERVIEW_SCHEDULING_PARAMS, NOW, {
+      newCardsIntroducedToday: 0,
+      sortNewCards: sortInterviewNewCards,
+    });
+    expect(full).toEqual([
+      'must-1', 'must-2',
+      'common-0', 'common-1', 'common-2', 'common-3', 'common-4',
+      'bonus-0', 'bonus-1', 'bonus-2', 'bonus-3', 'bonus-4', 'bonus-5', 'bonus-6', 'bonus-7',
+    ]);
+  });
+
+  it('额度为 0 时队列仍包含全部到期 learning / review 卡', () => {
+    const cards = [
+      interviewCard('L', 'must'),
+      interviewCard('R', 'must'),
+      ...twentyNew.slice(0, 3),
+    ];
+    const queue = generateQueue({ kind: 'smart' }, cards, {
+      L: learningProgress(NOW - MIN),
+      R: reviewProgress(NOW - DAY),
+    }, INTERVIEW_SCHEDULING_PARAMS, NOW, { newCardsIntroducedToday: 15 });
+    expect(queue).toEqual(['L', 'R']);
+  });
+
+  it('single 深链不受额度影响：额度用尽后仍返回请求的卡', () => {
+    const cards = [interviewCard('target', 'bonus'), ...twentyNew.slice(0, 2)];
+    const queue = generateQueue(
+      { kind: 'single', questionId: 'target' },
+      cards,
+      {},
+      INTERVIEW_SCHEDULING_PARAMS,
+      NOW,
+      { newCardsIntroducedToday: 999, sortNewCards: sortInterviewNewCards },
+    );
+    expect(queue).toEqual(['target']);
+  });
+});
+
+describe('smart queue — Hot100 零回归（票 10）', () => {
+  it('newCardsPerDay 为 null 时无上限：传入巨大的已引入数也不截断、不按 id/priority 重排', () => {
+    const questions = [question('30'), question('4'), question('100')];
+    const queue = generateQueue({ kind: 'smart' }, questions, {}, HOT100_SCHEDULING_PARAMS, NOW, {
+      newCardsIntroducedToday: 999,
+    });
+    expect(queue).toEqual(['30', '4', '100']);
   });
 });

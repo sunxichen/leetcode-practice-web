@@ -9,6 +9,7 @@ import type {
   StreakInfo,
 } from '@/lib/types';
 import { createStorageAdapter, reconcileProgress, progressKeyFor } from '@/lib/storage';
+import { bumpDailyStats, ymd } from '@/lib/dailyStats';
 import { scheduleNext } from '@/lib/sm2';
 import type { SchedulingParams } from '@/lib/schedulingParams';
 import { DEBOUNCE_MS, UNDO_WINDOW_MS } from '@/lib/constants';
@@ -38,14 +39,6 @@ export interface DeckProgressValue {
   isLoading: boolean;
 }
 
-function ymd(ts: number): string {
-  const d = new Date(ts);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
-
 function isPreviousDay(prev: string, today: string): boolean {
   if (!prev) return false;
   const p = new Date(prev + 'T00:00:00');
@@ -65,31 +58,6 @@ function emptyProgress(): UserProgressData {
     progress: {},
     dailyStats: {},
     streak: emptyStreak(),
-  };
-}
-
-function bumpDailyStats(
-  stats: Record<string, DailyStat>,
-  today: string,
-  prevState: QuestionProgress | undefined,
-  nextState: QuestionProgress,
-): Record<string, DailyStat> {
-  const cur: DailyStat = stats[today] ?? {
-    reviewedCount: 0,
-    graduatedCount: 0,
-    lapseCount: 0,
-  };
-  const graduated =
-    (!prevState || prevState.state === 'new' || prevState.state === 'learning') &&
-    nextState.state === 'review';
-  const lapsed = prevState?.state === 'review' && nextState.state === 'relearning';
-  return {
-    ...stats,
-    [today]: {
-      reviewedCount: cur.reviewedCount + 1,
-      graduatedCount: cur.graduatedCount + (graduated ? 1 : 0),
-      lapseCount: cur.lapseCount + (lapsed ? 1 : 0),
-    },
   };
 }
 

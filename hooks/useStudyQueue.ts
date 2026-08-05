@@ -6,7 +6,8 @@ import type {
   SessionMode,
 } from '@/lib/types';
 import type { DeckConfig } from '@/lib/decks/types';
-import { generateQueue, type SessionCard } from '@/lib/studyQueue';
+import { generateQueue, type QueueOptions, type SessionCard } from '@/lib/studyQueue';
+import { ymd } from '@/lib/dailyStats';
 
 /**
  * Session state and side effects only. All queue sorting / weaving logic lives
@@ -34,6 +35,28 @@ export function useStudyQueue<C extends SessionCard>(
     progressRef.current = progressData.progress;
   }, [progressData.progress]);
 
+  // 同一原因镜像 dailyStats：刚才那次自评若是一张新卡的首次引入，额度消费
+  // 必须立刻对 goNext 的队尾重算可见，否则本次会话会多放行一张新卡。
+  const dailyStatsRef = useRef(progressData.dailyStats);
+  useEffect(() => {
+    dailyStatsRef.current = progressData.dailyStats;
+  }, [progressData.dailyStats]);
+
+  /**
+   * smart 队列的新卡额度与 brand-new 排序（票 10）：
+   * - 额度统计从当前题集的 dailyStats 按当前本地日期读取（题集内概念，
+   *   ADR-0002）——绝不读另一个题集或全局键；
+   * - 排序能力由题集配置注入（Hot100 不提供 = 保持题库数组顺序）；
+   * - 只被 smart 模式消费；single 深链与其他模式的语义不变。
+   */
+  const queueOptions = useCallback((): QueueOptions<C> => {
+    return {
+      newCardsIntroducedToday:
+        dailyStatsRef.current?.[ymd(Date.now())]?.newIntroducedCount ?? 0,
+      sortNewCards: deck.sortNewCards,
+    };
+  }, [deck.sortNewCards]);
+
   // (Re)initialize sessionState when progress is loaded OR mode changes.
   //
   // Always regenerate a fresh queue from current progress — the persisted
@@ -44,7 +67,7 @@ export function useStudyQueue<C extends SessionCard>(
     if (!progressData || progressData.lastUpdatedAt === 0) return;
 
     setSessionState({
-      queue: generateQueue(mode, cards, progressData.progress, deck.schedulingParams),
+      queue: generateQueue(mode, cards, progressData.progress, deck.schedulingParams, undefined, queueOptions()),
       currentIndex: 0,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -66,14 +89,21 @@ export function useStudyQueue<C extends SessionCard>(
       // Smart mode: regenerate future tail from latest progress (via ref so
       // we always see the post-feedback state), preserve prefix so the X / Y
       // indicator stays meaningful.
-      const futureQueue = generateQueue({ kind: 'smart' }, cards, progressRef.current, deck.schedulingParams);
+      const futureQueue = generateQueue(
+        { kind: 'smart' },
+        cards,
+        progressRef.current,
+        deck.schedulingParams,
+        undefined,
+        queueOptions(),
+      );
       const prefix = prev.queue.slice(0, nextIndex);
       return {
         queue: [...prefix, ...futureQueue],
         currentIndex: nextIndex,
       };
     });
-  }, [mode.kind, cards, deck.schedulingParams]);
+  }, [mode.kind, cards, deck.schedulingParams, queueOptions]);
 
   /** Roll back the cursor by one (used by undo). Returns true if anything was rolled back. */
   const goBack = useCallback((): boolean => {

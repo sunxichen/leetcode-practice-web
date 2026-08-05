@@ -1,4 +1,4 @@
-import type { UserProgressData, QuestionProgress } from '@/lib/types';
+import type { DailyStat, UserProgressData, QuestionProgress } from '@/lib/types';
 import { isDeckId, type DeckId } from '@/lib/decks/ids';
 import type { SchedulingParams } from '@/lib/schedulingParams';
 
@@ -48,6 +48,24 @@ function migrateProgressEntry(raw: Partial<QuestionProgress>, params: Scheduling
   };
 }
 
+/**
+ * 日统计迁移：票 10 之前的 DailyStat 没有 newIntroducedCount，补 0；
+ * 已有此字段的条目原值保留，其余计数逐字段不动。损坏条目（JSON 合法
+ * 但不是对象）安全丢弃——与 progress 条目同一原则，不让一次自评的
+ * 统计更新抛错。幂等：对已迁移结果再跑一次，输出逐字段相同。
+ */
+function migrateDailyStats(raw: UserProgressData['dailyStats']): Record<string, DailyStat> {
+  const migrated: Record<string, DailyStat> = {};
+  for (const [day, stat] of Object.entries(raw ?? {})) {
+    if (!stat || typeof stat !== 'object' || Array.isArray(stat)) continue;
+    migrated[day] = {
+      ...stat,
+      newIntroducedCount: (stat as Partial<DailyStat>).newIntroducedCount ?? 0,
+    };
+  }
+  return migrated;
+}
+
 function migrateProgressData(data: UserProgressData, params: SchedulingParams): UserProgressData {
   const migrated: Record<string, QuestionProgress> = {};
   const rawProgress =
@@ -62,7 +80,7 @@ function migrateProgressData(data: UserProgressData, params: SchedulingParams): 
   return {
     ...data,
     progress: migrated,
-    dailyStats: data.dailyStats ?? {},
+    dailyStats: migrateDailyStats(data.dailyStats),
     streak: data.streak ?? { currentDays: 0, longestDays: 0, lastActiveDay: '' },
   };
 }
