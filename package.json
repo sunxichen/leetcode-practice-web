@@ -4,10 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "node scripts/validate-deck.mjs --check && next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "vitest run"
+    "test": "vitest run",
+    "deck:sync": "node scripts/validate-deck.mjs"
   },
   "dependencies": {
     "@vercel/kv": "^3.0.0",

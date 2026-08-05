@@ -1,0 +1,651 @@
+[
+  {
+    "id": "dl-attention-scaled-dot-product",
+    "question": "讲一下缩放点积注意力（scaled dot-product attention）是怎么算的。",
+    "category": "dl-basics",
+    "tags": ["Transformer", "注意力"],
+    "priority": "must",
+    "hint": "从 Q/K/V 的来历讲到加权求和，别漏掉缩放因子的理由。",
+    "answer": {
+      "key_points": [
+        "输入经三个线性投影得到 Q、K、V：Q 与 K 决定权重，V 提供被加权的内容。",
+        "打分是 Q·Kᵀ，得到 (L_q, L_k) 的分数矩阵，第 i 行第 j 列是第 i 个 query 对第 j 个 key 的相关性。",
+        "分数除以 √d_k 后在 key 那一维（最后一维）做 softmax，每个 query 得到一个覆盖所有 key 的概率分布。",
+        "用这个分布对 V 加权求和，输出与 V 同维：out = softmax(QKᵀ/√d_k)·V。",
+        "缩放的理由：QKᵀ 是 d_k 个乘积项之和，方差随 d_k 线性增长；不缩放则 logits 量级过大，softmax 落进饱和区，梯度趋近 0。"
+      ],
+      "elaboration": "方差论证：设 q、k 各分量独立、均值 0 方差 1，则 q·k 均值为 0、方差为 d_k，除以 √d_k 把方差还原成 1，使 logits 的量级不随维度变化。d_k = 64 时不缩放的 logits 标准差是 8，softmax 已经接近 one-hot。",
+      "code": [
+        {
+          "label": "朴素实现",
+          "language": "python",
+          "code": "import math\nimport torch\n\ndef attention(q, k, v):\n    # q/k/v: (B, H, L, d_k)。d_k 放最后一维，matmul 才能按最后两维批量相乘\n    d_k = q.size(-1)\n    # 除以 sqrt(d_k)：q·k 是 d_k 项之和，方差随 d_k 线性增长；\n    # 不缩放会让 logits 量级过大，softmax 落进饱和区，梯度趋近 0\n    scores = q @ k.transpose(-2, -1) / math.sqrt(d_k)\n    # 在 key 那一维归一化：每个 query 得到一个覆盖所有 key 的分布\n    attn = scores.softmax(dim=-1)\n    return attn @ v, attn",
+          "note": "时间 O(L²·d_k)，显存里会驻留一个 L×L 的注意力矩阵。"
+        }
+      ],
+      "pitfalls": [
+        "只说「除以 √d_k 是为了归一化」而给不出方差论证，是最常见的扣分点。",
+        "softmax 的轴是 key 那一维，说成「对 query 归一化」就错了。"
+      ]
+    },
+    "follow_ups": [
+      "为什么用点积而不是加性（Bahdanau）注意力？",
+      "自注意力的复杂度是多少，长序列的瓶颈在哪？"
+    ],
+    "related_ids": ["dl-attention-complexity", "dl-attention-mask", "dl-attention-multi-head"]
+  },
+  {
+    "id": "dl-attention-complexity",
+    "question": "自注意力的时间和空间复杂度是多少？为什么长序列会成为瓶颈？",
+    "category": "dl-basics",
+    "tags": ["Transformer", "注意力", "复杂度"],
+    "priority": "must",
+    "hint": "分开说打分那两次矩阵乘和四个投影，再说显存。",
+    "answer": {
+      "key_points": [
+        "序列长 n、隐层维 d 时，QKᵀ 与 attn·V 各是 O(n²·d) 的乘加，构成主导项。",
+        "Q/K/V/O 四个投影是 O(n·d²)：n 远小于 d 时是投影主导，n 增大后 n² 项吃掉一切。",
+        "空间上朴素实现要驻留 n×n 的注意力矩阵（h 个头是 O(h·n²)），且反向传播还要留着它。",
+        "n 翻倍则计算与注意力显存都是 4 倍，这是长上下文的核心瓶颈。",
+        "FlashAttention 用分块与重算把注意力矩阵的显存降到 O(n)，但计算量仍是 O(n²·d)。"
+      ],
+      "pitfalls": [
+        "只报 O(n²) 而不提 d，或者忽略了 O(n·d²) 的投影项。",
+        "把「O(n²) 显存」说成必然如此 —— FlashAttention 之后这句不成立。"
+      ]
+    },
+    "follow_ups": ["推理阶段有了 KV cache 之后，每步的复杂度变成多少？"],
+    "related_ids": ["dl-attention-scaled-dot-product", "dl-attention-kv-cache"]
+  },
+  {
+    "id": "dl-attention-mask",
+    "question": "注意力里的 mask 怎么实现？causal mask 和 padding mask 有什么区别？",
+    "category": "dl-basics",
+    "tags": ["Transformer", "注意力", "数值稳定性"],
+    "priority": "common",
+    "hint": "关键是「填在 softmax 之前」，以及两种 mask 的形状不同。",
+    "answer": {
+      "key_points": [
+        "mask 作用在 softmax 之前的分数上：被屏蔽位填成极小值，softmax 后权重恰好为 0，其余位置仍然和为 1。",
+        "不能在分数上乘 0：exp(0)=1 会让屏蔽位拿到一份权重；也不能在 softmax 之后乘 0，那样权重和不再是 1。",
+        "causal mask 是上三角屏蔽，保证位置 i 只看得到 ≤ i，形状 (L, L)，与 batch 无关。",
+        "padding mask 屏蔽 batch 内补齐出来的位置，形状 (B, 1, 1, L_k)，每个样本不同，广播到所有头。",
+        "两者语义都是「可见/不可见」，按位与即可合并，通常同时存在。"
+      ],
+      "code": [
+        {
+          "label": "两种 mask 合并",
+          "language": "python",
+          "code": "def attention_with_mask(q, k, v, causal_mask=None, pad_mask=None):\n    # causal_mask: (L, L) 下三角为 True；pad_mask: (B, 1, 1, L_k) 有效位为 True\n    scores = q @ k.transpose(-2, -1) / math.sqrt(q.size(-1))\n\n    keep = causal_mask\n    if pad_mask is not None:\n        # 两个 mask 的语义都是「可见」，按位与后广播到 (B, H, L_q, L_k)\n        keep = pad_mask if keep is None else (keep & pad_mask)\n\n    if keep is not None:\n        # fp16 下不能用 -1e9：它超出 fp16 范围会变成 -inf，\n        # 而整行全被屏蔽时 softmax 分母为 0，直接产出 NaN\n        neg = -1e4 if scores.dtype == torch.float16 else float('-inf')\n        scores = scores.masked_fill(~keep, neg)\n\n    return scores.softmax(dim=-1) @ v",
+          "note": "只要保证每行至少有一个可见位置，用 -inf 也是安全的。"
+        }
+      ],
+      "pitfalls": [
+        "整行全被屏蔽（如一条全是 padding 的样本）时 softmax 会得到 NaN，要么保证每行至少一个可见位，要么用有限的极小值。",
+        "mask 的布尔语义容易反：库里有的传「可见位为 True」，有的传「要屏蔽的位为 True」。"
+      ]
+    },
+    "related_ids": ["dl-attention-scaled-dot-product"]
+  },
+  {
+    "id": "dl-attention-multi-head",
+    "question": "多头注意力为什么比单头好？参数量和计算量增加了吗？",
+    "category": "dl-basics",
+    "tags": ["Transformer", "注意力"],
+    "priority": "must",
+    "hint": "从 d_model 是怎么被切开的说起。",
+    "answer": {
+      "key_points": [
+        "把 d_model 切成 h 份，每头在 d_k = d_model/h 的子空间里独立做一次注意力，输出拼接后过 W_O。",
+        "参数量不变：W_Q/W_K/W_V/W_O 仍是 d_model×d_model，切分只是把同一批参数按头分块解释。",
+        "计算量也基本不变：h 个头各算 n²·d_k，加起来还是 n²·d_model。",
+        "收益是同一层能并行关注多种关系，单头只能给出一个被平均掉的权重分布。",
+        "代价是每头维度变小，d_k 过小时单头的表达能力不足，所以头数不是越多越好（经验上 d_k 常取 64-128）。"
+      ],
+      "pitfalls": [
+        "说「多头就是把模型变宽/参数变多」是错的，参数量与单头等价。",
+        "拼接之后的 W_O 不是可省的：它负责把各头的子空间输出混合回同一空间。"
+      ]
+    },
+    "related_ids": ["dl-attention-scaled-dot-product", "dl-attention-gqa"]
+  },
+  {
+    "id": "dl-attention-kv-cache",
+    "question": "自回归解码时的 KV cache 缓存了什么？为什么不缓存 Q？",
+    "category": "dl-basics",
+    "tags": ["Transformer", "推理优化"],
+    "priority": "common",
+    "hint": "想清楚每一步新 token 需要哪些历史量。",
+    "answer": {
+      "key_points": [
+        "缓存的是每层、每头历史 token 的 K 与 V，形状各为 (B, H, n, d_k)。",
+        "不缓存 Q：每步只用当前新 token 的 q 去查全部历史 K/V，历史 token 的 q 不再参与任何计算。",
+        "有 cache 后单步注意力从 O(n²·d) 降到 O(n·d)，生成 n 个 token 的总量从 O(n³·d) 回到 O(n²·d)。",
+        "cache 显存约为 2·layers·B·H·n·d_k·字节数，长上下文下会超过权重本身，是推理显存的主要来源。",
+        "cache 只对单向（causal）注意力成立：双向注意力里新 token 会改变历史 token 的输出，缓存不合法。"
+      ],
+      "pitfalls": ["cache 是按层、按头独立的，别说成「缓存注意力权重」——权重每步都要重算。"]
+    },
+    "follow_ups": ["KV cache 太大怎么压？"],
+    "related_ids": ["dl-attention-complexity", "dl-attention-gqa"]
+  },
+  {
+    "id": "dl-attention-gqa",
+    "question": "MHA、MQA、GQA 有什么区别？为什么现在的大模型多用 GQA？",
+    "category": "dl-basics",
+    "tags": ["Transformer", "推理优化"],
+    "priority": "bonus",
+    "answer": {
+      "key_points": [
+        "MHA 每个头有自己的 K/V；MQA 让全部头共享一份 K/V；GQA 把头分成 g 组，组内共享一份 K/V。",
+        "动机是压 KV cache：cache 大小与 K/V 头数成正比，MQA 压到 1/H，GQA 压到 g/H。",
+        "解码阶段是显存带宽瓶颈而非算力瓶颈，cache 变小直接换来吞吐提升。",
+        "MQA 的质量损失比较明显，GQA 在质量几乎不掉的前提下拿到大部分收益，所以成了默认选择。"
+      ],
+      "pitfalls": ["共享的只是 K/V 的投影，Q 仍然每头独立。"]
+    },
+    "related_ids": ["dl-attention-kv-cache", "dl-attention-multi-head"]
+  },
+  {
+    "id": "dl-softmax-stability",
+    "question": "softmax 为什么要减去最大值？不减会发生什么？",
+    "category": "dl-basics",
+    "tags": ["数值稳定性", "损失函数"],
+    "priority": "must",
+    "hint": "先说它为什么合法，再说它防的是哪一侧的溢出。",
+    "answer": {
+      "key_points": [
+        "softmax 对输入平移不变：分子分母同乘 e^{-c} 结果不变，所以减最大值不改变数学结果。",
+        "不减会上溢：float32 在输入大于约 88 时 exp 就是 inf，inf/inf 得到 NaN。",
+        "减完之后最大项恰好是 exp(0)=1，分母至少为 1，不会出现 0/0。",
+        "另一侧的下溢是安全的：过小的项变成 0 只损失精度，不产生 NaN。",
+        "要 log-softmax 时进一步用 log-sum-exp 形式，避免先算概率再取 log 时踩到 log(0) = -inf。"
+      ],
+      "code": [
+        {
+          "label": "稳定的 softmax 与 log_softmax",
+          "language": "python",
+          "code": "import numpy as np\n\ndef softmax(x, axis=-1):\n    # 平移不变性保证结果不变，减最大值把最大指数项压成 exp(0)=1，\n    # 于是既不会上溢，分母也至少为 1，不会出现 0/0\n    x = x - x.max(axis=axis, keepdims=True)\n    e = np.exp(x)\n    return e / e.sum(axis=axis, keepdims=True)\n\ndef log_softmax(x, axis=-1):\n    # 不要写 np.log(softmax(x))：下溢成 0 的概率取 log 会变成 -inf，\n    # 这里全程停在 log 域，只经过一次 exp 求和\n    m = x.max(axis=axis, keepdims=True)\n    z = x - m\n    return z - np.log(np.exp(z).sum(axis=axis, keepdims=True))"
+        }
+      ],
+      "pitfalls": ["减最大值只解决上溢；真正的 NaN 常来自「整行都是 -inf」的 mask 或对 0 概率取 log。"]
+    },
+    "related_ids": ["dl-ce-from-logits", "dl-attention-mask"]
+  },
+  {
+    "id": "dl-cross-entropy-vs-mse",
+    "question": "分类任务为什么用交叉熵而不是 MSE？",
+    "category": "dl-basics",
+    "tags": ["损失函数", "梯度"],
+    "priority": "must",
+    "hint": "答案在梯度里，写出两者对 logits 的导数就清楚了。",
+    "answer": {
+      "key_points": [
+        "softmax + 交叉熵对 logits 的梯度恰好是 p − y：错得越离谱，梯度越大，学得越快。",
+        "sigmoid/softmax 接 MSE 时梯度里多一个 σ'(z) 因子，而输出饱和（接近 0 或 1）时 σ' → 0，错得最离谱的样本反而几乎没有梯度。",
+        "交叉熵就是分类的极大似然目标（多项分布的负对数似然）；MSE 对应高斯噪声假设，与离散标签的生成过程不匹配。",
+        "工程上框架把 log_softmax 与 NLL 融合实现，数值稳定且反向只需 p − y，不必穿过 softmax 的雅可比。"
+      ],
+      "elaboration": "以二分类为例：MSE 损失 (σ(z) − y)²/2 对 z 的导数是 (σ(z) − y)·σ'(z)，σ'(z) = σ(1−σ) 在 z 很大或很小时趋于 0；而 BCE 对 z 的导数是 σ(z) − y，没有这个衰减因子。这就是「MSE 分类学得慢」的直接原因。",
+      "pitfalls": [
+        "别把结论说成「MSE 永远不能用于分类」——它能收敛，只是饱和区梯度消失、优化更慢。",
+        "回归任务反过来：输出层是线性的，没有 σ' 因子，MSE 是正常选择。"
+      ]
+    },
+    "follow_ups": ["那推一下 softmax + 交叉熵对 logits 的梯度。"],
+    "related_ids": ["dl-cross-entropy-gradient", "dl-ce-from-logits"]
+  },
+  {
+    "id": "dl-cross-entropy-gradient",
+    "question": "推一下 softmax + 交叉熵对 logits 的梯度。",
+    "category": "dl-basics",
+    "tags": ["损失函数", "梯度"],
+    "priority": "common",
+    "hint": "先写 softmax 的雅可比，再用 Σy=1 化简。",
+    "answer": {
+      "key_points": [
+        "设 p = softmax(z)，L = −Σ_k y_k log p_k，y 是 one-hot。",
+        "softmax 的雅可比是 ∂p_i/∂z_j = p_i(δ_ij − p_j)。",
+        "代入链式法则并利用 Σ_k y_k = 1 化简，得到 ∂L/∂z_j = p_j − y_j。",
+        "含义：梯度就是「预测概率 − one-hot 标签」，正确类被往上推、其余类被往下压，量级正比于误差。",
+        "所以框架的反向不需要真的构造雅可比矩阵，直接用 p − y 就够了。"
+      ],
+      "elaboration": "∂L/∂z_j = −Σ_k y_k · (1/p_k) · ∂p_k/∂z_j = −Σ_k y_k (δ_kj − p_j) = −y_j + p_j Σ_k y_k = p_j − y_j。若 loss 对 batch 取平均，梯度同样要除以 batch size。",
+      "code": [
+        {
+          "label": "前向与反向",
+          "language": "python",
+          "code": "def softmax_cross_entropy(logits, labels):\n    # logits: (N, K)；labels: (N,) 是类别下标\n    p = softmax(logits, axis=-1)\n    n = logits.shape[0]\n    loss = -np.log(p[np.arange(n), labels]).mean()\n\n    # 梯度直接写成 p - y：softmax 雅可比 p_i(δ_ij - p_j) 与 -y/p 相乘后\n    # 正好化简成这一项，实现里不需要构造雅可比\n    grad = p.copy()\n    grad[np.arange(n), labels] -= 1.0\n    grad /= n            # 与 loss 取 mean 保持一致\n    return loss, grad"
+        }
+      ],
+      "pitfalls": ["p − y 是对 logits 的梯度，不是对概率的梯度；把它接在 softmax 之后再反传一次就重复了。"]
+    },
+    "related_ids": ["dl-cross-entropy-vs-mse", "dl-softmax-stability"]
+  },
+  {
+    "id": "dl-ce-from-logits",
+    "question": "为什么框架的交叉熵接口要求传 logits 而不是 softmax 之后的概率？",
+    "category": "dl-basics",
+    "tags": ["损失函数", "数值稳定性"],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "log_softmax 走 log-sum-exp，全程不出现概率本身，因此不存在「概率下溢成 0 → log(0) = −inf」这一步。",
+        "融合实现让反向直接是 p − y，不必把梯度依次穿过 log 与 softmax，少两次数值放大。",
+        "PyTorch 里 CrossEntropyLoss 接 logits、NLLLoss 接 log 概率，两者差一个 log_softmax；混用不会报错，只是静默学不动。",
+        "对已经 softmax 过的输出再喂 CrossEntropyLoss，等于做了两次 softmax：分布被压平，训练变慢且效果差。"
+      ],
+      "code": [
+        {
+          "label": "等价的手写实现",
+          "language": "python",
+          "code": "import torch\n\ndef cross_entropy_from_logits(logits, target):\n    # logits: (N, K)；target: (N,)\n    # logsumexp 内部先减最大值，整条路径停在 log 域，不会先算出会下溢的概率\n    logp = logits - torch.logsumexp(logits, dim=-1, keepdim=True)\n    # one-hot 与 logp 的内积退化成一次 gather\n    return -logp.gather(-1, target.unsqueeze(-1)).squeeze(-1).mean()\n\n# 等价于 F.cross_entropy(logits, target)\n# 反例：F.nll_loss(logits.softmax(-1).log(), target) —— 结果同阶但数值上更脆"
+        }
+      ],
+      "pitfalls": ["fp16 下这个差别会直接变成 NaN，而不是精度略差。"]
+    },
+    "related_ids": ["dl-softmax-stability", "dl-cross-entropy-vs-mse"]
+  },
+  {
+    "id": "dl-bce-multilabel",
+    "question": "多标签分类为什么用 sigmoid + BCE，而不是 softmax + 交叉熵？",
+    "category": "dl-basics",
+    "tags": ["损失函数"],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "softmax 强制各类概率和为 1，隐含类别互斥；多标签任务里一个样本可以同时属于多个类。",
+        "sigmoid 把每个类当独立的二分类，各自输出 (0,1) 的概率，彼此不归一化。",
+        "损失是每个类的二元交叉熵再求和/平均，对每个 logit 的梯度仍是 σ(z) − y。",
+        "推理时按每类阈值独立判定（默认 0.5，通常按验证集调），而不是取 argmax。"
+      ],
+      "pitfalls": [
+        "多标签下正负样本极不平衡是常态，通常要加类权重或换 focal loss。",
+        "指标也要换：用 per-class AP / macro-F1，而不是 top-1 准确率。"
+      ]
+    },
+    "related_ids": ["dl-focal-loss", "dl-cross-entropy-vs-mse"]
+  },
+  {
+    "id": "dl-label-smoothing",
+    "question": "标签平滑（label smoothing）是什么？为什么有用，代价是什么？",
+    "category": "dl-basics",
+    "tags": ["正则化", "损失函数"],
+    "priority": "common",
+    "hint": "先写出平滑后的目标分布，再说它约束了什么。",
+    "answer": {
+      "key_points": [
+        "把 one-hot 目标换成：正确类拿 1−ε，其余 K−1 类均分 ε（ε 常取 0.1）。",
+        "作用是阻止模型把正确类的 logit 推向无穷大：最优 logit 间距变成有限值，抑制过度自信。",
+        "等价于在交叉熵上加了一项「输出向均匀分布靠拢」的正则，通常同时改善泛化与概率校准。",
+        "代价是输出不再是条件概率的无偏估计；需要精确概率（阈值决策、排序、蒸馏教师）时通常不加。"
+      ],
+      "pitfalls": [
+        "与温度缩放、蒸馏叠加时效果会互相掩盖，要分开消融。",
+        "类别数很少（如二分类）时 ε 的影响被放大，别照抄 ε=0.1。"
+      ]
+    },
+    "related_ids": ["dl-cross-entropy-vs-mse", "dl-overfitting-playbook"]
+  },
+  {
+    "id": "dl-focal-loss",
+    "question": "Focal loss 解决什么问题？和加权交叉熵有什么不同？",
+    "category": "dl-basics",
+    "tags": ["损失函数", "类别不平衡"],
+    "priority": "bonus",
+    "answer": {
+      "key_points": [
+        "场景是极端不平衡：目标检测里海量易分负样本，单个梯度很小但累加起来压过少数难样本。",
+        "形式是 −(1−p_t)^γ·log p_t：p_t 越大（越容易分对）权重衰减越快，γ=0 时退化为普通交叉熵。",
+        "另有 α 项按类加权，处理正负样本的数量差；α 管类别先验，γ 管难易样本重加权，两者职责不同。",
+        "与静态加权交叉熵的区别：类权重是固定的，focal 的权重随每个样本当前的预测动态变化。"
+      ],
+      "pitfalls": [
+        "γ 太大时会过度关注难样本，标注噪声会被当成难样本放大。",
+        "常见取值 γ=2、α=0.25，但它与学习率、正负采样比强耦合，要一起调。"
+      ]
+    },
+    "related_ids": ["dl-bce-multilabel"]
+  },
+  {
+    "id": "dl-adam-bias-correction",
+    "question": "Adam 的偏差校正在校正什么？不做会怎样？",
+    "category": "dl-basics",
+    "tags": ["优化器", "Adam"],
+    "priority": "must",
+    "hint": "从 m、v 的初值想：t=1 时它们等于什么？",
+    "answer": {
+      "key_points": [
+        "m、v 是梯度一阶矩与二阶矩的指数滑动平均，都从 0 初始化。",
+        "零初始化让早期估计系统性偏小：t=1 时 m = (1−β₁)g，只有真实梯度的 10%（β₁=0.9）。",
+        "校正就是除以 1 − β^t，把 EMA 还原到无偏尺度；t 增大后这个因子趋于 1，校正自动消失。",
+        "m 与 v 的偏差幅度不同（β₂=0.999 时 v 偏得更狠），所以不校正时 m/√v 在 t=1 附近约是无偏值的 3 倍，更新量过大。",
+        "后果就是训练最初几十步不稳定甚至发散 —— 这也是 warmup 常被需要的原因之一。"
+      ],
+      "elaboration": "m_t = (1−β₁^t)·m̂，v_t = (1−β₂^t)·v̂。t=1 时未校正的步长比 = (1−β₁)/√(1−β₂) = 0.1/0.0316 ≈ 3.16。这个放大随 t 迅速衰减，但恰好落在参数最脆弱的起步阶段。",
+      "code": [
+        {
+          "label": "带偏差校正的一步更新",
+          "language": "python",
+          "code": "def adam_step(params, grads, state, lr=1e-3, betas=(0.9, 0.999), eps=1e-8):\n    b1, b2 = betas\n    state['t'] += 1\n    t = state['t']\n\n    for i, (p, g) in enumerate(zip(params, grads)):\n        # m、v 与参数同形且零初始化：这就是 Adam 状态显存等于参数量 2 倍的来源\n        m = b1 * state['m'][i] + (1 - b1) * g\n        v = b2 * state['v'][i] + (1 - b2) * g * g\n        state['m'][i], state['v'][i] = m, v\n\n        # 除以 1 - β^t 把零初始化造成的系统性偏小还原回无偏尺度；\n        # t 变大后系数趋于 1，这两行会自然退化成恒等变换\n        m_hat = m / (1 - b1 ** t)\n        v_hat = v / (1 - b2 ** t)\n\n        # eps 加在 sqrt 之外（与 PyTorch 一致），给分母一个下界\n        p -= lr * m_hat / (v_hat ** 0.5 + eps)",
+          "note": "t 是全局步数，必须随优化器状态一起 checkpoint，否则续训时校正会重新放大。"
+        }
+      ],
+      "pitfalls": ["说成「校正是为了让 m、v 更准」太笼统；关键是两者偏差幅度不同，导致比值失真。"]
+    },
+    "follow_ups": ["Adam 和 AdamW 的区别？", "为什么还需要 warmup？"],
+    "related_ids": ["dl-adamw-vs-l2", "dl-warmup-cosine"]
+  },
+  {
+    "id": "dl-adamw-vs-l2",
+    "question": "AdamW 和 Adam + L2 正则有什么区别？",
+    "category": "dl-basics",
+    "tags": ["优化器", "Adam", "正则化"],
+    "priority": "must",
+    "hint": "看衰减项是进了梯度，还是直接落在更新式上。",
+    "answer": {
+      "key_points": [
+        "Adam + L2 把 λw 加进梯度，于是它也进入 m 与 v，最终被 1/√v 缩放。",
+        "结果是梯度大的参数（√v 大）实际受到的衰减更弱，衰减强度与梯度尺度耦合，不再是均匀的权重收缩。",
+        "AdamW 把衰减解耦：更新时单独做 w ← w − lr·λ·w，与自适应缩放无关。",
+        "实践后果：AdamW 的 λ 与 lr 近似解耦、更好调，Transformer 训练几乎一律用 AdamW。"
+      ],
+      "pitfalls": [
+        "PyTorch 的 Adam(weight_decay=…) 是耦合版，AdamW 才是解耦版，两者不能混着说。",
+        "AdamW 的解耦衰减仍然乘了学习率，所以调 lr 时 λ 的实际强度会跟着变。"
+      ]
+    },
+    "related_ids": ["dl-adam-bias-correction", "dl-weight-decay-scope"]
+  },
+  {
+    "id": "dl-sgd-vs-adam",
+    "question": "什么时候用 SGD + momentum，什么时候用 Adam？",
+    "category": "dl-basics",
+    "tags": ["优化器"],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "Adam 逐参数自适应步长，对梯度尺度不均、稀疏梯度鲁棒，收敛快、对初始 lr 不敏感，是 Transformer/NLP 的默认。",
+        "SGD + momentum 在 CV 的卷积网络上常拿到更好的最终泛化，代价是学习率与调度要仔细调。",
+        "显存：Adam 每个参数多存 m 与 v（2 倍状态），SGD + momentum 只多 1 倍，超大模型下这是实打实的成本。",
+        "自适应方法为什么泛化略差目前没有定论，工程上按任务经验选，而不是按理论断言。"
+      ],
+      "pitfalls": ["「Adam 一定更好」和「SGD 一定泛化更好」都是过强的说法，取决于任务与调参预算。"]
+    },
+    "related_ids": ["dl-adam-bias-correction"]
+  },
+  {
+    "id": "dl-warmup-cosine",
+    "question": "学习率 warmup 为什么必要？后面为什么接 cosine 衰减？",
+    "category": "dl-basics",
+    "tags": ["优化器", "训练稳定性", "学习率调度"],
+    "priority": "must",
+    "hint": "warmup 至少有两个互不排斥的解释，一个来自优化器，一个来自结构。",
+    "answer": {
+      "key_points": [
+        "warmup 是前若干步（常见总步数的 1%–5%）把学习率从接近 0 线性升到峰值，再进入衰减。",
+        "解释一（优化器侧）：Adam 早期的 v 由极少样本估出、方差大，1/√v 偶发偏大会让更新量失控。",
+        "解释二（结构侧）：Post-LN Transformer 初始化时深层梯度量级偏大，大步长会立刻把参数带离可训练区；Pre-LN 对 warmup 的依赖明显更弱。",
+        "cosine 衰减让后期步长平滑趋近 0，相当于末期做精细搜索，而且比阶梯衰减少一个「什么时候降」的超参。",
+        "两者是一套：峰值 lr、warmup 步数、总步数三者绑定，只改其中一个往往得到更差的结果。"
+      ],
+      "pitfalls": [
+        "warmup 步数与 batch size、总步数相关，照抄别人的绝对步数常常不适配。",
+        "cosine 的周期要按实际总步数设；提前停止会停在一个学习率还没降完的点上。"
+      ]
+    },
+    "related_ids": ["dl-adam-bias-correction", "dl-pre-post-ln"]
+  },
+  {
+    "id": "dl-grad-clipping",
+    "question": "梯度裁剪怎么做？按全局范数裁和按元素裁有什么区别？",
+    "category": "dl-basics",
+    "tags": ["训练稳定性", "梯度"],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "按全局范数裁：把所有参数的梯度视为一个向量算 L2 范数，超过阈值就整体乘 max_norm/norm。",
+        "整体缩放只改步长、不改方向，各层梯度的相对比例保持不变。",
+        "按元素或按层裁会改变梯度方向、或改变层间比例，等于偷偷改了每层的有效学习率。",
+        "它治的是偶发尖峰（长序列、坏 batch、fp16 溢出），不是持续性梯度爆炸；后者要从初始化、归一化、学习率上找原因。"
+      ],
+      "code": [
+        {
+          "label": "按全局范数裁剪",
+          "language": "python",
+          "code": "def clip_grad_norm_(params, max_norm, eps=1e-6):\n    grads = [p.grad for p in params if p.grad is not None]\n    # 全局范数：所有梯度拼成一个向量算一次，而不是逐个参数各算一次\n    total = torch.sqrt(sum((g.detach() ** 2).sum() for g in grads))\n\n    coef = max_norm / (total + eps)\n    if coef < 1:\n        # 所有梯度乘同一个系数：只缩短步长，方向与层间比例都不变\n        for g in grads:\n            g.mul_(coef)\n\n    return total   # 返回裁剪前的范数，日志里盯它就能看出尖峰",
+          "note": "返回值是裁剪前的范数，把它打进日志比只看 loss 更早发现问题。"
+        }
+      ],
+      "pitfalls": [
+        "混合精度下必须先 unscale 再裁剪，否则阈值作用在被放大过的梯度上，形同没裁。",
+        "梯度累积时要在最后一次反向之后、更新之前裁，不是每个 micro-batch 都裁。"
+      ]
+    },
+    "related_ids": ["dl-mixed-precision", "dl-nan-loss-debug"]
+  },
+  {
+    "id": "dl-dropout",
+    "question": "Dropout 在训练和推理时的行为差别是什么？inverted dropout 的缩放为什么放在训练侧？",
+    "category": "dl-basics",
+    "tags": ["正则化", "训练与推理差异"],
+    "priority": "must",
+    "hint": "从「推理时期望值要对得上」这一点推出来。",
+    "answer": {
+      "key_points": [
+        "训练时以概率 p 独立置零每个单元，推理时完全不丢弃。",
+        "不做补偿的话，推理期的期望激活是训练期的 1/(1−p) 倍，量级错位。",
+        "inverted dropout 在训练时就除以 keep = 1−p，使输出期望等于不丢弃时的值，推理路径原样前传、零改动。",
+        "所以忘记切 eval() 的后果是「结果随机抖动、变差」，而不是尺度整体偏移。",
+        "Transformer 里 dropout 挂在注意力权重与 FFN 输出、残差相加之前，位置不同效果差别很大。"
+      ],
+      "code": [
+        {
+          "label": "inverted dropout",
+          "language": "python",
+          "code": "def dropout(x, p, training):\n    if not training or p == 0.0:\n        return x                       # 推理路径原样前传，没有任何补偿代码\n\n    keep = 1.0 - p\n    mask = (torch.rand_like(x) < keep).to(x.dtype)\n    # 缩放放在训练侧：除以 keep 后 E[输出] = 输入，于是推理不必再乘 keep。\n    # 部署路径零改动，是它取代原始 dropout 的唯一理由\n    return x * mask / keep"
+        }
+      ],
+      "pitfalls": [
+        "eval() 同时改变 dropout 与 BatchNorm 两种行为，排查时别只想到 dropout。",
+        "dropout 与 BN 叠在同一层常互相干扰，现代结构里更倾向只用其中一种。"
+      ]
+    },
+    "related_ids": ["dl-bn-train-eval", "dl-overfitting-playbook"]
+  },
+  {
+    "id": "dl-weight-decay-scope",
+    "question": "权重衰减该施加在哪些参数上？为什么 bias 和归一化参数通常排除？",
+    "category": "dl-basics",
+    "tags": ["正则化", "训练配置"],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "衰减的目的是压小与输入相乘的权重量级，从而限制函数的复杂度，只有权重矩阵符合这个含义。",
+        "bias 只做平移，量级不影响函数的复杂度，衰减它相当于无谓地把输出往 0 拉。",
+        "LayerNorm/BN 的 γ、β 控制归一化后的缩放与平移，把 γ 压向 0 会直接削弱该层表达能力。",
+        "实现上按参数名分成两个 param group，一组带 weight_decay、一组为 0，这是 Transformer 训练脚本的标准写法。"
+      ],
+      "pitfalls": ["embedding 要不要衰减没有统一答案，不同开源实现取法不同，属于要消融的项。"]
+    },
+    "related_ids": ["dl-adamw-vs-l2", "dl-overfitting-playbook"]
+  },
+  {
+    "id": "dl-bn-vs-ln",
+    "question": "BatchNorm 和 LayerNorm 的区别是什么？为什么 NLP 用 LayerNorm？",
+    "category": "dl-basics",
+    "tags": ["归一化", "训练稳定性"],
+    "priority": "must",
+    "hint": "关键是「沿哪一维求统计量」，以及这个选择带来的依赖。",
+    "answer": {
+      "key_points": [
+        "BN 沿 batch（与空间）维统计每个通道的均值方差，统计量依赖同 batch 内的其他样本。",
+        "LN 沿单个样本自己的特征维统计，与 batch 内其他样本无关，也与序列长度无关。",
+        "BN 的麻烦：小 batch 下统计噪声大、训练用 batch 统计而推理用 running 统计、变长序列里 padding 会污染统计。",
+        "LN 对单样本成立，天然适配变长序列与 batch=1 的自回归解码，所以 Transformer 用 LN。",
+        "BN 在卷积网络上额外带来正则效应并允许更大学习率，所以 CV 仍以 BN 为主。"
+      ],
+      "pitfalls": [
+        "别说「LN 是对整个 batch 归一化」——它恰恰是为了摆脱 batch 依赖。",
+        "CV 里小 batch 的替代是 GroupNorm，不是直接换 LN。"
+      ]
+    },
+    "follow_ups": ["BN 训练和推理的差别具体在哪？"],
+    "related_ids": ["dl-bn-train-eval", "dl-pre-post-ln", "dl-rmsnorm"]
+  },
+  {
+    "id": "dl-bn-train-eval",
+    "question": "BatchNorm 在训练和推理时具体差别在哪？哪些坑与它有关？",
+    "category": "dl-basics",
+    "tags": ["归一化", "训练与推理差异"],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "训练用当前 batch 的均值方差，同时以动量更新 running_mean/running_var；推理用这份 running 统计，于是输出与 batch 组成无关。",
+        "忘记 model.eval() 会让推理用当前 batch 统计，batch 小或分布不同时结果剧烈波动（batch=1 时方差为 0）。",
+        "小 batch（约 <8）训练时统计噪声大，常见对策是 GroupNorm 或多卡同步的 SyncBN。",
+        "微调时若下游分布与预训练差异大，冻结 BN（沿用预训练 running 统计）常比继续更新更稳。",
+        "BN 让一个样本的输出依赖同 batch 的其他样本，对比学习等场景要特别处理（如 shuffle BN）。"
+      ],
+      "pitfalls": ["running 统计是靠动量累积的，训练步数太少时它还没收敛，eval 结果会明显差于 train。"]
+    },
+    "related_ids": ["dl-bn-vs-ln", "dl-dropout"]
+  },
+  {
+    "id": "dl-pre-post-ln",
+    "question": "Pre-LN 和 Post-LN 的区别是什么？为什么现在的大模型都用 Pre-LN？",
+    "category": "dl-basics",
+    "tags": ["归一化", "Transformer", "训练稳定性"],
+    "priority": "must",
+    "hint": "画一下残差相加与 LN 的先后顺序，看梯度走哪条路。",
+    "answer": {
+      "key_points": [
+        "Post-LN（原始 Transformer）：x + Sublayer(x) 之后再 LN；Pre-LN：先 LN 再进子层，残差直接相加，LN 不在主干路径上。",
+        "Pre-LN 从输入到输出有一条不被 LN 缩放的恒等路径，深层梯度不被逐层放缩，训练稳定、对 warmup 依赖弱。",
+        "Post-LN 在初始化时深层梯度量级偏大，需要 warmup 与更小的学习率，层数上到几十层后容易发散。",
+        "Pre-LN 的代价：残差流量级随深度累加，需要在最后补一个 final LN；也有报告称同等设置下 Post-LN 收敛后效果略好。",
+        "所以工程选择是：要训得深、要训得稳就用 Pre-LN，浅模型两者差别不大。"
+      ],
+      "pitfalls": ["Pre-LN 不等于「不需要 warmup」，只是敏感度低；大 batch、大 lr 下仍然常配 warmup。"]
+    },
+    "related_ids": ["dl-bn-vs-ln", "dl-warmup-cosine", "dl-residual-connection"]
+  },
+  {
+    "id": "dl-rmsnorm",
+    "question": "RMSNorm 与 LayerNorm 差在哪？为什么大模型愿意换成它？",
+    "category": "dl-basics",
+    "tags": ["归一化", "Transformer"],
+    "priority": "bonus",
+    "answer": {
+      "key_points": [
+        "LN 先减均值再除标准差，带 γ 和 β；RMSNorm 不减均值，直接除以 RMS(x)=√(mean(x²)+ε)，通常只保留 γ。",
+        "省掉了求均值与中心化：归约次数减少、算子更省带宽，大模型下能省下可观时间。",
+        "经验上去掉中心化不损害效果，说明 LN 的收益主要来自缩放不变性，而不是零均值。",
+        "代价是失去对输入平移的不变性；实践中在 Transformer 上没观察到明显问题，所以成了主流选择。"
+      ]
+    },
+    "related_ids": ["dl-bn-vs-ln"]
+  },
+  {
+    "id": "dl-residual-connection",
+    "question": "残差连接为什么能让深网络训得起来？",
+    "category": "dl-basics",
+    "tags": ["训练稳定性", "梯度"],
+    "priority": "common",
+    "hint": "分别写前向与反向两个式子。",
+    "answer": {
+      "key_points": [
+        "前向 y = x + F(x)：子层只需学相对输入的增量，恒等映射是零成本的默认解，加层不会先变差。",
+        "反向 ∂y/∂x = I + ∂F/∂x：梯度有一条不衰减的直连路径，深层堆叠时不会连乘出指数级衰减。",
+        "因此把残差分支的输出初始化得很小（末层零初始化或小尺度初始化），深网络起步时就等价于一个浅网络。",
+        "残差不能单独解决问题：没有归一化时残差流的方差随深度累加，仍会发散，所以残差与 LN/BN 是配套的。"
+      ],
+      "pitfalls": ["「残差解决了梯度消失」说得太满：它提供了一条不衰减的路径，但 ∂F/∂x 那一支该有的问题照旧。"]
+    },
+    "related_ids": ["dl-pre-post-ln", "dl-init-xavier-he"]
+  },
+  {
+    "id": "dl-mixed-precision",
+    "question": "混合精度训练里的 loss scaling 解决什么问题？bf16 为什么可以不用？",
+    "category": "dl-basics",
+    "tags": ["训练稳定性", "混合精度"],
+    "priority": "common",
+    "hint": "fp16 的问题不是精度不够，是动态范围不够。",
+    "answer": {
+      "key_points": [
+        "fp16 动态范围窄（约 6e-5 到 65504），反向里的小梯度会下溢成 0，整层学不动。",
+        "loss scaling：loss 乘一个大常数 S，梯度同比放大进 fp16 可表示区间，优化器更新前再除回 S。",
+        "动态 loss scaling 遇到 inf/NaN 就跳过这一步并把 S 减半，平稳一段时间后再逐步增大 S。",
+        "权重与优化器状态保留 fp32 主副本，只有前向/反向的矩阵乘用低精度，避免更新量被舍入吃掉。",
+        "bf16 的指数位与 fp32 相同，动态范围一致，因此基本不需要 loss scaling；代价是有效位更少、精度更低。"
+      ],
+      "pitfalls": [
+        "梯度裁剪与梯度累积都必须在 unscale 之后做。",
+        "跳过的那些步不能算进学习率调度的步数，否则调度会被悄悄拉长。"
+      ]
+    },
+    "related_ids": ["dl-grad-clipping", "dl-nan-loss-debug"]
+  },
+  {
+    "id": "dl-init-xavier-he",
+    "question": "Xavier 和 He 初始化分别适配什么激活函数？方差为什么这样取？",
+    "category": "dl-basics",
+    "tags": ["初始化", "训练稳定性"],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "目标是让每层输出（前向）与梯度（反向）的方差不随深度衰减或爆炸。",
+        "Xavier/Glorot 取方差 2/(fan_in+fan_out)，是前向与反向两个条件的折中，假设激活在 0 附近近似线性（tanh）。",
+        "He 取方差 2/fan_in，因为 ReLU 把约一半单元置零、输出方差减半，需要乘 2 补回来。",
+        "用错的后果是量级随深度指数漂移：ReLU 网络用 Xavier 会逐层衰减，深了就学不动。"
+      ],
+      "pitfalls": [
+        "有归一化层时初始化的敏感度大幅下降，但残差分支的初始尺度仍然影响稳定性。",
+        "bias 一般零初始化；把权重也全零初始化会让同层单元完全对称、永远学不出差异。"
+      ]
+    },
+    "related_ids": ["dl-residual-connection", "dl-bn-vs-ln"]
+  },
+  {
+    "id": "dl-nan-loss-debug",
+    "question": "训练中 loss 变成 NaN，你按什么顺序排查？",
+    "category": "dl-basics",
+    "tags": ["训练稳定性", "调试"],
+    "priority": "common",
+    "hint": "先定位是数据、前向、反向还是精度，再动超参。",
+    "answer": {
+      "key_points": [
+        "先复现并定位：固定随机种子、关掉 shuffle，找出是哪一步、哪个 batch，检查该 batch 的输入是否含 NaN/inf 或异常量级 —— 脏数据是最常见原因。",
+        "分清是前向就 NaN 还是反向才 NaN：前向多来自 log(0)、除零、sqrt(负数)、整行被屏蔽的 softmax；反向多来自梯度爆炸或 fp16 溢出。",
+        "查损失里的 log 与除法是否加了 eps，是否对已经 softmax 的输出又取了 log。",
+        "混合精度下先关掉 amp 或换 bf16 试跑：能跑通就说明是 fp16 溢出，靠 loss scaling 与 unscale 后裁剪解决。",
+        "最后再动学习率与 warmup：去掉 warmup 后前几十步就 NaN，通常是步长过大，先把 lr 降一个数量级验证。"
+      ],
+      "pitfalls": [
+        "先盲调学习率是最浪费时间的顺序：数据与前向的 NaN 降 lr 也不会好。",
+        "只打印 loss 不够，把梯度全局范数一起打进日志，尖峰会比 NaN 更早出现。"
+      ]
+    },
+    "related_ids": ["dl-grad-clipping", "dl-mixed-precision", "dl-softmax-stability"]
+  },
+  {
+    "id": "dl-overfitting-playbook",
+    "question": "发现模型过拟合了，你会依次尝试哪些手段？",
+    "category": "dl-basics",
+    "tags": ["正则化", "训练配置"],
+    "priority": "must",
+    "hint": "先确认真的是过拟合，再按「数据 → 正则 → 容量」的顺序说。",
+    "answer": {
+      "key_points": [
+        "先确认是过拟合：训练损失继续降而验证损失回升，且训练/验证同分布 —— 否则是分布漂移，处理方式完全不同。",
+        "优先加数据与数据增强：这是唯一能提高真实上限的手段，正则只是在既有数据上做偏差-方差取舍。",
+        "再上正则：weight decay、dropout、early stopping、标签平滑，一次只动一个并记录验证曲线。",
+        "然后降容量或换路线：减层/减宽、共享参数、用预训练模型替代从零训练。",
+        "调完用独立测试集验一次：反复照着验证集调超参，本身就是在过拟合验证集。"
+      ],
+      "pitfalls": ["「加 dropout」是最容易被追问的答案：要能说出加在哪一层、p 取多少、验证曲线怎么变。"]
+    },
+    "follow_ups": ["dropout 训练和推理的差别是什么？", "权重衰减该加在哪些参数上？"],
+    "related_ids": ["dl-dropout", "dl-weight-decay-scope", "dl-label-smoothing"]
+  }
+]

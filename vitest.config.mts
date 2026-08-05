@@ -9,6 +9,9 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
-    include: ['**/*.test.ts'],
+    // .mjs is included because the deck validator must be runnable by plain
+    // node in the build script, with no compile step — so it and its tests are
+    // authored as ESM JavaScript rather than TypeScript.
+    include: ['**/*.test.ts', '**/*.test.mjs'],
   },
 });
