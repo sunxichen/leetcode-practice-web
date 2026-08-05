@@ -3,9 +3,9 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import type { FeedbackType, QuestionProgress } from '@/lib/types';
+import type { SchedulingParams } from '@/lib/schedulingParams';
 import { ParticleEffect } from '@/components/ui/ParticleEffect';
 import { SPRING_CONFIG } from '@/lib/constants';
-import { HOT100_SCHEDULING_PARAMS } from '@/lib/schedulingParams';
 import { scheduleNext } from '@/lib/sm2';
 import styles from './FeedbackBar.module.css';
 
@@ -13,6 +13,8 @@ interface FeedbackBarProps {
   onFeedback: (type: FeedbackType) => void;
   disabled?: boolean;
   currentProgress?: QuestionProgress;
+  /** 调度参数：由题集配置注入，用于各档位按钮的到期时间预览。 */
+  schedulingParams: SchedulingParams;
 }
 
 const FEEDBACK_BASE: { type: FeedbackType; label: string; className: string }[] = [
@@ -33,14 +35,14 @@ function formatPreview(dueAtMs: number): string {
   return `${days}天`;
 }
 
-export function FeedbackBar({ onFeedback, disabled, currentProgress }: FeedbackBarProps) {
+export function FeedbackBar({ onFeedback, disabled, currentProgress, schedulingParams }: FeedbackBarProps) {
   const options = useMemo(
     () =>
       FEEDBACK_BASE.map(opt => {
-        const preview = scheduleNext(currentProgress, opt.type, HOT100_SCHEDULING_PARAMS);
+        const preview = scheduleNext(currentProgress, opt.type, schedulingParams);
         return { ...opt, sublabel: formatPreview(preview.dueAt) };
       }),
-    [currentProgress],
+    [currentProgress, schedulingParams],
   );
 
   const [particles, setParticles] = useState<{ x: number; y: number; active: boolean }>({

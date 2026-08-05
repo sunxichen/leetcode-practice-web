@@ -7,11 +7,15 @@ export interface Solution {
   code: string;
 }
 
+/** LeetCode 题集题目的固有难度（内容的属性，不是一次自评表现）。
+ * 面试题集没有这个概念——它用重要度 (Priority) 取代难度，见 ADR-0004。 */
+export type Difficulty = 'Easy' | 'Medium' | 'Hard';
+
 /** Single question */
 export interface Question {
   id: string;
   title: string;
-  difficulty: 'Easy' | 'Medium' | 'Hard';
+  difficulty: Difficulty;
   tags: string[];
   description: string;
   core_pattern: string;
@@ -84,10 +88,12 @@ export interface UserProgressData {
 
 export type FeedbackType = 'again' | 'hard' | 'good' | 'easy';
 
-/** A study-session configuration: drives which queue useStudyQueue builds. */
+/** A study-session configuration: drives which queue useStudyQueue builds.
+ * 一个题集实际提供哪些模式由它的题集配置 (DeckConfig.sessionModes) 声明；
+ * 按难度这类模式只对卡片带相应字段的题集有意义。 */
 export type SessionMode =
   | { kind: 'smart' }
-  | { kind: 'difficulty'; value: 'Easy' | 'Medium' | 'Hard' }
+  | { kind: 'difficulty'; value: Difficulty }
   | { kind: 'tag'; value: string }
   | { kind: 'weakest' }
   | { kind: 'single'; questionId: string };

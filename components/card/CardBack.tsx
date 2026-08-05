@@ -5,7 +5,7 @@ import { SolutionCarousel } from './SolutionCarousel';
 import styles from './CardBack.module.css';
 
 interface CardBackProps {
-  question: Question;
+  card: Question;
   activeSolutionIndex: number;
   onSolutionIndexChange: (index: number) => void;
   cardState?: CardState;
@@ -21,7 +21,7 @@ const STATE_LABEL: Record<CardState, string> = {
 };
 
 export function CardBack({
-  question,
+  card,
   activeSolutionIndex,
   onSolutionIndexChange,
   cardState,
@@ -49,14 +49,14 @@ export function CardBack({
 
       <div className={styles.recallSection}>
         <div className={styles.sectionLabel}>核心模式</div>
-        <p className={styles.pattern}>{question.core_pattern}</p>
+        <p className={styles.pattern}>{card.core_pattern}</p>
       </div>
 
-      {question.corner_cases.length > 0 && (
+      {card.corner_cases.length > 0 && (
         <div className={styles.recallSection}>
           <div className={styles.sectionLabel}>边界用例</div>
           <ul className={styles.cornerCases}>
-            {question.corner_cases.map((c, i) => (
+            {card.corner_cases.map((c, i) => (
               <li key={i} className={styles.cornerCase}>
                 <span className={styles.bullet}>•</span>
                 {c}
@@ -69,12 +69,12 @@ export function CardBack({
       <div className={styles.solutionsHeader}>
         <span className={styles.solutionsLabel}>代码解法</span>
         <span className={styles.count}>
-          {question.solutions.length} 种解法
+          {card.solutions.length} 种解法
         </span>
       </div>
 
       <SolutionCarousel
-        solutions={question.solutions}
+        solutions={card.solutions}
         activeSolutionIndex={activeSolutionIndex}
         onIndexChange={onSolutionIndexChange}
       />

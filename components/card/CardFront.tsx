@@ -9,7 +9,7 @@ import { SPRING_CONFIG } from '@/lib/constants';
 import styles from './CardFront.module.css';
 
 interface CardFrontProps {
-  question: Question;
+  card: Question;
   cardState?: CardState;
 }
 
@@ -24,35 +24,35 @@ function StateBadge({ state }: { state: CardState }) {
   return <span className={`${styles.stateBadge} ${styles[`stateBadge_${state === 'new' ? 'new' : 'seen'}`]}`}>{label}</span>;
 }
 
-export function CardFront({ question, cardState }: CardFrontProps) {
+export function CardFront({ card, cardState }: CardFrontProps) {
   const [copied, setCopied] = useState(false);
   const [hintShown, setHintShown] = useState(false);
 
   const handleCopy = useCallback(async () => {
-    const text = `${question.id}. ${question.title}\n\n${question.description}`;
+    const text = `${card.id}. ${card.title}\n\n${card.description}`;
     await navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-  }, [question]);
+  }, [card]);
 
   return (
     <div className={styles.front}>
       <div className={styles.header}>
         <div className={styles.titleRow}>
-          <span className={styles.questionId}>#{question.id}</span>
-          <DifficultyBadge difficulty={question.difficulty} />
+          <span className={styles.questionId}>#{card.id}</span>
+          <DifficultyBadge difficulty={card.difficulty} />
           {cardState && <StateBadge state={cardState} />}
         </div>
-        <h2 className={styles.title}>{question.title}</h2>
+        <h2 className={styles.title}>{card.title}</h2>
         <div className={styles.tags}>
-          {question.tags.map((tag) => (
+          {card.tags.map((tag) => (
             <TagChip key={tag} tag={tag} />
           ))}
         </div>
       </div>
 
       <div className={styles.body}>
-        <p className={styles.description}>{question.description}</p>
+        <p className={styles.description}>{card.description}</p>
 
         <AnimatePresence initial={false}>
           {hintShown && (
@@ -65,7 +65,7 @@ export function CardFront({ question, cardState }: CardFrontProps) {
               transition={SPRING_CONFIG.enter}
             >
               <div className={styles.hintLabel}>💡 思路提示</div>
-              <p className={styles.hintText}>{question.core_pattern}</p>
+              <p className={styles.hintText}>{card.core_pattern}</p>
             </motion.div>
           )}
         </AnimatePresence>

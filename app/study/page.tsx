@@ -14,6 +14,7 @@ import { ModePicker } from '@/components/study/ModePicker';
 import { SessionSummary } from '@/components/study/SessionSummary';
 import { UndoToast } from '@/components/ui/UndoToast';
 import { SPRING_CONFIG, EXIT_ANIMATIONS, ENTER_ANIMATION } from '@/lib/constants';
+import { getDeckConfig } from '@/lib/decks';
 import type { FeedbackType, SessionMode } from '@/lib/types';
 import styles from './page.module.css';
 
@@ -23,6 +24,13 @@ const FEEDBACK_LABEL: Record<FeedbackType, string> = {
   good: '良好',
   easy: '简单',
 };
+
+/**
+ * 本页服务的题集。卡片数据源、调度参数、可选会话模式清单与卡片正反面组件
+ * 全部从题集配置取用，本页不直接引用任何题集的常量与卡面组件。
+ */
+const deck = getDeckConfig('hot100');
+const { CardFront, CardBack } = deck.components;
 
 function StudyPageInner() {
   const router = useRouter();
@@ -55,7 +63,7 @@ function StudyPageInner() {
     isEmpty,
     todayDueCount,
     counters,
-  } = useStudyQueue(progressData, activeMode);
+  } = useStudyQueue(progressData, activeMode, deck);
 
   const weakestCount = useMemo(() => {
     return Object.values(progressData.progress).filter(p => p.state !== 'new').length;
@@ -101,7 +109,7 @@ function StudyPageInner() {
 
     triggerHaptic(feedback === 'again' ? [10, 50, 10] : 10);
 
-    updateProgress(currentQuestion.id, feedback);
+    updateProgress(currentQuestion.id, feedback, deck.schedulingParams);
     setExitDirection(feedback);
     setSessionBreakdown(prev => ({ ...prev, [feedback]: prev[feedback] + 1 }));
     if (activeMode.kind !== 'single' && currentIndex + 1 >= queue.length) {
@@ -195,6 +203,8 @@ function StudyPageInner() {
         todayDueCount={todayDueCount}
         counters={counters}
         weakestCount={weakestCount}
+        questions={deck.dataSource.getAllCards()}
+        modes={deck.sessionModes}
         onSelectMode={(m) => {
           resetSession();
           setPickedMode(m);
@@ -269,14 +279,24 @@ function StudyPageInner() {
             className={styles.cardWrapper}
           >
             <FlashCard
-              question={currentQuestion}
               isFlipped={isFlipped}
               onFlip={handleFlip}
-              activeSolutionIndex={activeSolutionIndex}
-              onSolutionIndexChange={setActiveSolutionIndex}
-              cardState={cardState}
-              learningStep={currentProg?.learningStep}
-              intervalDays={currentProg?.intervalDays}
+              front={
+                <CardFront
+                  card={currentQuestion}
+                  cardState={cardState}
+                />
+              }
+              back={
+                <CardBack
+                  card={currentQuestion}
+                  activeSolutionIndex={activeSolutionIndex}
+                  onSolutionIndexChange={setActiveSolutionIndex}
+                  cardState={cardState}
+                  learningStep={currentProg?.learningStep}
+                  intervalDays={currentProg?.intervalDays}
+                />
+              }
             />
           </motion.div>
         </AnimatePresence>
@@ -294,6 +314,7 @@ function StudyPageInner() {
               onFeedback={handleFeedback}
               disabled={!!exitDirection}
               currentProgress={currentProg}
+              schedulingParams={deck.schedulingParams}
             />
           </motion.div>
         )}

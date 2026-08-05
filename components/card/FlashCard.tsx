@@ -1,33 +1,24 @@
 'use client';
 
 import { AnimatePresence, motion } from 'framer-motion';
-import type { Question, CardState } from '@/lib/types';
-import { CardFront } from './CardFront';
-import { CardBack } from './CardBack';
+import type { ReactNode } from 'react';
 import { SPRING_CONFIG } from '@/lib/constants';
 import styles from './FlashCard.module.css';
 
 interface FlashCardProps {
-  question: Question;
+  /** 卡片正面，由题集配置的 CardFront 渲染 */
+  front: ReactNode;
+  /** 卡片背面，由题集配置的 CardBack 渲染 */
+  back: ReactNode;
   isFlipped: boolean;
   onFlip: () => void;
-  activeSolutionIndex: number;
-  onSolutionIndexChange: (index: number) => void;
-  cardState?: CardState;
-  learningStep?: number;
-  intervalDays?: number;
 }
 
-export function FlashCard({
-  question,
-  isFlipped,
-  onFlip,
-  activeSolutionIndex,
-  onSolutionIndexChange,
-  cardState,
-  learningStep,
-  intervalDays,
-}: FlashCardProps) {
+/**
+ * 翻卡容器：只负责正反面切换动画与翻卡按钮，不关心卡片内容形态。
+ * 正反面渲染组件来自题集配置（见 lib/decks/），由学习页渲染后传入。
+ */
+export function FlashCard({ front, back, isFlipped, onFlip }: FlashCardProps) {
   return (
     <div className={styles.perspective}>
       <AnimatePresence mode="wait" initial={false}>
@@ -41,14 +32,7 @@ export function FlashCard({
         >
           {isFlipped ? (
             <div className={styles.face}>
-              <CardBack
-                question={question}
-                activeSolutionIndex={activeSolutionIndex}
-                onSolutionIndexChange={onSolutionIndexChange}
-                cardState={cardState}
-                learningStep={learningStep}
-                intervalDays={intervalDays}
-              />
+              {back}
               <button type="button" className={styles.flipButton} onClick={onFlip}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <polyline points="23 4 23 10 17 10" />
@@ -59,7 +43,7 @@ export function FlashCard({
             </div>
           ) : (
             <div className={styles.face}>
-              <CardFront question={question} cardState={cardState} />
+              {front}
               <button type="button" className={styles.flipButton} onClick={onFlip}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <polyline points="1 4 1 10 7 10" />

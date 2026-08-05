@@ -10,7 +10,7 @@ import type {
 } from '@/lib/types';
 import { createStorageAdapter, reconcileProgress } from '@/lib/storage';
 import { scheduleNext } from '@/lib/sm2';
-import { HOT100_SCHEDULING_PARAMS } from '@/lib/schedulingParams';
+import type { SchedulingParams } from '@/lib/schedulingParams';
 import { DEBOUNCE_MS, LOCAL_STORAGE_KEY, UNDO_WINDOW_MS } from '@/lib/constants';
 
 /** Snapshot stored to make the last feedback reversible. */
@@ -138,11 +138,12 @@ export function useProgress() {
   }, [flushToRemote]);
 
   // Update progress for a question — also bumps stats + streak and records an undo snapshot.
-  const updateProgress = useCallback((questionId: string, feedback: FeedbackType) => {
+  // 调度参数由调用方从题集配置注入，本 hook 不直接引用任何题集的调度常量。
+  const updateProgress = useCallback((questionId: string, feedback: FeedbackType, params: SchedulingParams) => {
     const today = ymd(Date.now());
     setProgressData((prev) => {
       const prevQ = prev.progress[questionId];
-      const nextQ = scheduleNext(prevQ, feedback, HOT100_SCHEDULING_PARAMS);
+      const nextQ = scheduleNext(prevQ, feedback, params);
       // Track lapses on the question for the "易遗忘" semantic filter in browse.
       if (prevQ?.state === 'review' && nextQ.state === 'relearning') {
         nextQ.lapses = (prevQ.lapses ?? 0) + 1;

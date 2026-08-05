@@ -1,4 +1,4 @@
-import type { Question, QuestionProgress, SessionMode } from '@/lib/types';
+import type { Difficulty, QuestionProgress, SessionMode } from '@/lib/types';
 import type { SchedulingParams } from '@/lib/schedulingParams';
 
 /**
@@ -19,6 +19,20 @@ import type { SchedulingParams } from '@/lib/schedulingParams';
  */
 
 /**
+ * 队列引擎对卡片的最小结构化约束：一个用于索引进度与队列的 id。
+ *
+ * 引擎不绑定 LeetCode 题集的 Question 类型——第二个题集的卡片是
+ * InterviewCard（没有 difficulty，有 category 与 priority），它原样满足本约束。
+ * 按难度、按标签这类筛选模式对字段的要求属于模式自身，不属于所有卡片：
+ * 见 generateQueue 的 'difficulty' / 'tag' 分支，以及题集配置里的
+ * 可选会话模式清单（DeckConfig.sessionModes）——清单才是"该题集不提供
+ * 某模式"的语义边界。
+ */
+export interface SessionCard {
+  id: string;
+}
+
+/**
  * Build a fresh study queue snapshot for SMART mode (SM-2 driven).
  *
  * Priority (woven so users see progress on new material too):
@@ -31,7 +45,7 @@ import type { SchedulingParams } from '@/lib/schedulingParams';
  *      recur within the current ~10-min session window (Ebbinghaus loop).
  */
 function generateSmartQueue(
-  questions: Question[],
+  cards: SessionCard[],
   progress: Record<string, QuestionProgress>,
   params: SchedulingParams,
   now: number = Date.now(),
@@ -41,19 +55,19 @@ function generateSmartQueue(
   const reviewOverdue: Array<{ id: string; urgency: number }> = [];
   const brandNew: string[] = [];
 
-  for (const q of questions) {
-    const prog = progress[q.id];
+  for (const card of cards) {
+    const prog = progress[card.id];
 
     if (!prog || prog.state === 'new' || prog.proficiency === 'new') {
-      brandNew.push(q.id);
+      brandNew.push(card.id);
       continue;
     }
 
     if (prog.state === 'learning' || prog.state === 'relearning') {
       if (prog.dueAt <= now) {
-        learningOverdue.push({ id: q.id, dueAt: prog.dueAt });
+        learningOverdue.push({ id: card.id, dueAt: prog.dueAt });
       } else {
-        learningPending.push({ id: q.id, dueAt: prog.dueAt });
+        learningPending.push({ id: card.id, dueAt: prog.dueAt });
       }
       continue;
     }
@@ -61,7 +75,7 @@ function generateSmartQueue(
     // review state
     const due = prog.dueAt ?? prog.nextReviewDate ?? 0;
     if (due <= now) {
-      reviewOverdue.push({ id: q.id, urgency: now - due });
+      reviewOverdue.push({ id: card.id, urgency: now - due });
     }
   }
 
@@ -125,30 +139,39 @@ function sortFilteredQueue(
  */
 export function generateQueue(
   mode: SessionMode,
-  questions: Question[],
+  cards: SessionCard[],
   progress: Record<string, QuestionProgress>,
   params: SchedulingParams,
   now: number = Date.now(),
 ): string[] {
   switch (mode.kind) {
     case 'smart':
-      return generateSmartQueue(questions, progress, params, now);
+      return generateSmartQueue(cards, progress, params, now);
     case 'difficulty': {
-      const ids = questions.filter(q => q.difficulty === mode.value).map(q => q.id);
+      // 按难度是 LeetCode 题集的模式：它要求卡片带 difficulty 字段，这个要求
+      // 属于模式自身，所以收进本分支而不是抬进 SessionCard。类型上靠这里的
+      // 结构化收窄编译；语义上由题集配置的可选会话模式清单保证——卡片没有
+      // difficulty 的题集（面试题集）不提供这个模式。
+      const ids = (cards as Array<SessionCard & { difficulty: Difficulty }>)
+        .filter(card => card.difficulty === mode.value)
+        .map(card => card.id);
       return sortFilteredQueue(ids, progress, now);
     }
     case 'tag': {
-      const ids = questions.filter(q => q.tags.includes(mode.value)).map(q => q.id);
+      // 同上：tags 字段要求属于按标签模式自身。
+      const ids = (cards as Array<SessionCard & { tags: string[] }>)
+        .filter(card => card.tags.includes(mode.value))
+        .map(card => card.id);
       return sortFilteredQueue(ids, progress, now);
     }
     case 'weakest': {
       // Bottom 10 by easeFactor (cards user struggles with most), plus high-lapse cards.
-      const seen = questions.filter(q => progress[q.id] && progress[q.id].state !== 'new');
+      const seen = cards.filter(card => progress[card.id] && progress[card.id].state !== 'new');
       const ranked = seen
-        .map(q => {
-          const p = progress[q.id];
+        .map(card => {
+          const p = progress[card.id];
           return {
-            id: q.id,
+            id: card.id,
             score: (p.easeFactor ?? params.efDefault) - (p.lapses ?? 0) * 0.3,
           };
         })
@@ -160,7 +183,7 @@ export function generateQueue(
     case 'single': {
       // Resolved against the injected card set (not the global bank) so the
       // seam stays pure and works for any 题集.
-      return questions.some(q => q.id === mode.questionId) ? [mode.questionId] : [];
+      return cards.some(card => card.id === mode.questionId) ? [mode.questionId] : [];
     }
   }
 }

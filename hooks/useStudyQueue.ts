@@ -5,19 +5,25 @@ import type {
   UserProgressData,
   SessionMode,
 } from '@/lib/types';
-import { getAllQuestions, getQuestionById } from '@/lib/questions';
-import { HOT100_SCHEDULING_PARAMS } from '@/lib/schedulingParams';
-import { generateQueue } from '@/lib/studyQueue';
+import type { DeckConfig } from '@/lib/decks/types';
+import { generateQueue, type SessionCard } from '@/lib/studyQueue';
 
 /**
  * Session state and side effects only. All queue sorting / weaving logic lives
  * in the pure session-engine seam (lib/studyQueue.ts); this hook just feeds it
  * the current card set, progress, 调度参数 and mode, and holds the resulting
  * queue cursor.
+ *
+ * 卡片集与调度参数全部来自题集配置（deck），hook 不直接引用任何题集的
+ * 数据源或调度常量。
  */
-export function useStudyQueue(progressData: UserProgressData, mode: SessionMode) {
+export function useStudyQueue<C extends SessionCard>(
+  progressData: UserProgressData,
+  mode: SessionMode,
+  deck: DeckConfig<C>,
+) {
   const [sessionState, setSessionState] = useState<{ queue: string[]; currentIndex: number } | null>(null);
-  const questions = getAllQuestions();
+  const cards = deck.dataSource.getAllCards();
   const modeKey = JSON.stringify(mode);
 
   // Ref mirror of progress so goNext (called from setTimeout in handleFeedback)
@@ -38,7 +44,7 @@ export function useStudyQueue(progressData: UserProgressData, mode: SessionMode)
     if (!progressData || progressData.lastUpdatedAt === 0) return;
 
     setSessionState({
-      queue: generateQueue(mode, questions, progressData.progress, HOT100_SCHEDULING_PARAMS),
+      queue: generateQueue(mode, cards, progressData.progress, deck.schedulingParams),
       currentIndex: 0,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -60,14 +66,14 @@ export function useStudyQueue(progressData: UserProgressData, mode: SessionMode)
       // Smart mode: regenerate future tail from latest progress (via ref so
       // we always see the post-feedback state), preserve prefix so the X / Y
       // indicator stays meaningful.
-      const futureQueue = generateQueue({ kind: 'smart' }, questions, progressRef.current, HOT100_SCHEDULING_PARAMS);
+      const futureQueue = generateQueue({ kind: 'smart' }, cards, progressRef.current, deck.schedulingParams);
       const prefix = prev.queue.slice(0, nextIndex);
       return {
         queue: [...prefix, ...futureQueue],
         currentIndex: nextIndex,
       };
     });
-  }, [mode.kind, questions]);
+  }, [mode.kind, cards, deck.schedulingParams]);
 
   /** Roll back the cursor by one (used by undo). Returns true if anything was rolled back. */
   const goBack = useCallback((): boolean => {
@@ -81,7 +87,7 @@ export function useStudyQueue(progressData: UserProgressData, mode: SessionMode)
   }, []);
 
   const isEmpty = queue.length === 0 || currentIndex >= queue.length;
-  const currentQuestion = isEmpty ? null : getQuestionById(queue[currentIndex]) ?? null;
+  const currentQuestion = isEmpty ? null : deck.dataSource.getCardById(queue[currentIndex]) ?? null;
 
   // === Counters for gateway / empty-state UX ===
   const counters = useMemo(() => {
@@ -92,8 +98,8 @@ export function useStudyQueue(progressData: UserProgressData, mode: SessionMode)
     let newCount = 0;
     let nextLearningDueAt: number | null = null;
 
-    for (const q of questions) {
-      const prog = progressData.progress[q.id];
+    for (const card of cards) {
+      const prog = progressData.progress[card.id];
       if (!prog || prog.state === 'new' || prog.proficiency === 'new') {
         newCount++;
         continue;
@@ -111,7 +117,7 @@ export function useStudyQueue(progressData: UserProgressData, mode: SessionMode)
     }
 
     return { dueReview, learningNow, learningSoon, newCount, nextLearningDueAt };
-  }, [questions, progressData.progress]);
+  }, [cards, progressData.progress]);
 
   const todayDueCount = counters.dueReview + counters.learningNow + counters.learningSoon;
 
