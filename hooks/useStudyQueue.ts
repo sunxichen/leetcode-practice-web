@@ -8,6 +8,8 @@ import type {
   SessionMode,
 } from '@/lib/types';
 import { getAllQuestions, getQuestionById } from '@/lib/questions';
+import { HOT100_SCHEDULING_PARAMS } from '@/lib/schedulingParams';
+import type { SchedulingParams } from '@/lib/schedulingParams';
 
 
 /**
@@ -18,29 +20,16 @@ import { getAllQuestions, getQuestionById } from '@/lib/questions';
  *   2. review cards that are overdue (sorted by how overdue), woven 3:1 with new cards
  *   3. brand-new cards (sorted by question id, ascending)
  *   4. learning cards whose dueAt is in the future — spliced into 2-3 at clamped
- *      positions [LEARNING_REINSERT_MIN, LEARNING_REINSERT_MAX] so they recur
- *      within the current ~10-min session window (Ebbinghaus loop).
+ *      positions [params.learningReinsertMin, params.learningReinsertMax] so they
+ *      recur within the current ~10-min session window (Ebbinghaus loop).
  *
  * `excludeIds` is intentionally minimal — typically not used at all because the clamp
  * already prevents the just-shown card from reappearing immediately.
  */
-/** Estimated number of cards a user can blow through before a learning card becomes due.
- *  LeetCode-tuned: ~4 min per problem → 0.25 cards / minute. */
-const CARDS_PER_MINUTE = 0.25;
-
-/** Lower bound for re-showing a learning card. Prevents the immediate "I just saw this" feel.
- *  At 4 min/problem, MIN=2 ⇒ at least two other problems (~8 min) before recurrence,
- *  slightly under the 10-min step-0 interval. */
-const LEARNING_REINSERT_MIN = 2;
-
-/** Upper bound for re-showing a learning card. Prevents "I'll never see it again in this session" feel.
- *  At 4 min/problem, MAX=15 ⇒ guaranteed recurrence within ~60 min, matching the
- *  60-min step-1 interval. If the session is shorter, the card simply appears next session. */
-const LEARNING_REINSERT_MAX = 15;
-
 function generateSmartQueue(
   questions: Question[],
   progress: Record<string, QuestionProgress>,
+  params: SchedulingParams,
   now: number = Date.now(),
 ): string[] {
   const learningOverdue: Array<{ id: string; dueAt: number }> = [];
@@ -93,8 +82,8 @@ function generateSmartQueue(
   for (let i = learningPending.length - 1; i >= 0; i--) {
     const item = learningPending[i];
     const minutesAway = Math.max(0, (item.dueAt - now) / 60000);
-    const expected = Math.ceil(minutesAway * CARDS_PER_MINUTE);
-    const clamped = Math.min(LEARNING_REINSERT_MAX, Math.max(LEARNING_REINSERT_MIN, expected));
+    const expected = Math.ceil(minutesAway * params.cardsPerMinute);
+    const clamped = Math.min(params.learningReinsertMax, Math.max(params.learningReinsertMin, expected));
     const pos = Math.min(reviewNewWoven.length, clamped);
     reviewNewWoven.splice(pos, 0, item.id);
   }
@@ -134,11 +123,12 @@ export function generateQueue(
   mode: SessionMode,
   questions: Question[],
   progress: Record<string, QuestionProgress>,
+  params: SchedulingParams,
   now: number = Date.now(),
 ): string[] {
   switch (mode.kind) {
     case 'smart':
-      return generateSmartQueue(questions, progress, now);
+      return generateSmartQueue(questions, progress, params, now);
     case 'difficulty': {
       const ids = questions.filter(q => q.difficulty === mode.value).map(q => q.id);
       return sortFilteredQueue(ids, progress, now);
@@ -155,7 +145,7 @@ export function generateQueue(
           const p = progress[q.id];
           return {
             id: q.id,
-            score: (p.easeFactor ?? 2.5) - (p.lapses ?? 0) * 0.3,
+            score: (p.easeFactor ?? params.efDefault) - (p.lapses ?? 0) * 0.3,
           };
         })
         .sort((a, b) => a.score - b.score)
@@ -192,7 +182,7 @@ export function useStudyQueue(progressData: UserProgressData, mode: SessionMode)
     if (!progressData || progressData.lastUpdatedAt === 0) return;
 
     setSessionState({
-      queue: generateQueue(mode, questions, progressData.progress),
+      queue: generateQueue(mode, questions, progressData.progress, HOT100_SCHEDULING_PARAMS),
       currentIndex: 0,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -214,7 +204,7 @@ export function useStudyQueue(progressData: UserProgressData, mode: SessionMode)
       // Smart mode: regenerate future tail from latest progress (via ref so
       // we always see the post-feedback state), preserve prefix so the X / Y
       // indicator stays meaningful.
-      const futureQueue = generateSmartQueue(questions, progressRef.current);
+      const futureQueue = generateSmartQueue(questions, progressRef.current, HOT100_SCHEDULING_PARAMS);
       const prefix = prev.queue.slice(0, nextIndex);
       return {
         queue: [...prefix, ...futureQueue],

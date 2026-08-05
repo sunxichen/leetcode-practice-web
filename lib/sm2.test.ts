@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { scheduleNext } from '@/lib/sm2';
+import { HOT100_SCHEDULING_PARAMS } from '@/lib/schedulingParams';
 import type { CardState, FeedbackType, QuestionProgress } from '@/lib/types';
 
 /**
@@ -174,7 +175,7 @@ const TRANSITIONS: TransitionCase[] = [
 
 describe('scheduleNext — the 16 lifecycle × feedback transitions', () => {
   it.each(TRANSITIONS)('$name', ({ current, feedback, expected }) => {
-    const next = scheduleNext(current, feedback, NOW);
+    const next = scheduleNext(current, feedback, HOT100_SCHEDULING_PARAMS, NOW);
     expect(next.state).toBe(expected.state);
     expect(next.dueAt).toBe(expected.dueAt);
     expect(next.intervalDays).toBe(expected.intervalDays);
@@ -184,13 +185,13 @@ describe('scheduleNext — the 16 lifecycle × feedback transitions', () => {
   });
 
   it('records the feedback and the injected review time on every transition', () => {
-    const next = scheduleNext(REVIEW_CARD, 'good', NOW);
+    const next = scheduleNext(REVIEW_CARD, 'good', HOT100_SCHEDULING_PARAMS, NOW);
     expect(next.proficiency).toBe('good');
     expect(next.lastReviewDate).toBe(NOW);
   });
 
   it('mirrors dueAt / intervalDays onto the deprecated legacy fields', () => {
-    const next = scheduleNext(REVIEW_CARD, 'good', NOW);
+    const next = scheduleNext(REVIEW_CARD, 'good', HOT100_SCHEDULING_PARAMS, NOW);
     expect(next.nextReviewDate).toBe(next.dueAt);
     expect(next.interval).toBe(next.intervalDays);
   });
@@ -198,18 +199,18 @@ describe('scheduleNext — the 16 lifecycle × feedback transitions', () => {
 
 describe('scheduleNext — injected time', () => {
   it('treats a missing progress entry as a new card', () => {
-    const fromUndefined = scheduleNext(undefined, 'good', NOW);
-    const fromNewCard = scheduleNext(NEW_CARD, 'good', NOW);
+    const fromUndefined = scheduleNext(undefined, 'good', HOT100_SCHEDULING_PARAMS, NOW);
+    const fromNewCard = scheduleNext(NEW_CARD, 'good', HOT100_SCHEDULING_PARAMS, NOW);
     expect(fromUndefined).toEqual(fromNewCard);
   });
 
   it('is a pure function of the injected time: the same input yields the same output', () => {
-    expect(scheduleNext(REVIEW_CARD, 'good', NOW)).toEqual(scheduleNext(REVIEW_CARD, 'good', NOW));
+    expect(scheduleNext(REVIEW_CARD, 'good', HOT100_SCHEDULING_PARAMS, NOW)).toEqual(scheduleNext(REVIEW_CARD, 'good', HOT100_SCHEDULING_PARAMS, NOW));
   });
 
   it('falls back to the system clock when no time is injected', () => {
     const before = Date.now();
-    const next = scheduleNext(NEW_CARD, 'again');
+    const next = scheduleNext(NEW_CARD, 'again', HOT100_SCHEDULING_PARAMS);
     const after = Date.now();
     expect(next.dueAt).toBeGreaterThanOrEqual(before + 10 * MIN);
     expect(next.dueAt).toBeLessThanOrEqual(after + 10 * MIN);
@@ -218,17 +219,17 @@ describe('scheduleNext — injected time', () => {
 
 describe('scheduleNext — ordering of learning delays', () => {
   it('orders due times again < hard < good on a learning card', () => {
-    const again = scheduleNext(NEW_CARD, 'again', NOW).dueAt;
-    const hard = scheduleNext(NEW_CARD, 'hard', NOW).dueAt;
-    const good = scheduleNext(NEW_CARD, 'good', NOW).dueAt;
+    const again = scheduleNext(NEW_CARD, 'again', HOT100_SCHEDULING_PARAMS, NOW).dueAt;
+    const hard = scheduleNext(NEW_CARD, 'hard', HOT100_SCHEDULING_PARAMS, NOW).dueAt;
+    const good = scheduleNext(NEW_CARD, 'good', HOT100_SCHEDULING_PARAMS, NOW).dueAt;
     expect(again).toBeLessThan(hard);
     expect(hard).toBeLessThan(good);
   });
 
   it('keeps that order on the final learning step, where good graduates to a day-level interval', () => {
-    const again = scheduleNext(LEARNING_STEP_1, 'again', NOW).dueAt;
-    const hard = scheduleNext(LEARNING_STEP_1, 'hard', NOW).dueAt;
-    const good = scheduleNext(LEARNING_STEP_1, 'good', NOW).dueAt;
+    const again = scheduleNext(LEARNING_STEP_1, 'again', HOT100_SCHEDULING_PARAMS, NOW).dueAt;
+    const hard = scheduleNext(LEARNING_STEP_1, 'hard', HOT100_SCHEDULING_PARAMS, NOW).dueAt;
+    const good = scheduleNext(LEARNING_STEP_1, 'good', HOT100_SCHEDULING_PARAMS, NOW).dueAt;
     expect(again).toBeLessThan(hard);
     expect(hard).toBeLessThan(good);
   });
@@ -236,23 +237,23 @@ describe('scheduleNext — ordering of learning delays', () => {
 
 describe('scheduleNext — lapse and recovery', () => {
   it('sends a lapsed review card into relearning inside the same session', () => {
-    const lapsed = scheduleNext(card({ state: 'review', intervalDays: 20, easeFactor: 2.5, level: 5 }), 'again', NOW);
+    const lapsed = scheduleNext(card({ state: 'review', intervalDays: 20, easeFactor: 2.5, level: 5 }), 'again', HOT100_SCHEDULING_PARAMS, NOW);
     expect(lapsed.state).toBe('relearning');
     expect(lapsed.dueAt).toBe(NOW + 10 * MIN);
     expect(lapsed.intervalDays).toBe(20);
   });
 
   it('restarts from a 1-day interval after successful relearning, rather than halving the prior one', () => {
-    const lapsed = scheduleNext(card({ state: 'review', intervalDays: 20, easeFactor: 2.5, level: 5 }), 'again', NOW);
-    const recovered = scheduleNext(lapsed, 'good', NOW);
+    const lapsed = scheduleNext(card({ state: 'review', intervalDays: 20, easeFactor: 2.5, level: 5 }), 'again', HOT100_SCHEDULING_PARAMS, NOW);
+    const recovered = scheduleNext(lapsed, 'good', HOT100_SCHEDULING_PARAMS, NOW);
     expect(recovered.state).toBe('review');
     expect(recovered.intervalDays).toBe(1);
     expect(recovered.dueAt).toBe(TODAY + 1 * DAY);
   });
 
   it('halves the prior interval only when relearning is graded easy', () => {
-    const lapsed = scheduleNext(card({ state: 'review', intervalDays: 20, easeFactor: 2.5, level: 5 }), 'again', NOW);
-    const recovered = scheduleNext(lapsed, 'easy', NOW);
+    const lapsed = scheduleNext(card({ state: 'review', intervalDays: 20, easeFactor: 2.5, level: 5 }), 'again', HOT100_SCHEDULING_PARAMS, NOW);
+    const recovered = scheduleNext(lapsed, 'easy', HOT100_SCHEDULING_PARAMS, NOW);
     expect(recovered.state).toBe('review');
     expect(recovered.intervalDays).toBe(10);
   });
@@ -260,44 +261,44 @@ describe('scheduleNext — lapse and recovery', () => {
 
 describe('scheduleNext — clamps', () => {
   it('caps the review interval at 30 days on good', () => {
-    const next = scheduleNext(card({ state: 'review', intervalDays: 28, easeFactor: 2.5, level: 6 }), 'good', NOW);
+    const next = scheduleNext(card({ state: 'review', intervalDays: 28, easeFactor: 2.5, level: 6 }), 'good', HOT100_SCHEDULING_PARAMS, NOW);
     expect(next.intervalDays).toBe(30);
     expect(next.dueAt).toBe(TODAY + 30 * DAY);
   });
 
   it('caps the review interval at 30 days on hard and easy too', () => {
     const base = card({ state: 'review', intervalDays: 28, easeFactor: 2.5, level: 6 });
-    expect(scheduleNext(base, 'hard', NOW).intervalDays).toBe(30);
-    expect(scheduleNext(base, 'easy', NOW).intervalDays).toBe(30);
+    expect(scheduleNext(base, 'hard', HOT100_SCHEDULING_PARAMS, NOW).intervalDays).toBe(30);
+    expect(scheduleNext(base, 'easy', HOT100_SCHEDULING_PARAMS, NOW).intervalDays).toBe(30);
   });
 
   it('caps the recovery interval at 30 days when relearning is graded easy', () => {
-    const next = scheduleNext(card({ state: 'relearning', intervalDays: 90, easeFactor: 2.0, level: 6 }), 'easy', NOW);
+    const next = scheduleNext(card({ state: 'relearning', intervalDays: 90, easeFactor: 2.0, level: 6 }), 'easy', HOT100_SCHEDULING_PARAMS, NOW);
     expect(next.intervalDays).toBe(30);
   });
 
   it('never lets the interval fall below 1 day', () => {
-    const next = scheduleNext(card({ state: 'review', intervalDays: 1, easeFactor: 2.5, level: 2 }), 'hard', NOW);
+    const next = scheduleNext(card({ state: 'review', intervalDays: 1, easeFactor: 2.5, level: 2 }), 'hard', HOT100_SCHEDULING_PARAMS, NOW);
     expect(next.intervalDays).toBe(1);
   });
 
   it('floors the ease factor at 1.3 on again', () => {
-    const next = scheduleNext(card({ state: 'review', intervalDays: 5, easeFactor: 1.4, level: 2 }), 'again', NOW);
+    const next = scheduleNext(card({ state: 'review', intervalDays: 5, easeFactor: 1.4, level: 2 }), 'again', HOT100_SCHEDULING_PARAMS, NOW);
     expect(next.easeFactor).toBeCloseTo(1.3, 10);
   });
 
   it('floors the ease factor at 1.3 on hard', () => {
-    const next = scheduleNext(card({ state: 'review', intervalDays: 5, easeFactor: 1.4, level: 2 }), 'hard', NOW);
+    const next = scheduleNext(card({ state: 'review', intervalDays: 5, easeFactor: 1.4, level: 2 }), 'hard', HOT100_SCHEDULING_PARAMS, NOW);
     expect(next.easeFactor).toBeCloseTo(1.3, 10);
   });
 
   it('keeps an already-floored ease factor at 1.3', () => {
-    const next = scheduleNext(card({ state: 'review', intervalDays: 5, easeFactor: 1.3, level: 2 }), 'again', NOW);
+    const next = scheduleNext(card({ state: 'review', intervalDays: 5, easeFactor: 1.3, level: 2 }), 'again', HOT100_SCHEDULING_PARAMS, NOW);
     expect(next.easeFactor).toBeCloseTo(1.3, 10);
   });
 
   it('leaves the ease factor untouched while a card is still in learning', () => {
-    const next = scheduleNext(card({ state: 'learning', learningStep: 0, easeFactor: 2.5 }), 'again', NOW);
+    const next = scheduleNext(card({ state: 'learning', learningStep: 0, easeFactor: 2.5 }), 'again', HOT100_SCHEDULING_PARAMS, NOW);
     expect(next.easeFactor).toBeCloseTo(2.5, 10);
   });
 });
@@ -305,7 +306,7 @@ describe('scheduleNext — clamps', () => {
 describe('scheduleNext — legacy progress entries', () => {
   it('reads a state-less legacy entry as a review card and its interval from the legacy field', () => {
     const legacy = { proficiency: 'good', interval: 6, level: 2, dueAt: 0, lastReviewDate: 0 } as unknown as QuestionProgress;
-    const next = scheduleNext(legacy, 'good', NOW);
+    const next = scheduleNext(legacy, 'good', HOT100_SCHEDULING_PARAMS, NOW);
     expect(next.state).toBe('review');
     expect(next.intervalDays).toBe(15);
     expect(next.easeFactor).toBeCloseTo(2.5, 10);
@@ -313,7 +314,7 @@ describe('scheduleNext — legacy progress entries', () => {
 
   it('reads a state-less legacy entry with proficiency "new" as a new card', () => {
     const legacy = { proficiency: 'new', level: 0, dueAt: 0, lastReviewDate: 0 } as unknown as QuestionProgress;
-    const next = scheduleNext(legacy, 'good', NOW);
+    const next = scheduleNext(legacy, 'good', HOT100_SCHEDULING_PARAMS, NOW);
     expect(next.state).toBe('learning');
     expect(next.learningStep).toBe(1);
     expect(next.dueAt).toBe(NOW + 60 * MIN);

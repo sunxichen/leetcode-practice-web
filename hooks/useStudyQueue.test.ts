@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { generateQueue } from '@/hooks/useStudyQueue';
+import { HOT100_SCHEDULING_PARAMS } from '@/lib/schedulingParams';
 import type { Question, QuestionProgress } from '@/lib/types';
 
 /**
@@ -56,7 +57,7 @@ function learningProgress(dueAt: number, overrides: Partial<QuestionProgress> = 
 }
 
 function smartQueue(questions: Question[], progress: Record<string, QuestionProgress>): string[] {
-  return generateQueue({ kind: 'smart' }, questions, progress, NOW);
+  return generateQueue({ kind: 'smart' }, questions, progress, HOT100_SCHEDULING_PARAMS, NOW);
 }
 
 describe('smart queue — front of the queue', () => {
@@ -217,7 +218,7 @@ describe('weakest queue', () => {
       b: reviewProgress(NOW, { easeFactor: 2.5, lapses: 2 }),
       c: reviewProgress(NOW, { easeFactor: 1.6, lapses: 0 }),
       d: reviewProgress(NOW, { easeFactor: 2.0, lapses: 1 }),
-    }, NOW);
+    }, HOT100_SCHEDULING_PARAMS, NOW);
     expect(queue).toEqual(['c', 'd', 'b', 'a']);
   });
 
@@ -226,7 +227,7 @@ describe('weakest queue', () => {
     const queue = generateQueue({ kind: 'weakest' }, questions, {
       'low-ef': reviewProgress(NOW, { easeFactor: 1.9, lapses: 0 }),
       'many-lapses': reviewProgress(NOW, { easeFactor: 2.5, lapses: 3 }),
-    }, NOW);
+    }, HOT100_SCHEDULING_PARAMS, NOW);
     expect(queue).toEqual(['many-lapses', 'low-ef']);
   });
 
@@ -235,7 +236,7 @@ describe('weakest queue', () => {
     const queue = generateQueue({ kind: 'weakest' }, questions, {
       seen: reviewProgress(NOW, { easeFactor: 2.0 }),
       'still-new': reviewProgress(NOW, { state: 'new', proficiency: 'new' }),
-    }, NOW);
+    }, HOT100_SCHEDULING_PARAMS, NOW);
     expect(queue).toEqual(['seen']);
   });
 
@@ -244,7 +245,7 @@ describe('weakest queue', () => {
     const progress = Object.fromEntries(
       questions.map((q, i) => [q.id, reviewProgress(NOW + 10 * DAY, { easeFactor: 1.5 + i * 0.1 })]),
     );
-    const queue = generateQueue({ kind: 'weakest' }, questions, progress, NOW);
+    const queue = generateQueue({ kind: 'weakest' }, questions, progress, HOT100_SCHEDULING_PARAMS, NOW);
     expect(queue).toHaveLength(10);
     expect(queue[0]).toBe('q00');
   });
@@ -262,7 +263,7 @@ describe('filtered queues', () => {
     const queue = generateQueue({ kind: 'difficulty', value: 'Easy' }, questions, {
       '1': reviewProgress(NOW - MIN),
       '2': reviewProgress(NOW - DAY),
-    }, NOW);
+    }, HOT100_SCHEDULING_PARAMS, NOW);
     expect(queue).toEqual(['2', '1', '3', '10']);
   });
 
@@ -271,7 +272,7 @@ describe('filtered queues', () => {
     const queue = generateQueue({ kind: 'difficulty', value: 'Easy' }, questions, {
       '1': reviewProgress(NOW + DAY, { lapses: 0 }),
       '2': reviewProgress(NOW + DAY, { lapses: 4 }),
-    }, NOW);
+    }, HOT100_SCHEDULING_PARAMS, NOW);
     expect(queue).toEqual(['2', '1']);
   });
 
@@ -281,7 +282,7 @@ describe('filtered queues', () => {
       question('2', 'Medium', ['哈希表', '动态规划']),
       question('3', 'Medium', ['二分查找']),
     ];
-    const queue = generateQueue({ kind: 'tag', value: '动态规划' }, questions, {}, NOW);
+    const queue = generateQueue({ kind: 'tag', value: '动态规划' }, questions, {}, HOT100_SCHEDULING_PARAMS, NOW);
     expect(queue).toEqual(['1', '2']);
   });
 });

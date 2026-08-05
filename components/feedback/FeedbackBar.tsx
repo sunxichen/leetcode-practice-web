@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import type { FeedbackType, QuestionProgress } from '@/lib/types';
 import { ParticleEffect } from '@/components/ui/ParticleEffect';
 import { SPRING_CONFIG } from '@/lib/constants';
+import { HOT100_SCHEDULING_PARAMS } from '@/lib/schedulingParams';
 import { scheduleNext } from '@/lib/sm2';
 import styles from './FeedbackBar.module.css';
 
@@ -36,7 +37,7 @@ export function FeedbackBar({ onFeedback, disabled, currentProgress }: FeedbackB
   const options = useMemo(
     () =>
       FEEDBACK_BASE.map(opt => {
-        const preview = scheduleNext(currentProgress, opt.type);
+        const preview = scheduleNext(currentProgress, opt.type, HOT100_SCHEDULING_PARAMS);
         return { ...opt, sublabel: formatPreview(preview.dueAt) };
       }),
     [currentProgress],

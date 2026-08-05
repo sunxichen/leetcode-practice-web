@@ -1,5 +1,6 @@
 import type { UserProgressData, QuestionProgress } from '@/lib/types';
-import { LOCAL_STORAGE_KEY, EF_DEFAULT } from '@/lib/constants';
+import { LOCAL_STORAGE_KEY } from '@/lib/constants';
+import { HOT100_SCHEDULING_PARAMS } from '@/lib/schedulingParams';
 
 /**
  * Migrate a single QuestionProgress entry from any prior shape to the current one.
@@ -21,7 +22,7 @@ function migrateProgressEntry(raw: Partial<QuestionProgress>): QuestionProgress 
     learningStep: 0,
     dueAt,
     intervalDays,
-    easeFactor: raw.easeFactor ?? EF_DEFAULT,
+    easeFactor: raw.easeFactor ?? HOT100_SCHEDULING_PARAMS.efDefault,
     level: raw.level ?? 0,
     proficiency,
     lastReviewDate: raw.lastReviewDate ?? 0,

@@ -10,6 +10,7 @@ import type {
 } from '@/lib/types';
 import { createStorageAdapter, reconcileProgress } from '@/lib/storage';
 import { scheduleNext } from '@/lib/sm2';
+import { HOT100_SCHEDULING_PARAMS } from '@/lib/schedulingParams';
 import { DEBOUNCE_MS, LOCAL_STORAGE_KEY, UNDO_WINDOW_MS } from '@/lib/constants';
 
 /** Snapshot stored to make the last feedback reversible. */
@@ -141,7 +142,7 @@ export function useProgress() {
     const today = ymd(Date.now());
     setProgressData((prev) => {
       const prevQ = prev.progress[questionId];
-      const nextQ = scheduleNext(prevQ, feedback);
+      const nextQ = scheduleNext(prevQ, feedback, HOT100_SCHEDULING_PARAMS);
       // Track lapses on the question for the "易遗忘" semantic filter in browse.
       if (prevQ?.state === 'review' && nextQ.state === 'relearning') {
         nextQ.lapses = (prevQ.lapses ?? 0) + 1;
