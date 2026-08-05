@@ -15,6 +15,12 @@ interface FeedbackBarProps {
   currentProgress?: QuestionProgress;
   /** 调度参数：由题集配置注入，用于各档位按钮的到期时间预览。 */
   schedulingParams: SchedulingParams;
+  /**
+   * 四档副标签覆盖：由题集配置按当前卡派生（面试题集的要点命中区间锚，
+   * ADR-0003）。缺省时副标签为各档到期时间预览（LeetCode 题集现状，
+   * 外观与文案不变）。标注只是辅助文案，不是交互——自评仍然一击完成。
+   */
+  sublabels?: Record<FeedbackType, string>;
 }
 
 const FEEDBACK_BASE: { type: FeedbackType; label: string; className: string }[] = [
@@ -35,14 +41,15 @@ function formatPreview(dueAtMs: number): string {
   return `${days}天`;
 }
 
-export function FeedbackBar({ onFeedback, disabled, currentProgress, schedulingParams }: FeedbackBarProps) {
+export function FeedbackBar({ onFeedback, disabled, currentProgress, schedulingParams, sublabels }: FeedbackBarProps) {
   const options = useMemo(
     () =>
       FEEDBACK_BASE.map(opt => {
+        if (sublabels) return { ...opt, sublabel: sublabels[opt.type] };
         const preview = scheduleNext(currentProgress, opt.type, schedulingParams);
         return { ...opt, sublabel: formatPreview(preview.dueAt) };
       }),
-    [currentProgress, schedulingParams],
+    [currentProgress, schedulingParams, sublabels],
   );
 
   const [particles, setParticles] = useState<{ x: number; y: number; active: boolean }>({

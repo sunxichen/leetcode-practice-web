@@ -9,6 +9,11 @@ interface EmptyStateProps {
   onReviewWeakest: () => void;
   learningSoon?: number;
   nextLearningDueAt?: number | null;
+  /**
+   * 题库页路径（"浏览全部题目"按钮的去向）：由题集配置注入。题集没有题库页
+   * 时为 undefined，按钮不渲染——绝不指向 404，也不把用户送去别的题集。
+   */
+  browsePath?: string;
 }
 
 function formatMinutesUntil(ts: number): string {
@@ -20,7 +25,7 @@ function formatMinutesUntil(ts: number): string {
   return `${hrs} 小时后`;
 }
 
-export function EmptyState({ onReviewWeakest, learningSoon = 0, nextLearningDueAt }: EmptyStateProps) {
+export function EmptyState({ onReviewWeakest, learningSoon = 0, nextLearningDueAt, browsePath }: EmptyStateProps) {
   const hasLearning = learningSoon > 0 && nextLearningDueAt;
   return (
     <div className={styles.container}>
@@ -58,9 +63,11 @@ export function EmptyState({ onReviewWeakest, learningSoon = 0, nextLearningDueA
           >
             复习最薄弱的题目
           </motion.button>
-          <Link href="/browse" className={styles.secondaryButton}>
-            浏览全部题目
-          </Link>
+          {browsePath && (
+            <Link href={browsePath} className={styles.secondaryButton}>
+              浏览全部题目
+            </Link>
+          )}
         </div>
       </motion.div>
     </div>

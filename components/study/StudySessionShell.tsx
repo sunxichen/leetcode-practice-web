@@ -89,6 +89,7 @@ export function StudySessionShell<C extends SessionCard>(props: StudySessionOpti
         durationMs={Math.max(0, (session.sessionEndedAt ?? session.sessionStartedAt) - session.sessionStartedAt)}
         streak={session.progressData.streak}
         onContinue={session.backToModePicker}
+        browsePath={deck.browsePath}
       />
     );
   }
@@ -101,6 +102,7 @@ export function StudySessionShell<C extends SessionCard>(props: StudySessionOpti
           onReviewWeakest={() => session.selectMode({ kind: 'weakest' })}
           learningSoon={session.counters.learningSoon}
           nextLearningDueAt={session.counters.nextLearningDueAt}
+          browsePath={deck.browsePath}
         />
       </div>
     );
@@ -171,6 +173,7 @@ export function StudySessionShell<C extends SessionCard>(props: StudySessionOpti
               disabled={!!session.exitDirection}
               currentProgress={currentProg}
               schedulingParams={deck.schedulingParams}
+              sublabels={deck.getFeedbackAnchors?.(currentCard)}
             />
           </motion.div>
         )}

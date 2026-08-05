@@ -1,0 +1,126 @@
+.front {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  padding: var(--spacing-lg);
+}
+
+.header {
+  margin-bottom: var(--spacing-lg);
+}
+
+.badgeRow {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin-bottom: 6px;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: var(--font-weight-medium);
+  letter-spacing: 0.01em;
+  line-height: 1.6;
+  border: 1px solid transparent;
+}
+
+.categoryBadge {
+  color: var(--color-accent-blue);
+  background: color-mix(in oklab, var(--color-accent-blue) 10%, transparent);
+  border-color: color-mix(in oklab, var(--color-accent-blue) 30%, transparent);
+}
+
+.priority_must {
+  color: var(--color-hard);
+  background: rgba(220, 38, 38, 0.08);
+  border-color: rgba(220, 38, 38, 0.2);
+}
+
+.priority_common {
+  color: var(--color-medium);
+  background: rgba(234, 88, 12, 0.08);
+  border-color: rgba(234, 88, 12, 0.2);
+}
+
+.priority_bonus {
+  color: var(--color-easy);
+  background: rgba(22, 163, 74, 0.08);
+  border-color: rgba(22, 163, 74, 0.2);
+}
+
+.stateBadge {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: var(--font-weight-medium);
+  letter-spacing: 0.02em;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  background: var(--color-bg-muted);
+  margin-left: auto;
+}
+
+.stateBadge_new {
+  color: var(--color-accent-blue);
+  border-color: color-mix(in oklab, var(--color-accent-blue) 30%, transparent);
+  background: color-mix(in oklab, var(--color-accent-blue) 10%, transparent);
+}
+
+.stateBadge_seen {
+  color: var(--color-text-secondary);
+  border-color: var(--color-border);
+  background: var(--color-bg-muted);
+}
+
+.title {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  line-height: var(--line-height-tight);
+  margin: 4px 0 var(--spacing-sm);
+  letter-spacing: var(--tracking-tight);
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.footer {
+  padding-top: var(--spacing-md);
+  border-top: 1px solid var(--color-border);
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+/* 要点数量：自评的锚，常驻显示——用户翻卡前就要知道"这题该说几点"。 */
+.keyPointCount {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-accent-blue);
+  background: color-mix(in oklab, var(--color-accent-blue) 10%, transparent);
+  border: 1px solid color-mix(in oklab, var(--color-accent-blue) 30%, transparent);
+  font-variant-numeric: tabular-nums;
+}

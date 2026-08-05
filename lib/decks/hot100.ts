@@ -51,4 +51,5 @@ export const hot100Deck: DeckConfig<Question> = {
   // 背面轮播一页 = 一种解法；键盘"上一/下一"的边界即解法数。
   getBackPageCount: (card) => card.solutions.length,
   getModePickerData,
+  browsePath: '/browse',
 };

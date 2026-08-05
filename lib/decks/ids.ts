@@ -9,7 +9,7 @@
  * 与注册表 (lib/decks/index.ts) 的同步由编译期保证：DECKS 声明了
  * `satisfies Record<DeckId, unknown>`，清单与注册表键集不一致即编译失败。
  */
-export const DECK_IDS = ['hot100'] as const;
+export const DECK_IDS = ['hot100', 'interview'] as const;
 
 /** 题集标识：已注册题集的键名。 */
 export type DeckId = (typeof DECK_IDS)[number];

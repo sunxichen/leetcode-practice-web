@@ -1,7 +1,7 @@
 import type { ComponentType } from 'react';
 import type { SchedulingParams } from '@/lib/schedulingParams';
 import type { SessionCard } from '@/lib/studyQueue';
-import type { CardState, Difficulty, SessionMode } from '@/lib/types';
+import type { CardState, Difficulty, FeedbackType, SessionMode } from '@/lib/types';
 import type { DeckId } from '@/lib/decks/ids';
 
 /**
@@ -59,10 +59,12 @@ export interface DeckCardComponents<C extends SessionCard> {
  * 对卡片做 tags/difficulty 判断。
  */
 export interface ModePickerData {
-  /** 按卡片数排序的顶部标签（按标签模式的 chips），条数上限由题集配置决定。 */
-  topTags: string[];
-  /** 各难度卡片总数（按难度模式的 chips）。 */
-  difficultyCounts: Record<Difficulty, number>;
+  /** 按卡片数排序的顶部标签（按标签模式的 chips），条数上限由题集配置决定。
+   * 仅提供按标签模式的题集需要给出；不提供该模式的题集留 undefined，
+   * 不要编造零值。 */
+  topTags?: string[];
+  /** 各难度卡片总数（按难度模式的 chips）。仅提供按难度模式的题集需要给出。 */
+  difficultyCounts?: Record<Difficulty, number>;
 }
 
 export interface DeckConfig<C extends SessionCard = SessionCard> {
@@ -87,6 +89,20 @@ export interface DeckConfig<C extends SessionCard = SessionCard> {
    * 任何题集特定的卡片字段。
    */
   getBackPageCount(card: C): number;
-  /** ModePicker 统计：从卡片集派生标签云与难度分布（见 ModePickerData）。 */
+  /** ModePicker 统计：从卡片集派生标签云与难度分布（见 ModePickerData）。
+   * 题集不提供按标签/按难度模式时，对应字段留 undefined。 */
   getModePickerData(cards: C[]): ModePickerData;
+  /**
+   * 题库页路径：会话总结"浏览题库"与空状态"浏览全部题目"的去向。
+   * 没有题库页的题集为 undefined，那两个按钮不渲染——绝不指向 404，
+   * 也不把用户送去别的题集的题库页。
+   */
+  browsePath?: string;
+  /**
+   * 自评条副标签：按当前卡派生四档标注（面试题集的要点命中区间锚，
+   * ADR-0003）。缺省时自评条显示各档到期时间预览（LeetCode 题集现状，
+   * 外观与文案不变）。标注只是按钮上的辅助文案，不是交互——自评仍然是
+   * 四个按钮一击完成。
+   */
+  getFeedbackAnchors?(card: C): Record<FeedbackType, string>;
 }

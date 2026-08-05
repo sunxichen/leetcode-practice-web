@@ -93,7 +93,7 @@ describe('进度键名派生 (progressKeyFor)', () => {
   });
 
   it('非法题集标识抛错，绝不回落到默认键', () => {
-    const badIds = ['HOT100', 'hot100 ', ' hot100', 'hot100x', '', 'interview', 'user_progress:hot100'];
+    const badIds = ['HOT100', 'hot100 ', ' hot100', 'hot100x', '', 'interviews', 'user_progress:hot100'];
     for (const bad of badIds) {
       expect(() => progressKeyFor(bad as never), `should reject "${bad}"`).toThrow();
     }
@@ -103,11 +103,15 @@ describe('进度键名派生 (progressKeyFor)', () => {
 
   it('isDeckId 白名单只接受已注册题集', () => {
     expect(isDeckId('hot100')).toBe(true);
-    expect(isDeckId('interview')).toBe(false); // 票 8 才注册，现在必须被拒绝
+    expect(isDeckId('interview')).toBe(true); // 票 8 已注册
     expect(isDeckId('')).toBe(false);
     expect(isDeckId(null)).toBe(false);
     expect(isDeckId(42)).toBe(false);
-    expect(DECK_IDS).toEqual(['hot100']);
+    expect(DECK_IDS).toEqual(['hot100', 'interview']);
+  });
+
+  it('interview 派生出自己那份文档的键名', () => {
+    expect(progressKeyFor('interview')).toBe('user_progress:interview');
   });
 });
 

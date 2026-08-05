@@ -13,6 +13,11 @@ interface SessionSummaryProps {
   durationMs: number;
   streak: StreakInfo | undefined;
   onContinue: () => void;
+  /**
+   * 题库页路径（"浏览题库"按钮的去向）：由题集配置注入。题集没有题库页时
+   * 为 undefined，按钮不渲染——绝不指向 404，也不把用户送去别的题集。
+   */
+  browsePath?: string;
 }
 
 const FEEDBACK_META: Record<FeedbackType, { label: string; color: string }> = {
@@ -36,6 +41,7 @@ export function SessionSummary({
   durationMs,
   streak,
   onContinue,
+  browsePath,
 }: SessionSummaryProps) {
   const router = useRouter();
   const total = Object.values(feedbackBreakdown).reduce((a, b) => a + b, 0);
@@ -133,13 +139,15 @@ export function SessionSummary({
           >
             继续学习
           </motion.button>
-          <motion.button
-            className={styles.secondaryButton}
-            onClick={() => router.push('/browse')}
-            whileTap={{ scale: 0.97 }}
-          >
-            浏览题库
-          </motion.button>
+          {browsePath && (
+            <motion.button
+              className={styles.secondaryButton}
+              onClick={() => router.push(browsePath)}
+              whileTap={{ scale: 0.97 }}
+            >
+              浏览题库
+            </motion.button>
+          )}
         </div>
       </motion.div>
     </motion.div>

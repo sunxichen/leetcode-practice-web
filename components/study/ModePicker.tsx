@@ -18,10 +18,12 @@ interface ModePickerProps {
   counters: Counters;
   onSelectMode: (mode: SessionMode) => void;
   weakestCount: number;
-  /** 标签云：由题集配置从卡片集派生注入（统计逻辑是题集特定的）。 */
-  topTags: string[];
-  /** 难度分布：由题集配置从卡片集派生注入（统计逻辑是题集特定的）。 */
-  difficultyCounts: Record<Difficulty, number>;
+  /** 标签云：由题集配置从卡片集派生注入（统计逻辑是题集特定的）。
+   * 仅在 modes 含 'tag' 时需要；不含时留 undefined，不编造零值。 */
+  topTags?: string[];
+  /** 难度分布：由题集配置从卡片集派生注入（统计逻辑是题集特定的）。
+   * 仅在 modes 含 'difficulty' 时需要。 */
+  difficultyCounts?: Record<Difficulty, number>;
   /** 可选会话模式清单：由题集配置注入，决定提供哪些模式入口。 */
   modes: readonly SessionMode['kind'][];
 }
@@ -115,7 +117,7 @@ export function ModePicker({ todayDueCount, counters, onSelectMode, weakestCount
                 whileTap={{ scale: 0.96 }}
               >
                 <span className={styles.chipLabel}>{d}</span>
-                <span className={styles.chipMeta}>{difficultyCounts[d]} 题</span>
+                <span className={styles.chipMeta}>{difficultyCounts?.[d] ?? 0} 题</span>
               </motion.button>
             ))}
           </div>
@@ -131,7 +133,7 @@ export function ModePicker({ todayDueCount, counters, onSelectMode, weakestCount
         >
           <div className={styles.sectionLabel}>按标签</div>
           <div className={styles.chipRowScroll}>
-            {topTags.map(t => (
+            {(topTags ?? []).map(t => (
               <motion.button
                 key={t}
                 className={styles.tagChip}

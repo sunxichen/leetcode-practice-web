@@ -98,3 +98,37 @@ export const HOT100_SCHEDULING_PARAMS: SchedulingParams = {
   learningReinsertMax: 15,
   newCardsPerDay: null,
 };
+
+/**
+ * 面试题集 — 取值逐项照 docs/interview-deck-design.md 的调度参数对照表
+ * （按 1.5 分钟一张标定）：
+ *   - learning step 0 (5 min)：约隔 3 张卡重现，清空短期缓冲；
+ *     step 1 (25 min)：约隔 17 张，验证跨出工作记忆，仍落在一次 20-30 分钟
+ *     会话内。
+ *   - 插回钳制 3-20 比 LeetCode 更窄，匹配更密的卡片节奏。
+ *   - 间隔上限 21 天比 LeetCode 更紧：答案里的数字、公式、项目指标这类细节
+ *     遗忘快于算法模式。
+ *   - 毕业间隔 / Easy 间隔与 EF、lapse 相关参数沿用 hot100 取值（对照表）。
+ *
+ * 注意：newCardsPerDay 目前全仓库无任何消费者（队列尚未实现每日新卡上限，
+ * 那是票 10），这里只是照表登记取值。
+ */
+export const INTERVIEW_SCHEDULING_PARAMS: SchedulingParams = {
+  learningStepsMin: [5, 25],
+  relearningStepsMin: [5],
+  graduatingIntervalDays: 1,
+  easyIntervalDays: 4,
+  hardIntervalFactor: 1.2,
+  easyBonusFactor: 1.15,
+  maxReviewIntervalDays: 21,
+  lapseRecoveryIntervalDays: 1,
+  efPenaltyAgain: 0.2,
+  efPenaltyHard: 0.15,
+  efBonusEasy: 0.15,
+  efMin: 1.3,
+  efDefault: 2.5,
+  cardsPerMinute: 0.67,
+  learningReinsertMin: 3,
+  learningReinsertMax: 20,
+  newCardsPerDay: 15,
+};

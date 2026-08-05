@@ -3,7 +3,8 @@ import { getDeckConfig, DECK_IDS } from '@/lib/decks';
 import { generateQueue } from '@/lib/studyQueue';
 import { getAllQuestions } from '@/lib/questions';
 import { getAllInterviewCards } from '@/lib/interview';
-import { HOT100_SCHEDULING_PARAMS } from '@/lib/schedulingParams';
+import { HOT100_SCHEDULING_PARAMS, INTERVIEW_SCHEDULING_PARAMS } from '@/lib/schedulingParams';
+import { keyPointAnchors } from '@/lib/feedbackAnchors';
 
 /**
  * 题集注册表与题集配置的行为断言，外加票 4 设计难点的类型验证：
@@ -34,7 +35,54 @@ describe('题集注册表 (deck registry)', () => {
   });
 
   it('DECK_IDS 列出全部已注册题集', () => {
-    expect(DECK_IDS).toEqual(['hot100']);
+    expect(DECK_IDS).toEqual(['hot100', 'interview']);
+  });
+});
+
+describe('题集注册表：面试题集（票 8）', () => {
+  const deck = getDeckConfig('interview');
+  const cards = getAllInterviewCards();
+
+  it('按题集标识取出面试题集的完整配置', () => {
+    expect(deck.id).toBe('interview');
+    expect(deck.name).toBe('面试题集');
+    // 数据源：与面试题库接口是同一份数据
+    expect(deck.dataSource.getAllCards()).toBe(cards);
+    expect(deck.dataSource.getCardById(cards[0].id)).toBe(cards[0]);
+    // 调度参数：照方案文档对照表取值的那份对象
+    expect(deck.schedulingParams).toBe(INTERVIEW_SCHEDULING_PARAMS);
+    // 本票只提供智能复习与单卡（按分类/按重要度是票 10，全量扫题是票 11）
+    expect(deck.sessionModes).toEqual(['smart', 'single']);
+    expect(typeof deck.components.CardFront).toBe('function');
+    expect(typeof deck.components.CardBack).toBe('function');
+  });
+
+  it('背面没有轮播：每张卡的分页数恒为 1', () => {
+    for (const card of cards) {
+      expect(deck.getBackPageCount(card)).toBe(1);
+    }
+  });
+
+  it('ModePicker 统计不编造零值：本题集不提供标签云与难度分布', () => {
+    const data = deck.getModePickerData(cards);
+    expect(data.topTags).toBeUndefined();
+    expect(data.difficultyCounts).toBeUndefined();
+  });
+
+  it('本票没有题库页：browsePath 为 undefined，会话总结与空状态不渲染浏览按钮', () => {
+    expect(deck.browsePath).toBeUndefined();
+  });
+
+  it('自评锚按当前卡要点数派生，与纯函数 keyPointAnchors 一致', () => {
+    for (const card of cards) {
+      expect(deck.getFeedbackAnchors?.(card)).toEqual(keyPointAnchors(card.answer.key_points.length));
+    }
+  });
+
+  it('LeetCode 题集的自评条不走锚映射（到期时间预览现状不变），且有题库页去向', () => {
+    const hot100 = getDeckConfig('hot100');
+    expect(hot100.getFeedbackAnchors).toBeUndefined();
+    expect(hot100.browsePath).toBe('/browse');
   });
 });
 

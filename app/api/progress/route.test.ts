@@ -38,7 +38,7 @@ describe('/api/progress 题集标识白名单', () => {
   });
 
   it('非法 deck（拼错 / 大小写 / 带空格 / 未注册）→ 400，不触碰 KV', async () => {
-    for (const bad of ['hot100x', 'HOT100', 'hot100%20', 'interview', '']) {
+    for (const bad of ['hot100x', 'HOT100', 'hot100%20', 'interviews', '']) {
       const res = await GET(authedRequest(`/api/progress?deck=${bad}`));
       expect(res.status, `deck=${bad} should be rejected`).toBe(400);
     }
@@ -51,6 +51,14 @@ describe('/api/progress 题集标识白名单', () => {
     expect(res.status).toBe(200);
     expect(kvGet).toHaveBeenCalledTimes(1);
     expect(kvGet).toHaveBeenCalledWith('user_progress:hot100');
+  });
+
+  it('GET deck=interview → 用它自己那份文档的键名读 KV（票 8 注册后合法）', async () => {
+    kvGet.mockResolvedValue(null);
+    const res = await GET(authedRequest('/api/progress?deck=interview'));
+    expect(res.status).toBe(200);
+    expect(kvGet).toHaveBeenCalledTimes(1);
+    expect(kvGet).toHaveBeenCalledWith('user_progress:interview');
   });
 
   it('GET 返回 KV 中的文档；KV 为空时返回初始结构', async () => {
