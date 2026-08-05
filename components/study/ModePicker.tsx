@@ -1,8 +1,7 @@
 'use client';
 
-import { useMemo } from 'react';
 import { motion } from 'framer-motion';
-import type { Question, SessionMode } from '@/lib/types';
+import type { Difficulty, SessionMode } from '@/lib/types';
 import { SPRING_CONFIG } from '@/lib/constants';
 import styles from './ModePicker.module.css';
 
@@ -19,13 +18,13 @@ interface ModePickerProps {
   counters: Counters;
   onSelectMode: (mode: SessionMode) => void;
   weakestCount: number;
-  /** 卡片数据源：由题集配置注入，标签云与难度分布都从这里统计。 */
-  questions: Question[];
+  /** 标签云：由题集配置从卡片集派生注入（统计逻辑是题集特定的）。 */
+  topTags: string[];
+  /** 难度分布：由题集配置从卡片集派生注入（统计逻辑是题集特定的）。 */
+  difficultyCounts: Record<Difficulty, number>;
   /** 可选会话模式清单：由题集配置注入，决定提供哪些模式入口。 */
   modes: readonly SessionMode['kind'][];
 }
-
-const MAX_TAG_CHIPS = 8;
 
 function formatMinutesUntil(ts: number): string {
   const ms = ts - Date.now();
@@ -36,26 +35,7 @@ function formatMinutesUntil(ts: number): string {
   return `${hrs} 小时后`;
 }
 
-export function ModePicker({ todayDueCount, counters, onSelectMode, weakestCount, questions, modes }: ModePickerProps) {
-  // Top tags by question count
-  const topTags = useMemo(() => {
-    const tally: Record<string, number> = {};
-    for (const q of questions) {
-      for (const t of q.tags) tally[t] = (tally[t] ?? 0) + 1;
-    }
-    return Object.entries(tally)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, MAX_TAG_CHIPS)
-      .map(([t]) => t);
-  }, [questions]);
-
-  // Per-difficulty totals
-  const diffCounts = useMemo(() => {
-    const acc = { Easy: 0, Medium: 0, Hard: 0 };
-    for (const q of questions) acc[q.difficulty]++;
-    return acc;
-  }, [questions]);
-
+export function ModePicker({ todayDueCount, counters, onSelectMode, weakestCount, topTags, difficultyCounts, modes }: ModePickerProps) {
   return (
     <motion.div
       className={styles.container}
@@ -135,7 +115,7 @@ export function ModePicker({ todayDueCount, counters, onSelectMode, weakestCount
                 whileTap={{ scale: 0.96 }}
               >
                 <span className={styles.chipLabel}>{d}</span>
-                <span className={styles.chipMeta}>{diffCounts[d]} 题</span>
+                <span className={styles.chipMeta}>{difficultyCounts[d]} 题</span>
               </motion.button>
             ))}
           </div>

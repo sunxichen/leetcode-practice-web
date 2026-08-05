@@ -1,0 +1,98 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100dvh - 120px);
+  padding: var(--spacing-md);
+  padding-bottom: calc(var(--safe-area-bottom) + 80px);
+}
+
+.modeBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 4px 8px;
+}
+
+.modeBarChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--color-bg-muted);
+  border: 1px solid var(--color-border);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+  transition: all var(--transition-fast);
+}
+
+.modeBarChip:hover {
+  background: var(--color-bg-hover);
+  color: var(--color-text-primary);
+}
+
+.modeBarLabel {
+  white-space: nowrap;
+}
+
+.finishButton {
+  padding: 4px 10px;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-tertiary);
+  background: transparent;
+  border-radius: var(--radius-sm);
+  transition: color var(--transition-fast);
+}
+
+.finishButton:hover {
+  color: var(--color-text-primary);
+}
+
+.cardArea {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-md) 0;
+}
+
+.cardWrapper {
+  width: 100%;
+  max-width: 480px;
+}
+
+.progress {
+  display: flex;
+  justify-content: center;
+  padding: var(--spacing-sm) 0;
+}
+
+.progressText {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+  font-weight: var(--font-weight-medium);
+  font-variant-numeric: tabular-nums;
+}
+
+/* === Loading === */
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100dvh - 120px);
+}
+
+.loadingDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-text-tertiary);
+}
+
+@media (min-width: 640px) {
+  .cardArea {
+    padding: var(--spacing-xl) 0;
+  }
+}

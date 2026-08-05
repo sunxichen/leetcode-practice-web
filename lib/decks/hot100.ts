@@ -3,7 +3,30 @@ import { getAllQuestions, getQuestionById } from '@/lib/questions';
 import { HOT100_SCHEDULING_PARAMS } from '@/lib/schedulingParams';
 import { CardFront } from '@/components/card/CardFront';
 import { CardBack } from '@/components/card/CardBack';
-import type { DeckConfig } from '@/lib/decks/types';
+import type { DeckConfig, ModePickerData } from '@/lib/decks/types';
+
+/** ModePicker 标签云的 chip 数上限（与参数化之前 ModePicker 内部常量相同）。 */
+const MAX_TAG_CHIPS = 8;
+
+/**
+ * ModePicker 统计：标签云（按题目数排序的顶部标签）与难度分布。
+ * 就是票 6 之前 ModePicker 内部的那两段统计，逐位搬到题集配置——输出不变。
+ */
+function getModePickerData(cards: Question[]): ModePickerData {
+  const tally: Record<string, number> = {};
+  for (const q of cards) {
+    for (const t of q.tags) tally[t] = (tally[t] ?? 0) + 1;
+  }
+  const topTags = Object.entries(tally)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, MAX_TAG_CHIPS)
+    .map(([t]) => t);
+
+  const difficultyCounts = { Easy: 0, Medium: 0, Hard: 0 };
+  for (const q of cards) difficultyCounts[q.difficulty]++;
+
+  return { topTags, difficultyCounts };
+}
 
 /**
  * LeetCode Hot 100 题集。
@@ -25,4 +48,7 @@ export const hot100Deck: DeckConfig<Question> = {
     CardFront,
     CardBack,
   },
+  // 背面轮播一页 = 一种解法；键盘"上一/下一"的边界即解法数。
+  getBackPageCount: (card) => card.solutions.length,
+  getModePickerData,
 };

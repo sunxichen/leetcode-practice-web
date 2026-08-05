@@ -87,7 +87,7 @@ export function useStudyQueue<C extends SessionCard>(
   }, []);
 
   const isEmpty = queue.length === 0 || currentIndex >= queue.length;
-  const currentQuestion = isEmpty ? null : deck.dataSource.getCardById(queue[currentIndex]) ?? null;
+  const currentCard = isEmpty ? null : deck.dataSource.getCardById(queue[currentIndex]) ?? null;
 
   // === Counters for gateway / empty-state UX ===
   const counters = useMemo(() => {
@@ -123,7 +123,7 @@ export function useStudyQueue<C extends SessionCard>(
 
   return {
     queue,
-    currentQuestion,
+    currentCard,
     currentIndex,
     goNext,
     goBack,

@@ -1,7 +1,7 @@
 import type { ComponentType } from 'react';
 import type { SchedulingParams } from '@/lib/schedulingParams';
 import type { SessionCard } from '@/lib/studyQueue';
-import type { CardState, SessionMode } from '@/lib/types';
+import type { CardState, Difficulty, SessionMode } from '@/lib/types';
 import type { DeckId } from '@/lib/decks/ids';
 
 /**
@@ -11,11 +11,13 @@ import type { DeckId } from '@/lib/decks/ids';
  *
  * 每个字段的当下消费者：
  * - id：注册表键名；票 5 起也作为进度文档键名（user_progress:<id>）与白名单
- * - dataSource：useStudyQueue 取卡片集与当前卡；ModePicker 统计标签与难度分布
+ * - dataSource：useStudyQueue 取卡片集与当前卡
  * - schedulingParams：队列生成（generateQueue）、自评写入（updateProgress →
  *   scheduleNext）、自评条各档到期预览（FeedbackBar）
  * - sessionModes：ModePicker 决定提供哪些模式入口
- * - components：学习页经 FlashCard 容器渲染卡片正反面
+ * - components：会话外壳经 FlashCard 容器渲染卡片正反面
+ * - getBackPageCount：会话外壳钳制键盘"上一/下一"键的背面分页下标
+ * - getModePickerData：ModePicker 的标签云与难度分布统计
  *
  * 本文件只含类型，不引用任何具体题集的实现，因此可以被 hook、页面、配置
  * 任意方向 import 而不构成环。
@@ -50,6 +52,19 @@ export interface DeckCardComponents<C extends SessionCard> {
   CardBack: ComponentType<DeckCardBackProps<C>>;
 }
 
+/**
+ * ModePicker 需要的统计数据。标签云与难度分布这类统计只对提供对应模式的
+ * 题集有意义（按标签/按难度模式要求卡片带相应字段），所以统计逻辑是题集
+ * 特定的，由题集配置从卡片集派生后注入——会话外壳与 ModePicker 都不直接
+ * 对卡片做 tags/difficulty 判断。
+ */
+export interface ModePickerData {
+  /** 按卡片数排序的顶部标签（按标签模式的 chips），条数上限由题集配置决定。 */
+  topTags: string[];
+  /** 各难度卡片总数（按难度模式的 chips）。 */
+  difficultyCounts: Record<Difficulty, number>;
+}
+
 export interface DeckConfig<C extends SessionCard = SessionCard> {
   /** 题集标识：注册表键名，必须在白名单 (DECK_IDS) 内——票 5 起它也是
    * 进度文档键名（user_progress:<id>）与读写校验的凭据。 */
@@ -66,4 +81,12 @@ export interface DeckConfig<C extends SessionCard = SessionCard> {
    */
   sessionModes: readonly SessionMode['kind'][];
   components: DeckCardComponents<C>;
+  /**
+   * 背面分页数：背面轮播一共有多少页（LeetCode 题集是解法数，面试题集是
+   * 代码段数）。会话外壳的键盘"上一/下一"键用它钳制下标边界，不直接读取
+   * 任何题集特定的卡片字段。
+   */
+  getBackPageCount(card: C): number;
+  /** ModePicker 统计：从卡片集派生标签云与难度分布（见 ModePickerData）。 */
+  getModePickerData(cards: C[]): ModePickerData;
 }

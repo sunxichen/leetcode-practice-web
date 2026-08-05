@@ -38,6 +38,40 @@ describe('题集注册表 (deck registry)', () => {
   });
 });
 
+describe('题集配置的会话外壳能力（票 6）', () => {
+  const deck = getDeckConfig('hot100');
+  const cards = getAllQuestions();
+
+  it('背面分页数就是该卡的解法数（键盘"上一/下一"的钳制边界）', () => {
+    for (const q of cards) {
+      expect(deck.getBackPageCount(q)).toBe(q.solutions.length);
+    }
+  });
+
+  it('ModePicker 统计与卡片集一致：难度分布逐档相等', () => {
+    const data = deck.getModePickerData(cards);
+    expect(data.difficultyCounts.Easy).toBe(cards.filter(q => q.difficulty === 'Easy').length);
+    expect(data.difficultyCounts.Medium).toBe(cards.filter(q => q.difficulty === 'Medium').length);
+    expect(data.difficultyCounts.Hard).toBe(cards.filter(q => q.difficulty === 'Hard').length);
+  });
+
+  it('ModePicker 统计与卡片集一致：标签云按频次降序、至多 8 条、榜首即全库最高频标签', () => {
+    const data = deck.getModePickerData(cards);
+    expect(data.topTags.length).toBeLessThanOrEqual(8);
+
+    const tally = new Map<string, number>();
+    for (const q of cards) {
+      for (const t of q.tags) tally.set(t, (tally.get(t) ?? 0) + 1);
+    }
+    const freq = (t: string) => tally.get(t) ?? 0;
+    for (let i = 1; i < data.topTags.length; i++) {
+      expect(freq(data.topTags[i - 1])).toBeGreaterThanOrEqual(freq(data.topTags[i]));
+    }
+    const top = [...tally.entries()].sort((a, b) => b[1] - a[1])[0][0];
+    expect(data.topTags[0]).toBe(top);
+  });
+});
+
 describe('队列引擎的最小卡片约束 (SessionCard)', () => {
   const interviewCards = getAllInterviewCards();
 
