@@ -3,7 +3,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
-import { useProgressContext } from '@/context/ProgressContext';
+import { useDeckProgress } from '@/context/ProgressContext';
 import { getAllQuestions } from '@/lib/questions';
 import { DifficultyBadge } from '@/components/ui/DifficultyBadge';
 import { FilterPanel, type SemanticFilter } from '@/components/filters/FilterPanel';
@@ -38,7 +38,7 @@ function formatNextReview(timestamp: number): string {
 }
 
 export default function BrowsePage() {
-  const { progressData, isLoading } = useProgressContext();
+  const { progressData, isLoading } = useDeckProgress('hot100');
   const questions = getAllQuestions();
 
   const [searchQuery, setSearchQuery] = useState('');

@@ -14,6 +14,7 @@ import type { DeckConfig } from '@/lib/decks/types';
  */
 export const hot100Deck: DeckConfig<Question> = {
   id: 'hot100',
+  name: 'LeetCode Hot 100',
   dataSource: {
     getAllCards: getAllQuestions,
     getCardById: getQuestionById,

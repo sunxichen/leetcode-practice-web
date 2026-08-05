@@ -2,6 +2,7 @@ import type { ComponentType } from 'react';
 import type { SchedulingParams } from '@/lib/schedulingParams';
 import type { SessionCard } from '@/lib/studyQueue';
 import type { CardState, SessionMode } from '@/lib/types';
+import type { DeckId } from '@/lib/decks/ids';
 
 /**
  * 题集 (Deck) 配置 — 一个题集聚合它的卡片数据源、调度参数、可选会话模式清单
@@ -50,8 +51,11 @@ export interface DeckCardComponents<C extends SessionCard> {
 }
 
 export interface DeckConfig<C extends SessionCard = SessionCard> {
-  /** 题集标识：注册表键名。 */
-  id: string;
+  /** 题集标识：注册表键名，必须在白名单 (DECK_IDS) 内——票 5 起它也是
+   * 进度文档键名（user_progress:<id>）与读写校验的凭据。 */
+  id: DeckId;
+  /** 题集显示名：会话总结等需要标明所属题集的文案使用。 */
+  name: string;
   dataSource: DeckDataSource<C>;
   schedulingParams: SchedulingParams;
   /**

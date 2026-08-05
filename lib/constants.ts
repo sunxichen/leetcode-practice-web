@@ -18,7 +18,8 @@ export const LOW_WATER_MARK = 3;
 
 export const DEBOUNCE_MS = 5000;
 
-export const LOCAL_STORAGE_KEY = 'user_progress:hot100';
+// 进度文档键名不再硬编码：按题集标识派生（lib/storage.ts 的 progressKeyFor），
+// hot100 派生值与历史键名 'user_progress:hot100' 逐字节相同，有测试钉死。
 
 /** Window during which a feedback can be undone via the toast action button. */
 export const UNDO_WINDOW_MS = 5000;

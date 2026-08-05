@@ -3,7 +3,7 @@
 import { Suspense, useState, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useProgressContext } from '@/context/ProgressContext';
+import { useDeckProgress, type UndoSnapshot } from '@/context/ProgressContext';
 import { useStudyQueue } from '@/hooks/useStudyQueue';
 import { useKeyboard } from '@/hooks/useKeyboard';
 import { useHaptics } from '@/hooks/useHaptics';
@@ -15,7 +15,7 @@ import { SessionSummary } from '@/components/study/SessionSummary';
 import { UndoToast } from '@/components/ui/UndoToast';
 import { SPRING_CONFIG, EXIT_ANIMATIONS, ENTER_ANIMATION } from '@/lib/constants';
 import { getDeckConfig } from '@/lib/decks';
-import type { FeedbackType, SessionMode } from '@/lib/types';
+import type { FeedbackType, SessionMode, UserProgressData } from '@/lib/types';
 import styles from './page.module.css';
 
 const FEEDBACK_LABEL: Record<FeedbackType, string> = {
@@ -44,7 +44,7 @@ function StudyPageInner() {
     undoLast,
     undoSnapshot,
     isLoading,
-  } = useProgressContext();
+  } = useDeckProgress(deck.id);
 
   // === Session mode ===
   // - Deeplink ?q= forces single-card mode (takes precedence)
@@ -218,6 +218,7 @@ function StudyPageInner() {
   if (forceFinished || (isEmpty && sessionFeedbackTotal > 0 && activeMode.kind !== 'single')) {
     return (
       <SessionSummary
+        deckName={deck.name}
         feedbackBreakdown={sessionBreakdown}
         durationMs={Math.max(0, (sessionEndedAt ?? sessionStartedAt) - sessionStartedAt)}
         streak={progressData.streak}
@@ -341,8 +342,8 @@ function StudyPageInner() {
 
 /** Derive the feedback that was applied from the snapshot + current progress. */
 function recoverFeedback(
-  snap: NonNullable<ReturnType<typeof useProgressContext>['undoSnapshot']>,
-  progressData: ReturnType<typeof useProgressContext>['progressData'],
+  snap: UndoSnapshot,
+  progressData: UserProgressData,
 ): FeedbackType | null {
   const current = progressData.progress[snap.questionId];
   return (current?.proficiency as FeedbackType) ?? null;

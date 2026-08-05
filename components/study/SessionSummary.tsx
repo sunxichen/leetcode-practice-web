@@ -7,6 +7,8 @@ import { SPRING_CONFIG } from '@/lib/constants';
 import styles from './SessionSummary.module.css';
 
 interface SessionSummaryProps {
+  /** 所属题集显示名：连续天数与每日统计是题集内概念（ADR-0002），文案须标明所属题集。 */
+  deckName: string;
   feedbackBreakdown: Record<FeedbackType, number>;
   durationMs: number;
   streak: StreakInfo | undefined;
@@ -29,6 +31,7 @@ function formatDuration(ms: number): string {
 }
 
 export function SessionSummary({
+  deckName,
   feedbackBreakdown,
   durationMs,
   streak,
@@ -67,8 +70,8 @@ export function SessionSummary({
         </h2>
         <p className={styles.subtitle}>
           {total === 0
-            ? '随时回来继续'
-            : `刷了 ${total} 道 · 用时 ${formatDuration(durationMs)}`}
+            ? `${deckName} · 随时回来继续`
+            : `${deckName} · 刷了 ${total} 道 · 用时 ${formatDuration(durationMs)}`}
         </p>
 
         {total > 0 && (
