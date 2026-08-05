@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generateQueue } from '@/hooks/useStudyQueue';
+import { generateQueue } from '@/lib/studyQueue';
 import { HOT100_SCHEDULING_PARAMS } from '@/lib/schedulingParams';
 import type { Question, QuestionProgress } from '@/lib/types';
 
@@ -284,5 +284,19 @@ describe('filtered queues', () => {
     ];
     const queue = generateQueue({ kind: 'tag', value: '动态规划' }, questions, {}, HOT100_SCHEDULING_PARAMS, NOW);
     expect(queue).toEqual(['1', '2']);
+  });
+});
+
+describe('single-card queue', () => {
+  it('contains exactly the requested card when it is in the given card set', () => {
+    const questions = [question('7'), question('8')];
+    const queue = generateQueue({ kind: 'single', questionId: '8' }, questions, {}, HOT100_SCHEDULING_PARAMS, NOW);
+    expect(queue).toEqual(['8']);
+  });
+
+  it('is empty when the requested card is not in the given card set', () => {
+    const questions = [question('7')];
+    const queue = generateQueue({ kind: 'single', questionId: 'nope' }, questions, {}, HOT100_SCHEDULING_PARAMS, NOW);
+    expect(queue).toEqual([]);
   });
 });

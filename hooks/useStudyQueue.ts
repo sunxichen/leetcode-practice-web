@@ -2,163 +2,19 @@
 
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import type {
-  Question,
   UserProgressData,
-  QuestionProgress,
   SessionMode,
 } from '@/lib/types';
 import { getAllQuestions, getQuestionById } from '@/lib/questions';
 import { HOT100_SCHEDULING_PARAMS } from '@/lib/schedulingParams';
-import type { SchedulingParams } from '@/lib/schedulingParams';
-
-
-/**
- * Build a fresh study queue snapshot for SMART mode (SM-2 driven).
- *
- * Priority (woven so users see progress on new material too):
- *   1. learning / relearning cards whose dueAt is already past — at the very front
- *   2. review cards that are overdue (sorted by how overdue), woven 3:1 with new cards
- *   3. brand-new cards (sorted by question id, ascending)
- *   4. learning cards whose dueAt is in the future — spliced into 2-3 at clamped
- *      positions [params.learningReinsertMin, params.learningReinsertMax] so they
- *      recur within the current ~10-min session window (Ebbinghaus loop).
- *
- * `excludeIds` is intentionally minimal — typically not used at all because the clamp
- * already prevents the just-shown card from reappearing immediately.
- */
-function generateSmartQueue(
-  questions: Question[],
-  progress: Record<string, QuestionProgress>,
-  params: SchedulingParams,
-  now: number = Date.now(),
-): string[] {
-  const learningOverdue: Array<{ id: string; dueAt: number }> = [];
-  const learningPending: Array<{ id: string; dueAt: number }> = [];
-  const reviewOverdue: Array<{ id: string; urgency: number }> = [];
-  const brandNew: string[] = [];
-
-  for (const q of questions) {
-    const prog = progress[q.id];
-
-    if (!prog || prog.state === 'new' || prog.proficiency === 'new') {
-      brandNew.push(q.id);
-      continue;
-    }
-
-    if (prog.state === 'learning' || prog.state === 'relearning') {
-      if (prog.dueAt <= now) {
-        learningOverdue.push({ id: q.id, dueAt: prog.dueAt });
-      } else {
-        learningPending.push({ id: q.id, dueAt: prog.dueAt });
-      }
-      continue;
-    }
-
-    // review state
-    const due = prog.dueAt ?? prog.nextReviewDate ?? 0;
-    if (due <= now) {
-      reviewOverdue.push({ id: q.id, urgency: now - due });
-    }
-  }
-
-  learningOverdue.sort((a, b) => a.dueAt - b.dueAt);
-  learningPending.sort((a, b) => a.dueAt - b.dueAt);
-  reviewOverdue.sort((a, b) => b.urgency - a.urgency);
-
-  const queue: string[] = [];
-  for (const item of learningOverdue) queue.push(item.id);
-
-  const reviewNewWoven: string[] = [];
-  let ri = 0, ni = 0;
-  while (ri < reviewOverdue.length || ni < brandNew.length) {
-    for (let i = 0; i < 3 && ri < reviewOverdue.length; i++) {
-      reviewNewWoven.push(reviewOverdue[ri++].id);
-    }
-    if (ni < brandNew.length) {
-      reviewNewWoven.push(brandNew[ni++]);
-    }
-  }
-
-  for (let i = learningPending.length - 1; i >= 0; i--) {
-    const item = learningPending[i];
-    const minutesAway = Math.max(0, (item.dueAt - now) / 60000);
-    const expected = Math.ceil(minutesAway * params.cardsPerMinute);
-    const clamped = Math.min(params.learningReinsertMax, Math.max(params.learningReinsertMin, expected));
-    const pos = Math.min(reviewNewWoven.length, clamped);
-    reviewNewWoven.splice(pos, 0, item.id);
-  }
-
-  for (const id of reviewNewWoven) queue.push(id);
-  return queue;
-}
-
-/** Sort filtered questions: overdue first, then most-lapsed, then by id. */
-function sortFilteredQueue(
-  ids: string[],
-  progress: Record<string, QuestionProgress>,
-  now: number = Date.now(),
-): string[] {
-  return [...ids].sort((a, b) => {
-    const pa = progress[a];
-    const pb = progress[b];
-    const aDue = pa?.dueAt ?? pa?.nextReviewDate ?? 0;
-    const bDue = pb?.dueAt ?? pb?.nextReviewDate ?? 0;
-    const aOver = aDue > 0 && aDue <= now ? now - aDue : -1;
-    const bOver = bDue > 0 && bDue <= now ? now - bDue : -1;
-    if (aOver !== bOver) return bOver - aOver;
-    const aLap = pa?.lapses ?? 0;
-    const bLap = pb?.lapses ?? 0;
-    if (aLap !== bLap) return bLap - aLap;
-    return a.localeCompare(b, 'zh-Hans-CN-u-kn-true');
-  });
-}
+import { generateQueue } from '@/lib/studyQueue';
 
 /**
- * Single entry point for queue generation across all session modes.
- *
- * Exported so the queue order can be asserted without mounting the hook; the
- * caller may inject `now` to make the result deterministic.
+ * Session state and side effects only. All queue sorting / weaving logic lives
+ * in the pure session-engine seam (lib/studyQueue.ts); this hook just feeds it
+ * the current card set, progress, 调度参数 and mode, and holds the resulting
+ * queue cursor.
  */
-export function generateQueue(
-  mode: SessionMode,
-  questions: Question[],
-  progress: Record<string, QuestionProgress>,
-  params: SchedulingParams,
-  now: number = Date.now(),
-): string[] {
-  switch (mode.kind) {
-    case 'smart':
-      return generateSmartQueue(questions, progress, params, now);
-    case 'difficulty': {
-      const ids = questions.filter(q => q.difficulty === mode.value).map(q => q.id);
-      return sortFilteredQueue(ids, progress, now);
-    }
-    case 'tag': {
-      const ids = questions.filter(q => q.tags.includes(mode.value)).map(q => q.id);
-      return sortFilteredQueue(ids, progress, now);
-    }
-    case 'weakest': {
-      // Bottom 10 by easeFactor (cards user struggles with most), plus high-lapse cards.
-      const seen = questions.filter(q => progress[q.id] && progress[q.id].state !== 'new');
-      const ranked = seen
-        .map(q => {
-          const p = progress[q.id];
-          return {
-            id: q.id,
-            score: (p.easeFactor ?? params.efDefault) - (p.lapses ?? 0) * 0.3,
-          };
-        })
-        .sort((a, b) => a.score - b.score)
-        .slice(0, 10)
-        .map(x => x.id);
-      return ranked;
-    }
-    case 'single': {
-      return getQuestionById(mode.questionId) ? [mode.questionId] : [];
-    }
-  }
-}
-
 export function useStudyQueue(progressData: UserProgressData, mode: SessionMode) {
   const [sessionState, setSessionState] = useState<{ queue: string[]; currentIndex: number } | null>(null);
   const questions = getAllQuestions();
@@ -204,7 +60,7 @@ export function useStudyQueue(progressData: UserProgressData, mode: SessionMode)
       // Smart mode: regenerate future tail from latest progress (via ref so
       // we always see the post-feedback state), preserve prefix so the X / Y
       // indicator stays meaningful.
-      const futureQueue = generateSmartQueue(questions, progressRef.current, HOT100_SCHEDULING_PARAMS);
+      const futureQueue = generateQueue({ kind: 'smart' }, questions, progressRef.current, HOT100_SCHEDULING_PARAMS);
       const prefix = prev.queue.slice(0, nextIndex);
       return {
         queue: [...prefix, ...futureQueue],

@@ -3,7 +3,7 @@
  *
  * Every calibration value that used to live in module-level constants now
  * arrives through this object: `scheduleNext` (lib/sm2.ts) and the queue
- * weaving (hooks/useStudyQueue.ts) both receive it explicitly, so a second
+ * weaving (lib/studyQueue.ts) both receive it explicitly, so a second
  * deck can run the same state machine on its own calibration.
  */
 export interface SchedulingParams {
@@ -36,7 +36,7 @@ export interface SchedulingParams {
   /** Default starting ease factor */
   efDefault: number;
 
-  // === Queue weaving (hooks/useStudyQueue.ts) ===
+  // === Queue weaving (lib/studyQueue.ts) ===
 
   /** Estimated cards per minute, used to place a pending learning card back
    * into the queue at roughly the position where it becomes due. */
