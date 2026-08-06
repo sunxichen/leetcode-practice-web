@@ -66,6 +66,11 @@ export interface ModePickerData {
   topTags?: string[];
   /** 各难度卡片总数（按难度模式的 chips）。仅提供按难度模式的题集需要给出。 */
   difficultyCounts?: Record<Difficulty, number>;
+  /** 各分类的展示名与卡数（全量扫题的 chips）。category 是通用字符串——分类
+   * 的中文标签由题集配置从卡片集派生（value 是卡片上的分类字段值，label 是
+   * 题集侧的中文名）。仅提供 sweep 模式的题集需要给出；不提供的题集留
+   * undefined，不要编造零值。 */
+  categories?: { value: string; label: string; count: number }[];
 }
 
 export interface DeckConfig<C extends SessionCard = SessionCard> {

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { generateQueue } from '@/lib/studyQueue';
 import { HOT100_SCHEDULING_PARAMS, INTERVIEW_SCHEDULING_PARAMS } from '@/lib/schedulingParams';
 import { sortInterviewNewCards } from '@/lib/interview';
-import type { InterviewCard, Priority } from '@/lib/interview-types';
+import type { InterviewCard, InterviewCategory, Priority } from '@/lib/interview-types';
 import type { Question, QuestionProgress } from '@/lib/types';
 
 /**
@@ -468,5 +468,86 @@ describe('smart queue — Hot100 零回归（票 10）', () => {
       newCardsIntroducedToday: 999,
     });
     expect(queue).toEqual(['30', '4', '100']);
+  });
+});
+
+/**
+ * 票 11：全量扫题（sweep）。无视到期时间、按重要度遍历全部卡，可限定分类。
+ * 排序沿用工卡引入的注入（sortInterviewNewCards = 按重要度）——通用队列仍
+ * 不认识 priority；cap 只存在于 smart 分支，sweep 不读 dailyStats、不受额度约束。
+ */
+
+function sweepCard(id: string, priority: Priority, category: InterviewCategory = 'dl-basics'): InterviewCard {
+  return { ...interviewCard(id, priority), category };
+}
+
+describe('sweep queue — 不限分类（票 11）', () => {
+  it('包含未到期/新/learning/review 全部卡，按重要度 must→common→bonus、同级 id 排序', () => {
+    const cards = [
+      sweepCard('dl-bonus-b', 'bonus'),
+      sweepCard('dl-note-new', 'bonus'),   // 全新卡，无进度
+      sweepCard('dl-common-a', 'common'),  // review，未到期
+      sweepCard('dl-must-b', 'must'),
+      sweepCard('dl-must-a', 'must'),      // learning，未到期
+    ];
+    const queue = generateQueue({ kind: 'sweep' }, cards, {
+      'dl-must-a': learningProgress(NOW + 10 * MIN),
+      'dl-common-a': reviewProgress(NOW + DAY),
+    }, INTERVIEW_SCHEDULING_PARAMS, NOW, { sortNewCards: sortInterviewNewCards });
+    expect(queue).toEqual([
+      'dl-must-a', 'dl-must-b',
+      'dl-common-a',
+      'dl-bonus-b', 'dl-note-new',
+    ]);
+  });
+
+  it('未注入排序时保持题库数组顺序（通用队列不暗含排序）', () => {
+    const cards = [sweepCard('dl-bonus', 'bonus'), sweepCard('dl-must', 'must')];
+    const queue = generateQueue({ kind: 'sweep' }, cards, {}, INTERVIEW_SCHEDULING_PARAMS, NOW);
+    expect(queue).toEqual(['dl-bonus', 'dl-must']);
+  });
+});
+
+describe('sweep queue — 限定分类（票 11）', () => {
+  it('只含该分类的卡，其余分类不出现，且排序正确', () => {
+    const cards = [
+      sweepCard('dl-must', 'must', 'dl-basics'),
+      sweepCard('proj-common', 'common', 'project'),
+      sweepCard('dl-bonus', 'bonus', 'dl-basics'),
+      sweepCard('tech-must', 'must', 'tech-stack'),
+    ];
+    const queue = generateQueue({ kind: 'sweep', category: 'dl-basics' }, cards, {}, INTERVIEW_SCHEDULING_PARAMS, NOW, {
+      sortNewCards: sortInterviewNewCards,
+    });
+    expect(queue).toEqual(['dl-must', 'dl-bonus']);
+  });
+});
+
+describe('sweep queue — 无视到期（票 11）', () => {
+  it('全部卡都未到期时队列仍非空且含全部卡（与 smart 的到期筛选不同）', () => {
+    const cards = [
+      sweepCard('dl-facing', 'must'),
+      sweepCard('dl-later', 'common'),
+    ];
+    const queue = generateQueue({ kind: 'sweep' }, cards, {
+      'dl-facing': reviewProgress(NOW + 10 * DAY),
+      'dl-later': learningProgress(NOW + 60 * MIN),
+    }, INTERVIEW_SCHEDULING_PARAMS, NOW, { sortNewCards: sortInterviewNewCards });
+    expect(queue).toEqual(['dl-facing', 'dl-later']);
+  });
+});
+
+describe('sweep queue — 不受每日新卡上限影响（票 11）', () => {
+  it('额度很小且今日已引入若干时仍返回全部新卡（对照 smart 会被截断）', () => {
+    const cards = Array.from({ length: 20 }, (_, i) => sweepCard(`n${String(i).padStart(2, '0')}`, 'must'));
+    const options = { newCardsIntroducedToday: 14, sortNewCards: sortInterviewNewCards };
+
+    // 同一输入下 smart 被每日额度截断到 1 张。
+    const smart = generateQueue({ kind: 'smart' }, cards, {}, INTERVIEW_SCHEDULING_PARAMS, NOW, options);
+    expect(smart).toEqual(['n00']);
+
+    // sweep 是刻意的全量遍历：20 张新卡一张不少。
+    const sweep = generateQueue({ kind: 'sweep' }, cards, {}, INTERVIEW_SCHEDULING_PARAMS, NOW, options);
+    expect(sweep).toEqual(cards.map(c => c.id));
   });
 });

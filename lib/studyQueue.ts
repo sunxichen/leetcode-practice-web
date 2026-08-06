@@ -227,5 +227,20 @@ export function generateQueue<C extends SessionCard = SessionCard>(
       // seam stays pure and works for any 题集.
       return cards.some(card => card.id === mode.questionId) ? [mode.questionId] : [];
     }
+    case 'sweep': {
+      // 全量扫题：面试前集中冲刷，无视到期时间与卡生命周期状态——未到期、
+      // 新卡、learning、review 全部进队列。分类过滤这个字段要求属于模式自身
+      // （同 difficulty/tag 分支的收窄读取），不抬进 SessionCard。排序按题集
+      // 注入的排序能力（面试题集注入 sortInterviewNewCards = 按重要度）——
+      // 引擎不认识 priority，排序边界仍由题集配置保证。sweep 是固定队列模式：
+      // 不参与 3:1 编织、不做新卡额度截断（cap 只存在于 smart 分支）、不做
+      // learning 插回、不读 dailyStats。
+      const filtered = mode.category
+        ? (cards as unknown as Array<SessionCard & { category: string }>)
+            .filter(card => card.category === mode.category)
+        : cards;
+      const ordered = options?.sortNewCards ? options.sortNewCards(filtered as C[]) : filtered;
+      return ordered.map(card => card.id);
+    }
   }
 }

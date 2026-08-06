@@ -103,4 +103,10 @@ export type SessionMode =
   | { kind: 'difficulty'; value: Difficulty }
   | { kind: 'tag'; value: string }
   | { kind: 'weakest' }
-  | { kind: 'single'; questionId: string };
+  | { kind: 'single'; questionId: string }
+  /**
+   * 全量扫题：无视到期时间、按重要度遍历全部卡（面试前集中冲刷）。
+   * category 缺省 = 不限分类（全量）；有值 = 只扫该分类。category 是通用
+   * 字符串——面试题集的分类字面量属于题集侧，不写进这个通用联合。
+   */
+  | { kind: 'sweep'; category?: string };

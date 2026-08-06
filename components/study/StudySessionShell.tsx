@@ -74,6 +74,7 @@ export function StudySessionShell<C extends SessionCard>(props: StudySessionOpti
         weakestCount={session.weakestCount}
         topTags={pickerData.topTags}
         difficultyCounts={pickerData.difficultyCounts}
+        categories={pickerData.categories}
         modes={deck.sessionModes}
         onSelectMode={session.selectMode}
       />
@@ -214,6 +215,7 @@ function ModeLabel(mode: SessionMode): string {
     case 'tag': return `标签 · ${mode.value}`;
     case 'weakest': return '攻克最弱';
     case 'single': return `单题 · #${mode.questionId}`;
+    case 'sweep': return '全量扫题';
   }
 }
 

@@ -26,6 +26,9 @@ interface ModePickerProps {
   difficultyCounts?: Record<Difficulty, number>;
   /** 可选会话模式清单：由题集配置注入，决定提供哪些模式入口。 */
   modes: readonly SessionMode['kind'][];
+  /** 全量扫题的分类 chips：由题集配置从卡片集派生（value/label/count）。
+   * 仅在 modes 含 'sweep' 时需要；不含时留 undefined，不编造零值。 */
+  categories?: { value: string; label: string; count: number }[];
 }
 
 function formatMinutesUntil(ts: number): string {
@@ -37,7 +40,8 @@ function formatMinutesUntil(ts: number): string {
   return `${hrs} 小时后`;
 }
 
-export function ModePicker({ todayDueCount, counters, onSelectMode, weakestCount, topTags, difficultyCounts, modes }: ModePickerProps) {
+export function ModePicker({ todayDueCount, counters, onSelectMode, weakestCount, topTags, difficultyCounts, categories, modes }: ModePickerProps) {
+  const sweepTotal = (categories ?? []).reduce((sum, c) => sum + c.count, 0);
   return (
     <motion.div
       className={styles.container}
@@ -163,6 +167,38 @@ export function ModePicker({ todayDueCount, counters, onSelectMode, weakestCount
             <span className={styles.weakestText}>攻克最弱</span>
             <span className={styles.weakestMeta}>挑出 {Math.min(10, weakestCount)} 道你最常忘的</span>
           </motion.button>
+        </motion.section>
+      )}
+
+      {modes.includes('sweep') && (
+        <motion.section
+          className={styles.section}
+          initial={{ y: 12, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ ...SPRING_CONFIG.enter, delay: 0.35 }}
+        >
+          <div className={styles.sectionLabel}>全量扫题</div>
+          <div className={styles.chipRow}>
+            <motion.button
+              className={styles.chip}
+              onClick={() => onSelectMode({ kind: 'sweep' })}
+              whileTap={{ scale: 0.96 }}
+            >
+              <span className={styles.chipLabel}>不限</span>
+              <span className={styles.chipMeta}>{sweepTotal} 题</span>
+            </motion.button>
+            {(categories ?? []).map(cat => (
+              <motion.button
+                key={cat.value}
+                className={styles.chip}
+                onClick={() => onSelectMode({ kind: 'sweep', category: cat.value })}
+                whileTap={{ scale: 0.96 }}
+              >
+                <span className={styles.chipLabel}>{cat.label}</span>
+                <span className={styles.chipMeta}>{cat.count} 题</span>
+              </motion.button>
+            ))}
+          </div>
         </motion.section>
       )}
     </motion.div>
