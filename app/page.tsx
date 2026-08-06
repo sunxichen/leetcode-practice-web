@@ -6,6 +6,7 @@ import { useDeckProgress } from '@/context/ProgressContext';
 import { DECK_IDS, type DeckId } from '@/lib/decks/ids';
 import { getDeckMeta } from '@/lib/decks/meta';
 import { summarizeDeckCounts } from '@/lib/decks/counts';
+import { BackupControls } from '@/components/backup/BackupControls';
 import deckSummary from '@/data/deck-summary.json';
 import styles from './page.module.css';
 
@@ -56,6 +57,8 @@ export default function Home() {
           </Link>
         ))}
       </div>
+
+      <BackupControls />
     </div>
   );
 }
