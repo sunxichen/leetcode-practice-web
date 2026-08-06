@@ -6,6 +6,7 @@ import { keyPointAnchors } from '@/lib/feedbackAnchors';
 import { InterviewCardFront } from '@/components/interview/InterviewCardFront';
 import { InterviewCardBack } from '@/components/interview/InterviewCardBack';
 import type { DeckConfig, ModePickerData } from '@/lib/decks/types';
+import { DECK_META } from '@/lib/decks/meta';
 
 /** 分类 → 中文展示名（全量扫题的 chips 用）。只在本题集侧定义，不塞进通用组件。 */
 const CATEGORY_LABELS: Record<InterviewCategory, string> = {
@@ -45,7 +46,8 @@ function getInterviewModePickerData(cards: InterviewCard[]): ModePickerData {
  */
 export const interviewDeck: DeckConfig<InterviewCard> = {
   id: 'interview',
-  name: '面试题集',
+  name: DECK_META.interview.name,
+  studyPath: DECK_META.interview.studyPath,
   dataSource: {
     getAllCards: getAllInterviewCards,
     getCardById: getInterviewCardById,

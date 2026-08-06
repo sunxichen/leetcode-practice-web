@@ -21,6 +21,9 @@ describe('题集注册表 (deck registry)', () => {
     const deck = getDeckConfig('hot100');
 
     expect(deck.id).toBe('hot100');
+    // 路由元数据（票 12）：学习与题库路由收进配置
+    expect(deck.studyPath).toBe('/study');
+    expect(deck.browsePath).toBe('/browse');
     // 数据源：与既有题库接口是同一份数据
     expect(deck.dataSource.getAllCards()).toBe(getAllQuestions());
     const first = getAllQuestions()[0];
@@ -46,6 +49,9 @@ describe('题集注册表：面试题集（票 8）', () => {
   it('按题集标识取出面试题集的完整配置', () => {
     expect(deck.id).toBe('interview');
     expect(deck.name).toBe('面试题集');
+    // 路由元数据（票 12）：有学习路由，题库页是票 13 还没有
+    expect(deck.studyPath).toBe('/interview/study');
+    expect(deck.browsePath).toBeUndefined();
     // 数据源：与面试题库接口是同一份数据
     expect(deck.dataSource.getAllCards()).toBe(cards);
     expect(deck.dataSource.getCardById(cards[0].id)).toBe(cards[0]);

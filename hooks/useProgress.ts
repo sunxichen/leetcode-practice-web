@@ -13,7 +13,8 @@ import { bumpDailyStats, ymd } from '@/lib/dailyStats';
 import { scheduleNext } from '@/lib/sm2';
 import type { SchedulingParams } from '@/lib/schedulingParams';
 import { DEBOUNCE_MS, UNDO_WINDOW_MS } from '@/lib/constants';
-import { DECK_IDS, getDeckConfig, type DeckId } from '@/lib/decks';
+import { DECK_IDS, type DeckId } from '@/lib/decks/ids';
+import { DECK_SCHEDULING_PARAMS } from '@/lib/decks/params';
 
 /**
  * Snapshot stored to make the last feedback reversible.
@@ -120,7 +121,7 @@ export function useProgress() {
     let cancelled = false;
     Promise.all(
       DECK_IDS.map((id) =>
-        reconcileProgress(id, adapters[id], getDeckConfig(id).schedulingParams)
+        reconcileProgress(id, adapters[id], DECK_SCHEDULING_PARAMS[id])
           .then((data) => ({ id, data }))
           .catch((err) => {
             console.error(`[useProgress] reconcile failed for deck ${id}`, err);

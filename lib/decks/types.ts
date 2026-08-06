@@ -104,6 +104,10 @@ export interface DeckConfig<C extends SessionCard = SessionCard> {
    * 也不把用户送去别的题集的题库页。
    */
   browsePath?: string;
+  /** 学习路由：底部导航「学习」与首页入口卡的去向。题集特定路由收进配置
+   * （ADR-0001 / ADR-0005）；路由/展示元数据的值来自轻量模块
+   * lib/decks/meta.ts（首页只读那份，不为此引入完整题库）。 */
+  studyPath: string;
   /**
    * 自评条副标签：按当前卡派生四档标注（面试题集的要点命中区间锚，
    * ADR-0003）。缺省时自评条显示各档到期时间预览（LeetCode 题集现状，

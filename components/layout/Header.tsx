@@ -1,19 +1,37 @@
 'use client';
 
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { useThemeContext } from '@/context/ThemeContext';
+import { deckIdFromPathname } from '@/lib/decks/routes';
+import { getDeckMeta } from '@/lib/decks/meta';
 import styles from './Header.module.css';
 
+/** 头部品牌位 — 路径感知（票 12）：在某题集内显示该题集名并可点击返回首页；
+ * 首页显示应用名且不可点。路由映射走 deckIdFromPathname 纯函数。 */
 export function Header() {
   const { theme, toggleTheme } = useThemeContext();
+  const pathname = usePathname();
+  const deckId = deckIdFromPathname(pathname);
+  const meta = deckId ? getDeckMeta(deckId) : null;
+
+  const brand = meta ? (
+    <Link href="/" className={styles.brand}>
+      <span className={styles.logo}>LC</span>
+      <span className={styles.title}>{meta.name}</span>
+    </Link>
+  ) : (
+    <div className={styles.brand}>
+      <span className={styles.logo}>LC</span>
+      <span className={styles.title}>LeetCode</span>
+    </div>
+  );
 
   return (
     <header className={styles.header}>
       <div className={styles.inner}>
-        <div className={styles.brand}>
-          <span className={styles.logo}>LC</span>
-          <span className={styles.title}>LeetCode</span>
-        </div>
+        {brand}
         <div className={styles.actions}>
           <motion.button
             className={styles.iconButton}

@@ -2,7 +2,7 @@
 
 import { createContext, useContext, type ReactNode } from 'react';
 import { useProgress, type DeckProgressValue } from '@/hooks/useProgress';
-import { DECK_IDS, type DeckId } from '@/lib/decks';
+import { DECK_IDS, type DeckId } from '@/lib/decks/ids';
 
 const defaultDeckValue: DeckProgressValue = {
   progressData: { lastUpdatedAt: 0, lastSessionCursor: null, progress: {} },

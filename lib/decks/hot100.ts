@@ -4,6 +4,7 @@ import { HOT100_SCHEDULING_PARAMS } from '@/lib/schedulingParams';
 import { CardFront } from '@/components/card/CardFront';
 import { CardBack } from '@/components/card/CardBack';
 import type { DeckConfig, ModePickerData } from '@/lib/decks/types';
+import { DECK_META } from '@/lib/decks/meta';
 
 /** ModePicker 标签云的 chip 数上限（与参数化之前 ModePicker 内部常量相同）。 */
 const MAX_TAG_CHIPS = 8;
@@ -37,7 +38,7 @@ function getModePickerData(cards: Question[]): ModePickerData {
  */
 export const hot100Deck: DeckConfig<Question> = {
   id: 'hot100',
-  name: 'LeetCode Hot 100',
+  name: DECK_META.hot100.name,
   dataSource: {
     getAllCards: getAllQuestions,
     getCardById: getQuestionById,
@@ -51,5 +52,6 @@ export const hot100Deck: DeckConfig<Question> = {
   // 背面轮播一页 = 一种解法；键盘"上一/下一"的边界即解法数。
   getBackPageCount: (card) => card.solutions.length,
   getModePickerData,
-  browsePath: '/browse',
+  browsePath: DECK_META.hot100.browsePath,
+  studyPath: DECK_META.hot100.studyPath,
 };
