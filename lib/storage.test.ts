@@ -151,19 +151,44 @@ describe('进度归并 (reconcileProgress)', () => {
 
   it('两侧皆空时产出初始结构', async () => {
     const remote = fakeRemote(null);
-    const before = Date.now();
 
     const winner = await reconcileProgress('hot100', remote.adapter, HOT100_SCHEDULING_PARAMS);
 
     expect(winner.progress).toEqual({});
     expect(winner.lastSessionCursor).toBeNull();
-    expect(winner.lastUpdatedAt).toBeGreaterThanOrEqual(before);
+    // 初始空文档时间戳必须为 0，绝不用 Date.now()：否则它会凭时间戳吃掉后续的真实进度。
+    expect(winner.lastUpdatedAt).toBe(0);
     // 迁移补全的默认字段
     expect(winner.dailyStats).toEqual({});
     expect(winner.streak).toEqual({ currentDays: 0, longestDays: 0, lastActiveDay: '' });
     expect(remote.state.setCalls).toHaveLength(0);
     // 初始结构落盘，下次读取有文档可依
     expect(storage.getItem(HOT100_KEY)).toBeTruthy();
+  });
+
+  it('空文档绝不覆盖有数据的一侧：远端有数据、本地空且时间戳更新，仍以远端为准', async () => {
+    // 复现线上事故：清浏览器后首访造出的空本地文档带上更新的时间戳，
+    // 播种进远端的真实进度不得被它吃掉。远端赢、不回写、真实进度落到本地。
+    storage.setItem(HOT100_KEY, JSON.stringify(doc({ lastUpdatedAt: 9_999_999_999_999, progress: {} })));
+    const remote = fakeRemote(doc({ lastUpdatedAt: 1000, progress: { '5': currentEntry() } }));
+
+    const winner = await reconcileProgress('hot100', remote.adapter, HOT100_SCHEDULING_PARAMS);
+
+    expect(Object.keys(winner.progress)).toEqual(['5']);
+    expect(remote.state.setCalls).toHaveLength(0);
+    const persisted = JSON.parse(storage.getItem(HOT100_KEY)!) as UserProgressData;
+    expect(persisted.progress['5']).toBeDefined();
+  });
+
+  it('空文档绝不覆盖有数据的一侧：本地有数据、远端被空文档覆盖过，本地夺回并回写远端', async () => {
+    storage.setItem(HOT100_KEY, JSON.stringify(doc({ lastUpdatedAt: 1000, progress: { '5': currentEntry() } })));
+    const remote = fakeRemote(doc({ lastUpdatedAt: 9_999_999_999_999, progress: {} }));
+
+    const winner = await reconcileProgress('hot100', remote.adapter, HOT100_SCHEDULING_PARAMS);
+
+    expect(Object.keys(winner.progress)).toEqual(['5']);
+    expect(remote.state.setCalls).toHaveLength(1);
+    expect(remote.state.data?.progress['5']).toBeDefined();
   });
 
   it('损坏的本地数据（JSON 解析失败）被安全丢弃而非抛错', async () => {

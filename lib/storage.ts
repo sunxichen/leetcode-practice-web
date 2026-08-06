@@ -147,11 +147,20 @@ export function createStorageAdapter(deckId: DeckId): StorageAdapter {
 }
 
 function createInitialProgress(): UserProgressData {
+  // 初始空文档的时间戳必须为 0，绝不能是 Date.now()：否则“首次访问时两侧皆空”
+  // 造出的这份空文档会带上当前时间戳，在后续归并里凭时间戳吃掉真正有数据的一侧
+  // （远端播种或另一设备的进度）。空文档没有可保护的数据，就该在时间戳上永远垫底。
   return {
-    lastUpdatedAt: Date.now(),
+    lastUpdatedAt: 0,
     lastSessionCursor: null,
     progress: {},
   };
+}
+
+/** 文档里的进度条目数——归并时用来判定“有数据/空”，空文档不得覆盖有数据的一侧。 */
+function progressEntryCount(data: UserProgressData | null): number {
+  if (!data || typeof data.progress !== 'object' || data.progress === null) return 0;
+  return Object.keys(data.progress).length;
 }
 
 function safeParse(raw: string | null): UserProgressData | null {
@@ -196,16 +205,26 @@ export async function reconcileProgress(
 
   const remoteTs = remote?.lastUpdatedAt ?? 0;
   const localTs = localData?.lastUpdatedAt ?? 0;
+  const remoteHasData = progressEntryCount(remote) > 0;
+  const localHasData = progressEntryCount(localData) > 0;
 
   let winner: UserProgressData;
 
   if (!remote && !localData) {
     winner = createInitialProgress();
+  } else if (remoteHasData && !localHasData) {
+    // 有数据的一侧永远压过空文档，无视时间戳：清库/首访产生的空文档即便时间戳更新，
+    // 也不得吃掉远端真实进度（这正是清浏览器 + 首访抢跑导致丢进度的根因）。远端赢无需回写。
+    winner = remote!;
+  } else if (localHasData && !remoteHasData) {
+    // 对称：本地有数据、远端空（被空文档覆盖过），本地夺回并回写远端修复它。
+    winner = localData!;
+    remoteAdapter.set(winner).catch(() => {});
   } else if (localTs > remoteTs) {
     winner = localData!;
     remoteAdapter.set(winner).catch(() => {});
   } else {
-    winner = remote!;
+    winner = remote ?? localData!;
   }
 
   winner = migrateProgressData(winner, params);
