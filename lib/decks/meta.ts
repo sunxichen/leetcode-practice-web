@@ -33,7 +33,8 @@ export const DECK_META: Record<DeckId, DeckMeta> = {
     id: 'interview',
     name: '面试题集',
     studyPath: '/interview/study',
-    // 本题集还没有题库页（票 13）：「题库」tab 本票不渲染。
+    // 面试题库页（票 13）：独立路由，底部导航「题库」tab 与"浏览题库"按钮据此出现。
+    browsePath: '/interview/browse',
   },
 };
 

@@ -49,9 +49,9 @@ describe('题集注册表：面试题集（票 8）', () => {
   it('按题集标识取出面试题集的完整配置', () => {
     expect(deck.id).toBe('interview');
     expect(deck.name).toBe('面试题集');
-    // 路由元数据（票 12）：有学习路由，题库页是票 13 还没有
+    // 路由元数据（票 12/13）：有学习路由，题库页（票 13）指向 /interview/browse
     expect(deck.studyPath).toBe('/interview/study');
-    expect(deck.browsePath).toBeUndefined();
+    expect(deck.browsePath).toBe('/interview/browse');
     // 数据源：与面试题库接口是同一份数据
     expect(deck.dataSource.getAllCards()).toBe(cards);
     expect(deck.dataSource.getCardById(cards[0].id)).toBe(cards[0]);
@@ -77,8 +77,8 @@ describe('题集注册表：面试题集（票 8）', () => {
     expect(data.difficultyCounts).toBeUndefined();
   });
 
-  it('本票没有题库页：browsePath 为 undefined，会话总结与空状态不渲染浏览按钮', () => {
-    expect(deck.browsePath).toBeUndefined();
+  it('题库页（票 13）：browsePath 为 /interview/browse，会话总结与空状态据此渲染浏览按钮', () => {
+    expect(deck.browsePath).toBe('/interview/browse');
   });
 
   it('自评锚按当前卡要点数派生，与纯函数 keyPointAnchors 一致', () => {

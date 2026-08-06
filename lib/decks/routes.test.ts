@@ -45,8 +45,11 @@ describe('navItemsForDeck (底部导航项推导)', () => {
     ]);
   });
 
-  it('interview → 只有学习（无 browsePath，本票不渲染题库）', () => {
-    expect(navItemsForDeck('interview')).toEqual([{ label: '学习', href: '/interview/study' }]);
+  it('interview → 学习 + 题库（票 13 落地题库页后，题库指向 /interview/browse）', () => {
+    expect(navItemsForDeck('interview')).toEqual([
+      { label: '学习', href: '/interview/study' },
+      { label: '题库', href: '/interview/browse' },
+    ]);
   });
 
   it('首页（null）→ 空，底部导航隐藏', () => {

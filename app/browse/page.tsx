@@ -6,7 +6,8 @@ import Link from 'next/link';
 import { useDeckProgress } from '@/context/ProgressContext';
 import { getAllQuestions } from '@/lib/questions';
 import { DifficultyBadge } from '@/components/ui/DifficultyBadge';
-import { FilterPanel, type SemanticFilter } from '@/components/filters/FilterPanel';
+import { FilterPanel, type SemanticFilter, type FilterFacet } from '@/components/filters/FilterPanel';
+import { hot100FacetGroups } from '@/lib/browse-facets';
 import { DAY_MS } from '@/lib/constants';
 import styles from './page.module.css';
 
@@ -61,6 +62,15 @@ export default function BrowsePage() {
       return next;
     });
   }, []);
+
+  // FilterPanel 参数化（票 13）：两个多选组（难度 + 标签）的静态配置来自
+  // hot100FacetGroups——重构前 DIFFICULTIES 常量、getAllTags() 顺序、标签折叠
+  // 阈值 10 与清除按钮逐位搬过去；这里只合并当前选中态与切换回调。
+  const facets: FilterFacet[] = hot100FacetGroups().map((g) => ({
+    ...g,
+    selected: g.key === 'tags' ? tagsFilter : difficulties,
+    onToggle: g.key === 'tags' ? toggleTag : toggleDifficulty,
+  }));
 
   const filteredQuestions = useMemo(() => {
     // eslint-disable-next-line react-hooks/purity -- snapshot now() for the filter; results are derived from current progress
@@ -133,12 +143,9 @@ export default function BrowsePage() {
       <FilterPanel
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
-        difficulties={difficulties}
-        onToggleDifficulty={toggleDifficulty}
-        tags={tagsFilter}
-        onToggleTag={toggleTag}
         semantic={semantic}
         onSemanticChange={setSemantic}
+        facets={facets}
       />
 
       <div className={styles.list}>

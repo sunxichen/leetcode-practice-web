@@ -1,24 +1,33 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getAllTags } from '@/lib/questions';
+import type { BrowseFacetStatic } from '@/lib/browse-facets';
 import styles from './FilterPanel.module.css';
 
 export type SemanticFilter = 'all' | 'due-today' | 'due-soon' | 'lapse-prone' | 'new';
 
+/** FilterPanel 注入的一个多选筛选组：静态描述 + 当前选中态 + 切换回调。
+ * 组件只负责按 label 渲染组、按 options 铺 chip，选中态与切换逻辑由调用方
+ * 持有（受控组件不作内部状态）——因此组件不引用任何题集的数据源
+ *（getAllTags 等），分类/重要度的中文标签也由调用方注入（题集侧定义）。 */
+export interface FilterFacet extends BrowseFacetStatic {
+  /** 当前选中的值集合（空 = 全部）。 */
+  selected: Set<string>;
+  /** 切换一个选项。 */
+  onToggle: (value: string) => void;
+}
+
 interface FilterPanelProps {
   searchQuery: string;
   onSearchChange: (query: string) => void;
-  difficulties: Set<string>;
-  onToggleDifficulty: (difficulty: string) => void;
-  tags: Set<string>;
-  onToggleTag: (tag: string) => void;
+  /** 搜索框占位文案，由调用方（题集侧）决定。默认沿用 LeetCode 现状文案。 */
+  searchPlaceholder?: string;
   semantic: SemanticFilter;
   onSemanticChange: (s: SemanticFilter) => void;
+  /** 注入的多选筛选组（难度/标签/分类/重要度……），顺序即渲染顺序。 */
+  facets: FilterFacet[];
 }
-
-const DIFFICULTIES = ['Easy', 'Medium', 'Hard'] as const;
 
 const SEMANTIC_OPTIONS: { value: SemanticFilter; label: string }[] = [
   { value: 'all', label: '全部' },
@@ -31,18 +40,13 @@ const SEMANTIC_OPTIONS: { value: SemanticFilter; label: string }[] = [
 export function FilterPanel({
   searchQuery,
   onSearchChange,
-  difficulties,
-  onToggleDifficulty,
-  tags,
-  onToggleTag,
+  searchPlaceholder = '搜索题号 / 标题 / 标签...',
   semantic,
   onSemanticChange,
+  facets,
 }: FilterPanelProps) {
-  const allTags = useMemo(() => getAllTags(), []);
-  const [tagsExpanded, setTagsExpanded] = useState(false);
-
-  const visibleTags = tagsExpanded ? allTags : allTags.slice(0, 10);
-  const hasHiddenTags = allTags.length > 10;
+  // 多选组的折叠态（「+N 展开/收起」）按组记录，目前只有 LeetCode 标签组用得到。
+  const [expandedKeys, setExpandedKeys] = useState<Record<string, boolean>>({});
 
   return (
     <div className={styles.panel}>
@@ -55,7 +59,7 @@ export function FilterPanel({
         <input
           className={styles.searchInput}
           type="text"
-          placeholder="搜索题号 / 标题 / 标签..."
+          placeholder={searchPlaceholder}
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
         />
@@ -87,60 +91,55 @@ export function FilterPanel({
         </div>
       </div>
 
-      {/* Difficulty (multi-select) */}
-      <div className={styles.filterGroup}>
-        <span className={styles.filterLabel}>难度</span>
-        <div className={styles.chips}>
-          {DIFFICULTIES.map((d) => (
-            <motion.button
-              key={d}
-              className={`${styles.chip} ${difficulties.has(d) ? styles.chipActive : ''}`}
-              onClick={() => onToggleDifficulty(d)}
-              whileTap={{ scale: 0.95 }}
-            >
-              {d}
-            </motion.button>
-          ))}
-        </div>
-      </div>
+      {/* 注入的多选筛选组 */}
+      {facets.map((facet) => {
+        const isExpanded = expandedKeys[facet.key];
+        const threshold = facet.collapsibleThreshold;
+        const collapsible =
+          typeof threshold === 'number' && facet.options.length > threshold;
+        const visible = !collapsible || isExpanded
+          ? facet.options
+          : facet.options.slice(0, threshold);
 
-      {/* Tags (multi-select, collapsible) */}
-      <div className={styles.filterGroup}>
-        <div className={styles.filterLabelRow}>
-          <span className={styles.filterLabel}>标签</span>
-          {tags.size > 0 && (
-            <button
-              className={styles.clearTagsButton}
-              onClick={() => tags.forEach(t => onToggleTag(t))}
-            >
-              清除 ({tags.size})
-            </button>
-          )}
-        </div>
-        <div className={styles.chips}>
-          <AnimatePresence initial={false}>
-            {visibleTags.map((t) => (
-              <motion.button
-                key={t}
-                className={`${styles.chip} ${tags.has(t) ? styles.chipActive : ''}`}
-                onClick={() => onToggleTag(t)}
-                whileTap={{ scale: 0.95 }}
-                layout
-              >
-                {t}
-              </motion.button>
-            ))}
-          </AnimatePresence>
-          {hasHiddenTags && (
-            <button
-              className={styles.expandButton}
-              onClick={() => setTagsExpanded(v => !v)}
-            >
-              {tagsExpanded ? '收起' : `+${allTags.length - 10}`}
-            </button>
-          )}
-        </div>
-      </div>
+        return (
+          <div key={facet.key} className={styles.filterGroup}>
+            <div className={styles.filterLabelRow}>
+              <span className={styles.filterLabel}>{facet.label}</span>
+              {facet.showClear && facet.selected.size > 0 && (
+                <button
+                  className={styles.clearTagsButton}
+                  onClick={() => facet.selected.forEach((v) => facet.onToggle(v))}
+                >
+                  清除 ({facet.selected.size})
+                </button>
+              )}
+            </div>
+            <div className={styles.chips}>
+              <AnimatePresence initial={false}>
+                {visible.map((opt) => (
+                  <motion.button
+                    key={opt.value}
+                    className={`${styles.chip} ${facet.selected.has(opt.value) ? styles.chipActive : ''}`}
+                    onClick={() => facet.onToggle(opt.value)}
+                    whileTap={{ scale: 0.95 }}
+                    layout
+                  >
+                    {opt.label}
+                  </motion.button>
+                ))}
+              </AnimatePresence>
+              {collapsible && (
+                <button
+                  className={styles.expandButton}
+                  onClick={() => setExpandedKeys((prev) => ({ ...prev, [facet.key]: !isExpanded }))}
+                >
+                  {isExpanded ? '收起' : `+${facet.options.length - threshold}`}
+                </button>
+              )}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

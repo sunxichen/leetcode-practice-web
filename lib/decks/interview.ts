@@ -39,8 +39,8 @@ function getInterviewModePickerData(cards: InterviewCard[]): ModePickerData {
  *   sortNewCards 注入通用队列引擎，引擎不认识 priority 字段（ADR-0004）。
  * - 会话模式：smart、sweep（全量扫题）与 single（单卡深链）。按分类/按重要度
  *   （复习维度）模式不在本票范围，全量扫题是票 11。
- * - 本题集还没有题库页（/interview/browse 是票 13）：browsePath 留 undefined，
- *   会话总结与空状态不渲染"浏览题库"按钮。
+ * - 题库页（/interview/browse，票 13）：browsePath 与 meta 同一单一事实源，
+ *   会话总结与空状态据此渲染"浏览题库"按钮。
  * - 背面分页数 = 代码段数（票 9 的多段代码轮播），无代码也是 1——键盘
  *   "上一/下一"键的钳制边界永远不会落到非法下标。
  */
@@ -48,6 +48,7 @@ export const interviewDeck: DeckConfig<InterviewCard> = {
   id: 'interview',
   name: DECK_META.interview.name,
   studyPath: DECK_META.interview.studyPath,
+  browsePath: DECK_META.interview.browsePath,
   dataSource: {
     getAllCards: getAllInterviewCards,
     getCardById: getInterviewCardById,
