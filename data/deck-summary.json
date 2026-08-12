@@ -107,7 +107,7 @@
       ]
     },
     "interview": {
-      "cardCount": 29,
+      "cardCount": 63,
       "cardIds": [
         "dl-attention-scaled-dot-product",
         "dl-attention-complexity",
@@ -137,17 +137,51 @@
         "dl-mixed-precision",
         "dl-init-xavier-he",
         "dl-nan-loss-debug",
-        "dl-overfitting-playbook"
+        "dl-overfitting-playbook",
+        "proj-agentic-gov-overview",
+        "proj-agentic-gov-case-walkthrough",
+        "proj-agentic-gov-role",
+        "proj-agentic-gov-highlight",
+        "proj-agentic-gov-scenario",
+        "proj-agentic-gov-scope-choice",
+        "proj-agentic-gov-why-rl",
+        "proj-agentic-gov-architecture",
+        "proj-agentic-gov-rollout",
+        "proj-agentic-gov-data-pipeline",
+        "proj-agentic-gov-reward-design",
+        "proj-agentic-gov-user-simulator",
+        "proj-agentic-gov-why-grpo",
+        "proj-agentic-gov-reward-hacking",
+        "proj-agentic-gov-sft-baseline",
+        "proj-agentic-gov-rl-results",
+        "proj-agentic-gov-biggest-mistake",
+        "proj-agentic-gov-current-status",
+        "proj-agentic-gov-redo",
+        "proj-agentic-gov-model-infra",
+        "proj-agentic-gov-scale",
+        "proj-agentic-gov-limitations",
+        "proj-agentic-gov-attribution",
+        "proj-agentic-gov-production-gap",
+        "proj-agentic-gov-extension",
+        "proj-agentic-gov-golden-state",
+        "proj-agentic-gov-safety-enforcement",
+        "proj-agentic-gov-related-work",
+        "proj-agentic-gov-data-overlap",
+        "proj-agentic-gov-overfitting-risk",
+        "proj-agentic-gov-key-pivot",
+        "proj-agentic-gov-art-tradeoffs",
+        "proj-agentic-gov-inline-thinking",
+        "proj-agentic-gov-training-stability"
       ],
       "byCategory": {
-        "project": 0,
+        "project": 34,
         "tech-stack": 0,
         "dl-basics": 29
       },
       "byPriority": {
-        "must": 12,
-        "common": 14,
-        "bonus": 3
+        "must": 28,
+        "common": 24,
+        "bonus": 11
       }
     }
   }
