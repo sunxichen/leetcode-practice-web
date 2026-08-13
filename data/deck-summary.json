@@ -107,7 +107,7 @@
       ]
     },
     "interview": {
-      "cardCount": 63,
+      "cardCount": 104,
       "cardIds": [
         "dl-attention-scaled-dot-product",
         "dl-attention-complexity",
@@ -171,17 +171,58 @@
         "proj-agentic-gov-key-pivot",
         "proj-agentic-gov-art-tradeoffs",
         "proj-agentic-gov-inline-thinking",
-        "proj-agentic-gov-training-stability"
+        "proj-agentic-gov-training-stability",
+        "proj-agentic-gov-deep-reward-evolution",
+        "proj-agentic-gov-deep-terminal-gating",
+        "proj-agentic-gov-deep-linear-scaling-noop",
+        "proj-agentic-gov-deep-terminal-only-credit",
+        "proj-agentic-gov-deep-hybrid-nli-judge",
+        "proj-agentic-gov-deep-error-taxonomy",
+        "proj-agentic-gov-deep-reward-weights",
+        "proj-agentic-gov-deep-contrast-pair-grouping",
+        "proj-agentic-gov-deep-simulator-info-boundary",
+        "proj-agentic-gov-deep-simulator-leak-governance",
+        "proj-agentic-gov-deep-synthetic-data-trust",
+        "proj-agentic-gov-deep-contrast-pair-construction",
+        "proj-agentic-gov-deep-rule-layering",
+        "proj-agentic-gov-deep-cispo-loss",
+        "proj-agentic-gov-deep-zero-variance-sampling",
+        "proj-agentic-gov-deep-t4-schedule",
+        "proj-agentic-gov-deep-curriculum-ladder",
+        "proj-agentic-gov-deep-kl-anchor",
+        "proj-agentic-gov-deep-stop-contract",
+        "proj-agentic-gov-deep-throughput-diagnosis",
+        "proj-agentic-gov-deep-batched-runner-failure",
+        "proj-agentic-gov-deep-lora-serving-regression",
+        "proj-agentic-gov-deep-async-k1-failure",
+        "proj-agentic-gov-deep-format-collapse-reject",
+        "proj-agentic-gov-deep-jra-semantic-audit",
+        "proj-agentic-gov-deep-task-validity-contract",
+        "proj-agentic-gov-deep-group-baseline-vs-critic",
+        "proj-agentic-gov-deep-grpo-variants-axes",
+        "proj-agentic-gov-deep-ce-vs-kl",
+        "proj-agentic-gov-deep-passk",
+        "proj-agentic-gov-deep-on-off-policy",
+        "proj-agentic-gov-deep-paired-bootstrap",
+        "proj-agentic-gov-deep-industry-influence",
+        "proj-agentic-gov-deep-opd-division",
+        "proj-agentic-gov-deep-throughput-landscape",
+        "proj-agentic-gov-deep-verifiable-vs-rm",
+        "proj-agentic-gov-deep-handwrite-cispo-loss",
+        "proj-agentic-gov-deep-kl-estimators",
+        "proj-agentic-gov-deep-loss-mask",
+        "proj-agentic-gov-deep-reward-walkthrough",
+        "proj-agentic-gov-deep-envelope-template"
       ],
       "byCategory": {
-        "project": 34,
+        "project": 75,
         "tech-stack": 0,
         "dl-basics": 29
       },
       "byPriority": {
-        "must": 28,
-        "common": 24,
-        "bonus": 11
+        "must": 43,
+        "common": 48,
+        "bonus": 13
       }
     }
   }
