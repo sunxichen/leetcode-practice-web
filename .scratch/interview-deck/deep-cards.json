@@ -1,0 +1,736 @@
+[
+  {
+    "id": "proj-agentic-gov-deep-reward-evolution",
+    "question": "你的 reward 从 v1 改到 v3，每一版在修什么问题？为什么上一版不够？",
+    "category": "project",
+    "tags": ["reward 设计", "agentic-gov", "深问"],
+    "priority": "must",
+    "hint": "每版只记它修的那个反例，别背公式。",
+    "answer": {
+      "key_points": [
+        "v1 的病：扣分项占得分预算，完美 episode 最高只有 0.75-0.80，「满分」的语义不干净。",
+        "v2 修天花板：质量项归一让完美 episode 真正等于 1.0；728 条历史 rollout 重算，组内标准差均值 +30%、零方差组数不变。",
+        "v2 没修的：不写库的任务上「状态对」和「终局动作对」会打平，选错终局动作不吃亏。",
+        "v3 修终局：R_complete = R_state × R_terminal 乘法门控，终局动作错则完成度清零。",
+        "口径：v3 已实现且现役；T2 探针期曾错接 NoHitChecker，那段读数不代表 v3 行为。"
+      ],
+      "pitfalls": ["把三版说成「越调越好的调参」就掉价了——每版都是被具体反例逼出来的语义修复。"]
+    },
+    "follow_ups": ["乘法门控会不会让完成度信号太稀疏？", "为什么不用加法加个对称补丁？"],
+    "related_ids": ["proj-agentic-gov-reward-design", "proj-agentic-gov-deep-terminal-gating"]
+  },
+  {
+    "id": "proj-agentic-gov-deep-terminal-gating",
+    "question": "为什么终局正确性用乘法门控（R_state × R_terminal）而不是加一个对称奖励项？R_escalate 为什么移出训练总和？",
+    "category": "project",
+    "tags": ["reward 设计", "agentic-gov", "深问"],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "状态对与动作对是「且」的关系；加法会让「状态对、动作错」拿到部分分，把打平问题放回来。",
+        "给单一动作加对称补丁被拒：同一信号被拆成非对称规则，每加一类终局动作都得再打补丁。",
+        "R_terminal 是二值门 {0,1}：实际终局动作与期望动作精确一致得 1，否则得 0。",
+        "「对称三值比较」指三种合法动作（办结/带拒绝办结/转人工）一视同仁，不是分数有三档。",
+        "fail-closed：动作记录缺失或异常一律按 0，绝不从最终数据库状态反推。",
+        "R_escalate 移出训练总和：终局正确性已由 R_terminal 管，额外奖金是重复计费；只在报表保留观测。"
+      ],
+      "pitfalls": ["别说有「0.5 平局档」——实现里不存在，和源码对质会穿帮。"]
+    },
+    "related_ids": ["proj-agentic-gov-deep-reward-evolution"]
+  },
+  {
+    "id": "proj-agentic-gov-deep-linear-scaling-noop",
+    "question": "把 reward 线性归一化到 [0,1] 为什么对 GRPO 基本是空操作？和你们做过的 v2 修正有什么区别？",
+    "category": "project",
+    "tags": ["reward 设计", "GRPO", "agentic-gov", "深问"],
+    "priority": "common",
+    "hint": "GRPO 不看分数的尺子，只看组内相对距离。",
+    "answer": {
+      "key_points": [
+        "GRPO 用组内相对优势：减均值消掉常数、除标准差消掉系数，纯线性缩放下优势分一个字不变。",
+        "零方差组缩放后仍是零方差、照样被丢——对训练是严格空操作，只是报表好看。",
+        "v2 的 ceiling 修正不是线性缩放：它重新分配质量项权重，改变了组内分数的相对结构。",
+        "证据：同 728 条 rollout，v2 口径下组内标准差均值 +30%。"
+      ]
+    },
+    "follow_ups": ["那组内排序不变的话，v2 的提升从哪来？"],
+    "related_ids": ["proj-agentic-gov-deep-reward-evolution"]
+  },
+  {
+    "id": "proj-agentic-gov-deep-terminal-only-credit",
+    "question": "为什么 reward 在 episode 结束统一结算？terminal-only 设计在多轮信用分配上的优势和局限是什么？",
+    "category": "project",
+    "tags": ["reward 设计", "信用分配", "agentic-gov", "深问"],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "选终局结算的理由：结局可程序化验证、难 hack；过程信号不可信或易被钻。",
+        "三个被否的过程奖励：路径比对（惩罚绕路但做对的轨迹）、恢复加分（与完成度重复计费）、冗余惩罚（与轮数罚重叠）。",
+        "思考链不打分：防「写得像在想清楚」而不是真想清楚的 hacking。",
+        "诚实的局限：episode 级 Monte Carlo，优势分平摊到全部 assistant token，定位不了哪一轮立功或犯错。",
+        "我们只做缓解：子项分解 + 组内对比改善可诊断性与方差；temporal credit assignment 没有解决。"
+      ],
+      "pitfalls": ["别把子项分解说成「解决了信用分配」——面试官一追「哪轮的责任怎么算」就破。"]
+    },
+    "related_ids": ["proj-agentic-gov-golden-state", "proj-agentic-gov-deep-reward-evolution"]
+  },
+  {
+    "id": "proj-agentic-gov-deep-hybrid-nli-judge",
+    "question": "「说到位」的判定为什么纯 NLI 做不下去？hybrid 判定链怎么分层？premise 为什么按每条消息取 max？",
+    "category": "project",
+    "tags": ["NLI", "LLM-as-judge", "agentic-gov", "深问"],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "纯 NLI 死因一：判对阈值跨任务差三个数量级，存在任何全局阈值都做不出的任务（P-07/N1-03）。",
+        "死因二：mDeBERTa 512 token 截断恰好丢掉对话末尾的告知（整段对话当前提得分 0.0032，逐条消息 0.9971）。",
+        "premise 按每条 assistant 消息取最大：保证每轮话被完整评判，「任意一轮说到」即命中——这是救命不是优化。",
+        "三层链：本地 NLI → 关键词兜底 → 大模型裁判；方向不对称：「该说的」判说到了要复核防空话过线，「不该说的」判没说直接放行防否定语境误报。",
+        "总规则：负面槽位一票否决，正面槽位按命中率计分。",
+        "校准集曾退化成一句话复制一百遍刷出 F1=1.0，被对抗审计戳穿——判定器可信度是治理出来的。"
+      ]
+    },
+    "follow_ups": ["裁判模型本身判错了怎么办？"],
+    "related_ids": ["proj-agentic-gov-deep-jra-semantic-audit", "proj-agentic-gov-reward-design"]
+  },
+  {
+    "id": "proj-agentic-gov-deep-error-taxonomy",
+    "question": "同样一个失败动作，hard-zero、负分、拒采重采三种处理差在哪？你们为什么选「hard 归零 + efficiency 继续」？",
+    "category": "project",
+    "tags": ["reward 设计", "错误分类", "agentic-gov", "深问"],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "三分类：越权/未知工具=hard 归零终止；前置条件/缺参数/格式错误=efficiency，错误回给 agent 继续；业务拒绝（14 种）是环境正常工作，不罚。",
+        "hard 桶还含输出信封解析/格式/动作契约失败——协议层失败，与 sandbox 安全违规分开统计。",
+        "取舍：归零语义干净（该 episode 无可接受贡献）；负分幅度是额外设计自由度且跨版本不可比；重采让模型永远不为格式负责。",
+        "efficiency 不终止的 RL 理由：恢复能力靠试错学，首次填错就终止则永远学不到；恢复后完成度仍可拿满。",
+        "实测依据：格式失败率 2.08% < 5% 警戒线；DeepSeek-R1 格式失败归零有先例。"
+      ],
+      "pitfalls": ["别说「负分会扭曲组内基线」这种绝对化结论——那不是普遍数学定理。"]
+    },
+    "related_ids": ["proj-agentic-gov-safety-enforcement"]
+  },
+  {
+    "id": "proj-agentic-gov-deep-reward-weights",
+    "question": "0.65/0.35/0.10 这些 reward 权重是怎么定的？做过敏感性分析吗？",
+    "category": "project",
+    "tags": ["reward 设计", "agentic-gov", "深问"],
+    "priority": "common",
+    "hint": "这题的正确答案包含「承认没做」。",
+    "answer": {
+      "key_points": [
+        "主比例约 2:1（完成度：告知）继承自 v1，依据是业务优先级判断，不是扫参扫出来的。",
+        "v2 把升级人工权重 0.05→0.10：文档记录的理由是对冲采样器同期把预算移向办结类带来的边界塌缩风险，属定向定性调整。",
+        "v3 把升级人工项整体移出训练总和，只在报表保留观测。",
+        "没做系统敏感性分析：算力优先给终局效果验证；且 v2 与采样器同轮上线、归因不干净已书面承认，补了 v1 影日志。",
+        "立场：知道哪里不严谨、并说得出为什么不严谨，比假装严谨重要。"
+      ]
+    },
+    "follow_ups": ["如果重来，敏感性分析你会怎么设计？"],
+    "related_ids": ["proj-agentic-gov-deep-reward-evolution"]
+  },
+  {
+    "id": "proj-agentic-gov-deep-contrast-pair-grouping",
+    "question": "contrast pair 在 GRPO 里起什么作用？为什么 A、B 两侧绝不能混进同一个组？",
+    "category": "project",
+    "tags": ["GRPO", "数据设计", "agentic-gov", "深问"],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "pair 的价值在数据层（决策边界双侧覆盖）与评测层（contrast-set 桶度量边界区分能力），不在 advantage 层。",
+        "组内基准线的公平性前提：同组 8 条面对同一个问题；A/B 混组则基准变成两个不同问题的混合平均。",
+        "数字例：A 均 0.8、B 均 0.3，混组组均约 0.525——做错的 A（0.75）被强化、做对的 B（0.30）被抑制，学到过度办结偏置。",
+        "规则：pair 成对进不同的组，子采样也成对走；拆对的残留大多落在办结侧，会加剧偏科。"
+      ]
+    },
+    "follow_ups": ["pair 是怎么构造出来的？"],
+    "related_ids": ["proj-agentic-gov-deep-contrast-pair-construction"]
+  },
+  {
+    "id": "proj-agentic-gov-deep-simulator-info-boundary",
+    "question": "simulator 为什么看不到工具的返回结果？给它看会怎么样？",
+    "category": "project",
+    "tags": ["user simulator", "环境设计", "agentic-gov", "深问"],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "边界：simulator 只看 user/assistant 的自然语言轮，看不到工具调用和返回——对应真实群众看不见柜员的屏幕。",
+        "拆边界的后果一：simulator 学会从 JSON 里抄信息，不再等 agent 说人话，对话失真。",
+        "后果二：agent 反向学到「调了工具就不用说清楚」，「说到位」奖励的前提整个崩坏。",
+        "后果三：泄漏类指标（RPCR）虚高，真实泄漏被掩盖。",
+        "实现就一行逻辑：history 只保留自然语言轮、连续同角色合并（_normalize_history）。"
+      ]
+    },
+    "related_ids": ["proj-agentic-gov-user-simulator", "proj-agentic-gov-deep-simulator-leak-governance"]
+  },
+  {
+    "id": "proj-agentic-gov-deep-simulator-leak-governance",
+    "question": "simulator 的 reveal 偏急（被问即答）为什么不阻断训练、也不做成负 reward？什么情况会改判？",
+    "category": "project",
+    "tags": ["user simulator", "环境治理", "agentic-gov", "深问"],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "现象：群众被问即答（设计应拖一轮）；带该规则的任务占池约 10-14%，实测泄漏率购房类约 10%、非贷款类约 3%。",
+        "判据只有一个：是否污染训练信号。核心分量（状态/动作/告知）都不依赖透露时机。",
+        "诚实的间接通道：轮数惩罚受对话长度影响，但实测在组内 8 条间是低方差共同偏移、不改排序。",
+        "不罚 agent：simulator 是冻结环境，罚一个 agent 管不了的行为只会注噪声；且泄漏是被动的（问了才答），不教坏习惯。",
+        "四条改判条件写在决策记录里：变主动抢答 / 占比超 30% / reward 开始依赖透露时机 / 泄漏进 reward。"
+      ]
+    },
+    "related_ids": ["proj-agentic-gov-deep-simulator-info-boundary"]
+  },
+  {
+    "id": "proj-agentic-gov-deep-synthetic-data-trust",
+    "question": "数据全合成，凭什么敢用？一条任务从生成到进训练池要过哪些关？",
+    "category": "project",
+    "tags": ["合成数据", "数据质量", "agentic-gov", "深问"],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "单样本六道自动关：格式 → 沙箱重放标准轨迹 → NLI → 实体一致性 → 泄漏检查 → judge 复核，外加 L6 分层人工抽检。",
+        "数据集层防「背题」：任务族/骨架/词表三个维度做 train/dev/test 隔离，同格同档相似度超 0.90 拒收。",
+        "P5 保留测试刻意一族一条（1000 族 1000 题），把族内相关性压到约 1——这是 P5 特有设计，别泛化。",
+        "总闸是任务有效性契约：247 条坏题（162 冒充幽灵 + 85 冻结不可观测）由此退役。",
+        "诚实边界：合成与真实的差距无法消除、只能监测；敢用的理由是「每类已知造假路径都有对应关卡」。"
+      ]
+    },
+    "follow_ups": ["synthetic-to-real gap 你们怎么监测？"],
+    "related_ids": ["proj-agentic-gov-data-pipeline", "proj-agentic-gov-deep-task-validity-contract"]
+  },
+  {
+    "id": "proj-agentic-gov-deep-contrast-pair-construction",
+    "question": "contrast pair 是怎么构造的？怎么保证 A/B 真的只差一个关键事实？",
+    "category": "project",
+    "tags": ["数据设计", "contrast pair", "agentic-gov", "深问"],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "从边界因子出发：能翻转正确动作的最小语义单位（如申请金额对限额）；数值型 7 类、类别型 8 类。",
+        "「只差一个事实」靠冻结字段清单机器强校验：人物 9 维、开场白逐字节、透露规则逐键相等，只允许因子及登记的联动字段不同。",
+        "开场白可以一字不变，因为因子定义在后台状态层；被改字段的透露规则只能是「被问才说/追问才说/从不说」，禁止开场主动说。",
+        "B 侧标准答案允许「先错后恢复」两步剧本：先按错误参数被拒、再修正重试成功——同时考察边界判断与恢复。",
+        "动作方向不固定：哪侧办结哪侧拒绝由每类边界契约决定，别记成「A 一定办、B 一定拒」。"
+      ]
+    },
+    "related_ids": ["proj-agentic-gov-deep-contrast-pair-grouping"]
+  },
+  {
+    "id": "proj-agentic-gov-deep-rule-layering",
+    "question": "Policy Card、API Spec、sandbox 前置条件和 reward 分别管什么？为什么不能全塞 prompt 或全写死成 workflow？",
+    "category": "project",
+    "tags": ["系统设计", "规则分层", "agentic-gov", "深问"],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "Policy Card = agent 可读的业务决策知识（该学什么）；required_slots = 对话侧该主动收集什么。",
+        "API Spec 必填参数 = 工具调用的契约；sandbox 前置条件 = 结构性不可绕过（不该学什么，写入前硬拦）。",
+        "reward 只对合法行为做质量排序：前三层定「能不能」，reward 定「好不好」。",
+        "全塞 prompt 没有强制力且吃上下文；全写死 workflow 则模型学不到追问与终局判断这些非确定决策。",
+        "原则：强规则结构性保证、弱信号可学习、知识显式可读；政策 id/版本在数据合成期与运行期硬绑定。"
+      ]
+    },
+    "related_ids": ["proj-agentic-gov-architecture", "proj-agentic-gov-safety-enforcement"]
+  },
+  {
+    "id": "proj-agentic-gov-deep-cispo-loss",
+    "question": "你说用 GRPO，但实际优化的 loss 不是教科书 GRPO——准确口径是什么？CISPO 和 PPO clip 的梯度行为差在哪？",
+    "category": "project",
+    "tags": ["GRPO", "CISPO", "PPO", "agentic-gov", "深问"],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "准确口径：GRPO 式组内相对优势（同任务 K=8、无 critic）+ ART 的 token 级 CISPO 损失，两件事别混说。",
+        "CISPO 关键一行：新旧概率比率先 detach 再裁剪成 [0,5] 的权重，梯度只从当前 log 概率流。",
+        "PPO 对比要按优势方向说：比率不 detach、min 双分支取小，越界方向的 token 梯度为零被禁言；CISPO 被裁仍保留 REINFORCE 式梯度。",
+        "对多轮长序列是净收益：决定成败的关键 token 稀疏且概率变化大，PPO 会把这批最有信息量的 token 禁言。",
+        "诚实注脚：严格同策略下裁剪几乎不触发（实测超界比例 1e-6 量级），平时近似普通策略梯度，价值在偏移时不静默丢梯度。"
+      ]
+    },
+    "follow_ups": ["把你们实际的 loss 手写一遍。"],
+    "related_ids": ["proj-agentic-gov-why-grpo", "proj-agentic-gov-deep-handwrite-cispo-loss"]
+  },
+  {
+    "id": "proj-agentic-gov-deep-zero-variance-sampling",
+    "question": "组内全对或全错的 rollout 组怎么办？为什么「越难越该多采」被禁止？采样预算按什么定？",
+    "category": "project",
+    "tags": ["GRPO", "采样策略", "agentic-gov", "深问"],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "全对和全错都是零方差组：优势分全零、无梯度方向，动态过滤直接丢弃。",
+        "口径注意：过滤发生在 reward 结算之后，省的是无效梯度更新，省不了已花掉的判定成本。",
+        "「越难越多采」被禁：二值方差在成功率一半时最大，按难度倒数加权等于把预算扎进全败死区。",
+        "预算按实测可学习性分档：冻结 8 条探针测成功率，2/8-6/8 核心带、0-1/8 待复测、7-8/8 饱和。",
+        "饱和桶全对被过滤是正常预期；金丝雀桶的报警信号是成功分布从「稳定全对」开始迁移，不是「被过滤」本身。"
+      ]
+    },
+    "related_ids": ["proj-agentic-gov-deep-t4-schedule", "proj-agentic-gov-deep-passk"]
+  },
+  {
+    "id": "proj-agentic-gov-deep-t4-schedule",
+    "question": "你们长程 GRPO 的训练 schedule 是怎么设计的？怎么防止终局动作偏科？",
+    "category": "project",
+    "tags": ["GRPO", "训练 schedule", "agentic-gov", "深问"],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "每步 8 组×8 条，分三槽位：4 个稀有动作核心（每类业务一个、拒绝/转人工）、2 个办结锚点（防回退，全对不硬造梯度）、2 个广度槽。",
+        "防偏科靠滚动 50 步浓度帽：12 个格子各 5-15%，三种终局动作各锁比例区间（办结 25-35%、其余各 30-40%），单任务每窗至多 4 次、单族至多 8 次。",
+        "零方差补位是确定性的：目标每步至少 6 个有效组，预冻结队列补位、每步至多 2 个、全程至多 200 个；格子连续无产出标「无产出格」交人工。",
+        "超参全部沿用已验证组合：LR 1e-5→3e-6 余弦、KL 0.08、K=8、种子根 20260609、50 步存档、100 步评估。",
+        "执行状态（截至 2026-08-13）：第一波 E1（前 100 步）已完成、出 0100 检查点；step-100 冻结开发集评测未做，后续波次未授权。"
+      ],
+      "pitfalls": ["别把 E1 完成说成「训练完成」或「效果已证」——500 步只跑了 100 步，评测还没做。"]
+    },
+    "follow_ups": ["E1 这 100 步里出了什么状况？"],
+    "related_ids": ["proj-agentic-gov-deep-zero-variance-sampling", "proj-agentic-gov-deep-stop-contract", "proj-agentic-gov-current-status"]
+  },
+  {
+    "id": "proj-agentic-gov-deep-curriculum-ladder",
+    "question": "任务的训练顺序和难度递进怎么安排？有没有任务被判定「梯度够不到」？",
+    "category": "project",
+    "tags": ["curriculum", "GRPO", "agentic-gov", "深问"],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "阶梯设计：L1→L2→L3→目标，每级用冻结 8 条探针测，只把 2/8-6/8 的级放进梯度；练到饱和退为监控。",
+        "同质 K=8：砍掉 K=16 混训（大组天然贡献更多损失、没有被接受的加权合同）；K=32 只用于 L1 死区终裁，只产证据不更新模型。",
+        "成员只在 C15/C30 两个预冻结边界更换，段内不换包，保归因干净。",
+        "两个「练不动」的格子原因不同：购房×带拒办是 L1/L2 同一套生成配方、无难度干预，阶梯结构不成立；购房×转人工曾是 L1 全落监督零供给的手工类，学不了。",
+        "购房×转人工已修复已确认：2026-08-11 换触发类、08-12 重测确认，终判八项全过、该格从 0 恢复到 9 条可学习——不能说「待确认」。",
+        "调权纪律：现阶段只做离线人工调；自动在线调权留以后（小样本短窗噪声大、震荡难归因）。"
+      ]
+    },
+    "related_ids": ["proj-agentic-gov-deep-t4-schedule"]
+  },
+  {
+    "id": "proj-agentic-gov-deep-kl-anchor",
+    "question": "KL penalty 在你们项目里防的具体是什么？为什么不往 GRPO 池里多混 SFT 数据防遗忘？",
+    "category": "project",
+    "tags": ["KL 散度", "防遗忘", "agentic-gov", "深问"],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "防的具体病：告知奖励加轮数惩罚双压下，模型会用压迫性长句一次性倾倒所有告知——「政务复读机」，KL 锚把分布拴回 SFT 语气。",
+        "它保的是分布形状，不是具体技能。",
+        "混旧数据不等于复习：旧样本对当前模型大多已饱和、零方差、过滤后无梯度；真要保留能力得加显式辅助目标（replay 或蒸馏损失）。",
+        "系数历史 0.04→0.08，长程方案冻结 0.08。",
+        "分层预案：KL 常开 → 独立小评测监控通用能力 → 自蒸馏兜底（有触发条件、默认不启用）。"
+      ]
+    },
+    "related_ids": ["proj-agentic-gov-deep-ce-vs-kl", "proj-agentic-gov-deep-opd-division"]
+  },
+  {
+    "id": "proj-agentic-gov-deep-stop-contract",
+    "question": "长程训练的熔断/停训契约是什么？哪些信号有权直接停训、哪些只能告警？",
+    "category": "project",
+    "tags": ["训练稳定性", "熔断", "agentic-gov", "深问"],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "能自动停训的只有确定性污染：NaN/Inf、判定器身份审计失败、切分污染、判定器静默降级进梯度等——一旦发生，之后所有证据无效。",
+        "概率比率上限超 4 是硬暂停加人工裁决，不是科学判死（历史最大 1.726）。",
+        "格式/违规率超 5% 只告警加确认探针：60 个任务做精确检验，至少 8 个复现才算确认。",
+        "开发集指标权力最小：只控制检查点晋级资格，不停训。",
+        "不对称的理由：错杀多周训练代价远高于迟报；小样本告警噪声大（真失败率 2% 时 50 个样本也有约 8% 概率误报）。",
+        "实战检验：E1 第 60 步熔断误杀（解析器双计、5 条里 4 条同组），两专家判误报后按契约不改代码、只改环境变量续训。"
+      ]
+    },
+    "related_ids": ["proj-agentic-gov-deep-t4-schedule", "proj-agentic-gov-training-stability"]
+  },
+  {
+    "id": "proj-agentic-gov-deep-throughput-diagnosis",
+    "question": "rollout 吞吐的瓶颈是怎么一层层定位的？「busy-time 98% 在 agent」和「GPU 63% 空闲」矛盾吗？",
+    "category": "project",
+    "tags": ["性能优化", "系统诊断", "agentic-gov", "深问"],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "三层定位：GPU 拓扑（训练/rollout 相位互斥可同卡）→ 客户端并发（AGENT_MAX_CONCURRENT_REQUESTS=4 把 64 条串行放行）→ 真瓶颈是 8 轮串行乒乓加补全长尾（最快 38 秒、最慢 14 分钟）。",
+        "两个数字不矛盾：busy-time 是所有轨迹「等 agent 生成」的墙钟求和（轨迹视角），GPU 空闲是硬件视角，必须联合解读。",
+        "结论：瓶颈是串行等待结构加推理路径效率，不是算力——单纯加 GPU 没用。",
+        "口径纪律：20 分钟压到 2-3 分钟是跨阶段跨配置逐步做到的，不包装成单硬件受控基准测试。"
+      ]
+    },
+    "related_ids": ["proj-agentic-gov-deep-batched-runner-failure", "proj-agentic-gov-deep-lora-serving-regression"]
+  },
+  {
+    "id": "proj-agentic-gov-deep-batched-runner-failure",
+    "question": "你们自己实现的 batched runner 实测慢了 2.1 倍，为什么？vLLM 的 continuous batching 和客户端攒批冲突在哪？",
+    "category": "project",
+    "tags": ["性能优化", "vLLM", "agentic-gov", "深问"],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "假设：客户端把请求攒成整齐波次能提升批处理效率；实测 538 秒变 1127 秒，慢 2.1 倍。",
+        "根因：vLLM 服务端已做 token 级连续批处理（完成即换出、新请求即插入），客户端攒批零增益。",
+        "额外损失一：波次屏障每轮等最慢的补全，长尾被逐轮放大。",
+        "额外损失二：同步波次破坏 agent/simulator 的相位错开，硬件利用率反降。",
+        "教训：先测后优化；生产级 serving 栈下客户端批处理通常是负优化；代码已回滚并永久废弃。"
+      ]
+    },
+    "related_ids": ["proj-agentic-gov-deep-throughput-diagnosis"]
+  },
+  {
+    "id": "proj-agentic-gov-deep-lora-serving-regression",
+    "question": "LoRA 为什么训练省显存、serving 却可能更慢？你们那次 6 倍回归怎么定位的？",
+    "category": "project",
+    "tags": ["LoRA", "性能优化", "agentic-gov", "深问"],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "LoRA 训练只学低秩增量、优化器状态按秩缩放，所以省显存；serving 走专门内核路径逐层叠加增量，可能更慢。",
+        "症状：吞吐从 1511 掉到 250 tok/s，6 倍回归。",
+        "定位三步：前缀缓存失效假设被实测证伪（稳定 94%）；廉价修复矩阵各只带来 3-11%（判定无廉价修复）；根因收窄到非零 LoRA（秩 128）推理路径。",
+        "诚实边界：没做内核级剖析，根因是「收窄加排除法」，不是证明了某个 kernel 的固有缺陷。",
+        "决策：训练仍用 LoRA 省显存，serving 切合并全量权重；实验在 2×A6000 上做的，数字不平移到 4090。"
+      ]
+    },
+    "related_ids": ["proj-agentic-gov-deep-throughput-diagnosis", "proj-agentic-gov-deep-async-k1-failure"]
+  },
+  {
+    "id": "proj-agentic-gov-deep-async-k1-failure",
+    "question": "异步流水线（k=1）为什么失败？「off-policy 一步」到底差在哪？",
+    "category": "project",
+    "tags": ["异步训练", "off-policy", "agentic-gov", "深问"],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "症状：比严格同步慢 2 倍，44% 的 rollout 被丢弃。",
+        "根因一：收益前提不成立——瓶颈本就在 rollout 侧，训练不占大头，没有空闲可填。",
+        "根因二：合并权重 serving 同一时刻只有一份在线模型，轨迹采到一半权重更新、旧模型 404；k 管「采完的数据训练认不认」，管不了「采到一半旧模型消失」。",
+        "佐证：LoRA 模式下异步能跑，因为允许同时挂两个适配器，旧策略还活着。",
+        "语义补充：严格同步下一次训练内部也有中位 40-48 次小步优化的固有漂移；该实验 k=1 的漂移约其 1.8-2 倍（历史观测，不是定律）。",
+        "教训：异步改造前先读源码验证权重版本生命周期的语义兼容性，不能只看算法层的 staleness 分析。"
+      ]
+    },
+    "related_ids": ["proj-agentic-gov-deep-on-off-policy", "proj-agentic-gov-deep-lora-serving-regression"]
+  },
+  {
+    "id": "proj-agentic-gov-deep-format-collapse-reject",
+    "question": "训练中后期验证集掉点、梯度范数尖峰——怎么区分「没东西可学」和「优化不稳定」？为什么局部修复全生效后整轮仍被拒？",
+    "category": "project",
+    "tags": ["训练稳定性", "复盘", "agentic-gov", "深问"],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "判别旁证：格式失败从零出现（缺闭合标签、幻觉用户轮）加熵尖峰与梯度尖峰时间对齐——两者叠加，不稳定是主因。",
+        "尖峰机制：涉事批次参与损失的 assistant token 仅一百多到两百多个，按 token 平均的分母过小把异常放大。",
+        "诚实边界：后续校正指出健康批次回答长度同量级，根因确认到「特定任务族的异常梯度被小分母集中放大」，不是「填充长加回答短」本身。",
+        "修复：分母下限选 2560 而非 4096（4096 会把正常批压到三四成、等于全局缩学习率）；守门员用 max(绝对下限 2.0, 7 倍滚动中位数)，自适应阶段波动、对尖峰稳健。",
+        "结局教训：局部修复全绿（823 个梯度批次零触发）但后期残差提升为负、整轮仍被拒——局部全对不等于全局通过，验收门要用真实批次形状做可达性推演。"
+      ]
+    },
+    "related_ids": ["proj-agentic-gov-training-stability", "proj-agentic-gov-deep-stop-contract"]
+  },
+  {
+    "id": "proj-agentic-gov-deep-jra-semantic-audit",
+    "question": "NoHitChecker 事故后你们上了 JRA。JRA 能证明什么、不能证明什么？为什么还需要独立的语义审计？",
+    "category": "project",
+    "tags": ["评测治理", "LLM-as-judge", "agentic-gov", "深问"],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "事故机制：配置哈希只绑定配置文件的身份，绑不了运行时实际加载的类——声明混合链、实接 NoHitChecker，哈希照样对得上。",
+        "讽刺细节：租房办结类靠关键词兜底蒙对 82/96，反而把事故盖住了。",
+        "JRA 能证明的：运行时身份——判定器类、模型快照、阈值包、裁判开关、提示词、端点逐字段一致。",
+        "JRA 证明不了的：判定的语义本身正确；也防不了模型学会裁判偏好的措辞合法骗分。",
+        "所以还要第三层：盲化独立语义审计（独立评判者重判一批样本比对差异）——已预注册为必做项，尚未执行。"
+      ],
+      "pitfalls": ["语义审计是预注册的待办，不能说成已经做过。"]
+    },
+    "related_ids": ["proj-agentic-gov-reward-hacking", "proj-agentic-gov-deep-verifiable-vs-rm"]
+  },
+  {
+    "id": "proj-agentic-gov-deep-task-validity-contract",
+    "question": "什么样的任务才有资格进 RL 的梯度面/评测面？你们的任务有效性契约是什么？",
+    "category": "project",
+    "tags": ["数据治理", "任务有效性", "agentic-gov", "深问"],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "有效性契约五问：正确答案有可观测证据吗？证据用允许的工具/对话拿得到吗？政策卡支持该终局动作吗？标准轨迹、环境、标签一致吗？reward 分得清对错吗？",
+        "反例一（违反 2/3）：冻结账户该转人工，但工具读不到冻结状态、政策没写、群众不主动说——完美 agent 必得零分。",
+        "反例二（违反 1/5）：冒充检测题的对抗标记只写在元数据、从没注入开场白——让 agent 检测一个不存在的信号。",
+        "治理教训：校验规则注册了但校验函数从不跑完整注册表，规则形同虚设；后来改为失败即拒绝的硬接线。",
+        "顺序原则：测量面有效性门必须在任何里程碑之前，否则后面所有数字都是垃圾。"
+      ],
+      "pitfalls": ["事故叙事（247 条怎么发现、怎么退役）在自述卡，本卡只答方法论与机理——别重复背。"]
+    },
+    "related_ids": ["proj-agentic-gov-biggest-mistake", "proj-agentic-gov-deep-synthetic-data-trust"]
+  },
+  {
+    "id": "proj-agentic-gov-deep-group-baseline-vs-critic",
+    "question": "GRPO 用组内均值当 baseline，相比 PPO 的 critic 放弃了什么、换来了什么？K=8 怎么定的？",
+    "category": "project",
+    "tags": ["GRPO", "PPO", "RL 基础", "agentic-gov", "深问"],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "critic 是随策略训练的价值网络，能跨任务学习、给单条轨迹绝对评价；组内均值基准只在同一个任务内有意义。",
+        "换来三样：省一个等大模型（2×4090 装不下）、少一个训练不稳定源、绕开多轮中间局面价值难定义的问题。",
+        "代价：零方差组机械归零无信号（配动态过滤）；critic 不会这样归零，但估计差时信号照样弱，失效模式不同。",
+        "K=8 是算力与方差的折中：K 越大基准越准但成本近似线性涨（8→16 约等于任务数成本 +54%）。"
+      ],
+      "pitfalls": ["整体选型理由（为什么不是 PPO/DPO）在自述卡，本卡只答 baseline 机制权衡。"]
+    },
+    "related_ids": ["proj-agentic-gov-why-grpo"]
+  },
+  {
+    "id": "proj-agentic-gov-deep-grpo-variants-axes",
+    "question": "DAPO、GSPO、CISPO 分别改了 GRPO/PPO 训练中的哪个环节？你们为什么停在 CISPO？",
+    "category": "project",
+    "tags": ["GRPO", "RL 基础", "agentic-gov", "深问"],
+    "priority": "common",
+    "hint": "三条正交的轴，不是三个替代品。",
+    "answer": {
+      "key_points": [
+        "DAPO 动采样/过滤轴：零方差组不直接扔，动态补采保证每步有效组数。",
+        "GSPO 动重要性比率粒度：token 级比率在长序列上方差累积，提到序列级一个比率收敛噪声。",
+        "CISPO 动裁剪/梯度路径轴：比率 detach 后裁剪当权重，被裁 token 保留梯度。",
+        "三者是正交旋钮，理论上可叠加。",
+        "停在 CISPO：严格同策略下近似免费、偏移时有兜底；项目瓶颈在任务有效性与测量面，换算法是打在错误靶子上。"
+      ]
+    },
+    "related_ids": ["proj-agentic-gov-deep-cispo-loss"]
+  },
+  {
+    "id": "proj-agentic-gov-deep-ce-vs-kl",
+    "question": "SFT 的交叉熵和 RL 里的 KL anchor 在优化目标上有什么区别？为什么防跑偏用 KL 而不用 CE 当惩罚项？",
+    "category": "project",
+    "tags": ["KL 散度", "交叉熵", "RL 基础", "agentic-gov", "深问"],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "先声明方向：SFT 的 CE 是「数据对策略」方向，CE(p_data,π) = H(p_data) + KL(p_data‖π)，前项是常数，等价 forward KL，覆盖众数。",
+        "惩罚项场景的 CE 是另一方向：CE(π,π_ref) = H(π) + KL(π‖π_ref)，多出策略自身熵这一项。",
+        "拿它当惩罚会在罚偏离的同时附带压策略熵，逼模型复读坍缩——正是要防的病；纯 KL 不含熵项。",
+        "落点：KL 锚（系数 0.08）防「政务复读机」。"
+      ],
+      "pitfalls": ["不先声明 CE 方向就说「CE 压熵」，对另一个方向根本不成立——这是最常见的翻车点。"]
+    },
+    "related_ids": ["proj-agentic-gov-deep-kl-anchor", "proj-agentic-gov-deep-kl-estimators"]
+  },
+  {
+    "id": "proj-agentic-gov-deep-passk",
+    "question": "判断一个任务桶「RL 学不学得动」为什么看 pass@k 不看 pass@1？pass@k 怎么算？",
+    "category": "project",
+    "tags": ["pass@k", "评估指标", "agentic-gov", "深问"],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "看 pass@k 的原因：GRPO 信号来自组内对比，组里得有成有败；pass@1=0.16 的任务 pass@8 约 0.75，组内大概率有学习种苗。",
+        "算法一（iid 近似）：1-(1-p)^k，简单但假设每条独立同成功率，有相关性时偏乐观。",
+        "算法二（有限样本无偏估计）：1 - C(n-c,k)/C(n,k)，用观测计数；但默认 n 条样本可交换，不是免假设。",
+        "概念区分：pass@k 是「至少一条成」，严格的「有对比信号」还要排除全成；低成功率区间可忽略，概念要清。",
+        "落点：冷启动判据与可学习性分档（2/8-6/8）都建在 8 条探针的 pass 计数上；真死区是 pass@k 约等于 0 和判定器坏掉的平零桶。"
+      ]
+    },
+    "related_ids": ["proj-agentic-gov-deep-zero-variance-sampling"]
+  },
+  {
+    "id": "proj-agentic-gov-deep-on-off-policy",
+    "question": "on-policy 和 off-policy 的界线在哪？staleness 怎么度量、为什么需要重要性采样修正？",
+    "category": "project",
+    "tags": ["off-policy", "重要性采样", "RL 基础", "agentic-gov", "深问"],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "界线：采数据的策略与被更新的策略是否同一参数版本；现实中大家都在一个谱上，差别在偏移量。",
+        "staleness = 数据由几个版本前的策略采的；项目里 k=0 严格同步、k=1 允许一个版本前。",
+        "为什么修正：策略梯度的期望假设数据来自当前策略，旧数据让梯度有偏；重要性采样用新旧概率比做权重修正。",
+        "权重要限幅：个别 token 权重过大带飞梯度；PPO 的裁剪、CISPO 的 detach 裁剪（限到 [0,5]）都是截断的近似修正。",
+        "落点：主线 k=0 归因最干净；k=1 异步实验失败在权重版本生命周期；注意 prob_ratio_max>4 是监控暂停阈值，不是裁剪上限。"
+      ]
+    },
+    "related_ids": ["proj-agentic-gov-deep-async-k1-failure", "proj-agentic-gov-deep-cispo-loss"]
+  },
+  {
+    "id": "proj-agentic-gov-deep-paired-bootstrap",
+    "question": "你报的 +9.21pp 在统计上站得住吗？主分析为什么用 paired delta + clustered bootstrap？",
+    "category": "project",
+    "tags": ["统计推断", "评测方法", "agentic-gov", "深问"],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "比较单位是同任务配对差：每个任务 RL 后减 RL 前，消掉任务难度异质性——不与别人比，每个任务跟自己比。",
+        "置信区间用按族聚类的 bootstrap：同族任务共享骨架词表彼此相关，独立同分布假设会低估方差；重采样整族整族抽。",
+        "设计效应（DEFF）只做设计期粗估、不替代正式推断；P5 保留集一族一条，从源头把相关性压到约 1。",
+        "看数纪律：整套分析预注册、只看一次，不许「看了一眼不理想换个切法再看」——防多重比较。",
+        "报数：S1（保留集转人工面板）从 0.6974 到 0.7895，+9.21 个百分点，族聚类置信区间 [+3.29, +15.13] 整体在零以上。"
+      ],
+      "pitfalls": ["对照设计与因果分层（A/B/C 臂）在自述卡，本卡只答统计推断口径。"]
+    },
+    "related_ids": ["proj-agentic-gov-attribution", "proj-agentic-gov-rl-results"]
+  },
+  {
+    "id": "proj-agentic-gov-deep-industry-influence",
+    "question": "业界 agentic RL 的工作里，哪几个直接改变了你们的设计？",
+    "category": "project",
+    "tags": ["业界动向", "agentic-gov", "深问"],
+    "priority": "common",
+    "hint": "讲机制映射：哪篇的哪个发现改变了哪个决策，不背百分点。",
+    "answer": {
+      "key_points": [
+        "AReaL-SEA 系的观察：用户模拟器不专门训练，RL 会显著退化——直接催生 Phase 4 单独训练模拟器，配五条硬门槛（指令遵循 ≥0.95、释放时机 ≥0.90、人设一致 ≥0.90、过早终止 ≤0.05、扯话 ≤0.05）。",
+        "同源影响二：动态过滤与按方差筛任务的思想 → 我们的零方差丢弃与可学习性分档。",
+        "CoVe 影响一：约束模糊化（用户不会一次报全字段）→ 我们把「何时透露什么」显式建模进任务定义（模糊度画像加透露规则）。",
+        "CoVe 影响二：验证器验终态与关键约束而非轨迹唯一性 → 我们终局奖励的设计哲学，标准轨迹只做校验不进奖励。",
+        "纪律：讲机制映射不背精确百分点——各家指标口径不同，背了容易被对质。"
+      ]
+    },
+    "related_ids": ["proj-agentic-gov-related-work", "proj-agentic-gov-user-simulator"]
+  },
+  {
+    "id": "proj-agentic-gov-deep-opd-division",
+    "question": "on-policy distillation 最近很热，为什么不做你们的主线？蒸馏和 RL 在你们项目里怎么分工？",
+    "category": "project",
+    "tags": ["蒸馏", "业界动向", "agentic-gov", "深问"],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "同策略蒸馏两要件：学生自己采轨迹加教师逐 token 指导；治的是曝光偏差（训练看标准答案、推理走自己的历史，误差累积）。",
+        "做不了主线的原因：没有合格教师——外部模型不懂我们的沙箱协议和后台真实状态，它的「正确答案」在我们环境里经常是错的；教师模板还会拽偏输出协议。",
+        "我们的标准答案来自可执行环境，奖励可验证的场景天然是 RL 的领地（RLVR）。",
+        "分工：「蒸馏压缩已知、RL 探索未知」；遗忘恢复的预案是自蒸馏（GRPO 前的自己当教师、同分词器），有触发条件、默认不执行。",
+        "口径：RL's Razor 说的是同策略更新比异策略更新更少遗忘，不是笼统的「RL 比蒸馏不遗忘」——同策略蒸馏也占这个便宜。"
+      ]
+    },
+    "related_ids": ["proj-agentic-gov-deep-kl-anchor"]
+  },
+  {
+    "id": "proj-agentic-gov-deep-throughput-landscape",
+    "question": "业界解 RL rollout 吞吐的路线有哪几类？async 的立场分裂（AReaL 说可控、RollMux 说伤收敛）你怎么看？",
+    "category": "project",
+    "tags": ["业界动向", "性能优化", "agentic-gov", "深问"],
+    "priority": "bonus",
+    "answer": {
+      "key_points": [
+        "四类路线地图：算法侧减轮数（PivotRL）、多任务复用（RollMux）、异步流水线（AReaL/StreamRL/Laminar）、框架工程（verl/ReaLHF）。",
+        "2×4090 单任务约束下，只有框架工程加客户端并发有效；多任务复用没前提，异步的收益前提不成立且实测失败。",
+        "立场分裂的根源是任务对 staleness 的敏感度不同，不是谁对谁错。",
+        "我们的选择：硬安全约束加强归因要求 → 严格同步主线；重估异步的条件事先写明（rollout 不再是瓶颈且权重版本问题有解）。"
+      ]
+    },
+    "related_ids": ["proj-agentic-gov-deep-throughput-diagnosis", "proj-agentic-gov-deep-async-k1-failure"]
+  },
+  {
+    "id": "proj-agentic-gov-deep-verifiable-vs-rm",
+    "question": "你的 reward 走规则+verifier 可验证路线，和 reward model / LLM-as-judge 路线怎么分工？judge 怎么防成为单点？",
+    "category": "project",
+    "tags": ["reward 设计", "LLM-as-judge", "agentic-gov", "深问"],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "分工原则：能程序化验证的绝不用模型判——终局状态、动作、轮数都有精确判定，奖励模型是不必要的近似。",
+        "判定器只处理语义化的「说到位」，且只接本地 NLI 加关键词兜底之后的疑难残余，暴露面压到最小。",
+        "三层防线：可验证规则优先（结构上缩小裁判管辖）→ JRA 保证裁判运行时身份（防掉包）→ 盲化语义审计（防骗分，预注册未执行）。",
+        "方向不对称也是防单点：「该说的」判说到了要复核、「不该说的」判没说直接放行——按误判代价设计兜底。",
+        "单点的本质不是「只有一个组件」，而是「一个组件的错误没人兜底」。"
+      ]
+    },
+    "related_ids": ["proj-agentic-gov-deep-jra-semantic-audit", "proj-agentic-gov-reward-hacking"]
+  },
+  {
+    "id": "proj-agentic-gov-deep-handwrite-cispo-loss",
+    "question": "手写你们实际优化的 loss：给定同组 K 条 rollout 的 reward 和逐 token 新旧 logprob，写出 advantage 和 token 级 loss，并指出和标准 PPO 差在哪几行。",
+    "category": "project",
+    "tags": ["GRPO", "CISPO", "手写代码", "agentic-gov", "深问"],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "优势分：同组 K=8 的 reward 减组均值、除组标准差（稳定常数 1e-6），零方差组整组丢弃。",
+        "核心损失：-mean(mask × clip(ratio.detach(), 0, 5) × adv × new_logprob)——比率 detach 后裁剪成权重，梯度只走 new_logprob。",
+        "与 PPO 三行差异：PPO 比率不 detach、min 双分支（被裁 token 梯度为零）、裁剪量级 ±0.2 对 [0,5]。",
+        "两组常数别混：1e-6 是优势分母稳定常数、1e-12 是训练器判零方差组的；prob_ratio_max>4 是监控暂停阈值、不是裁剪上限。"
+      ],
+      "code": [
+        {
+          "label": "组内优势 + CISPO 核心损失",
+          "language": "python",
+          "code": "# 第一步：组内相对优势（同任务 K=8 条 rollout）\nmean = rewards.mean()\nstd = rewards.std()\nadvantage = (rewards - mean) / (std + 1e-6)  # 稳定常数是 1e-6\n# 全同分的组（std≈0）整组丢弃：没有梯度方向\n\n# 第二步：逐 token 损失（只对 assistant token，mask=1）\nratio = (new_logprob - old_logprob).exp()\nweight = ratio.detach().clamp(0.0, 5.0)\n# detach：比率只当权重标量，不进梯度\n# [0,5] = [1-epsilon, 1+epsilon_high]，默认 epsilon=1.0、epsilon_high=4.0\nloss = -(weight * advantage * new_logprob)\n# 梯度只从 new_logprob 流：被裁 token 仍有 REINFORCE 式梯度\n# PPO 对照：min(ratio*A, clip(ratio)*A) 不 detach，越界 token 梯度为零",
+          "note": "生产实现还有轨迹级权重和 KL 惩罚折算进优势分，这是核心形式。"
+        }
+      ]
+    },
+    "follow_ups": ["clip_frac 在你们训练里实测多少？"],
+    "related_ids": ["proj-agentic-gov-deep-cispo-loss", "proj-agentic-gov-deep-loss-mask"]
+  },
+  {
+    "id": "proj-agentic-gov-deep-kl-estimators",
+    "question": "KL 散度的三种常用估计子（k1/k2/k3）写一下，各有什么偏差/方差性质？",
+    "category": "project",
+    "tags": ["KL 散度", "手写代码", "RL 基础", "agentic-gov", "深问"],
+    "priority": "bonus",
+    "answer": {
+      "key_points": [
+        "符号约定：x = 当前策略 log 概率减参考策略 log 概率，样本从当前策略采，估的是 KL(当前‖参考)。",
+        "k1 = x：无偏，但单次取值可正可负、方差大。",
+        "k2 = x²/2：永远非负，但有偏——只是 KL 的二阶近似，偏大时偏得明显。",
+        "k3 = exp(-x) - 1 + x：无偏且非负，性质最好；x 很负时指数项会爆，数值上要处理。",
+        "落点：惩罚项用 k1 家族逐 token 对数差（系数 0.08 折进优势分）；漂移监控同时看带符号 k1 均值（方向）和绝对差/比率分位数（幅度）。"
+      ],
+      "code": [
+        {
+          "label": "三种 KL 估计子",
+          "language": "python",
+          "code": "# x = logpi_new - logpi_ref，样本采自 pi_new\nk1 = x                       # 无偏、方差大、可取负\nk2 = 0.5 * x ** 2            # 非负但有偏（二阶近似）\nk3 = (-x).exp() - 1 + x      # 无偏且非负；x 很负时 exp(-x) 爆炸",
+          "note": "监控要方向选 k1，要幅度选非负的 k3 或绝对差指标。"
+        }
+      ]
+    },
+    "related_ids": ["proj-agentic-gov-deep-ce-vs-kl"]
+  },
+  {
+    "id": "proj-agentic-gov-deep-loss-mask",
+    "question": "多轮 agent 轨迹的 loss mask 怎么构造？你们项目里这个 mask 依赖什么容易踩的坑？",
+    "category": "project",
+    "tags": ["训练实现", "loss mask", "agentic-gov", "深问"],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "原则：只有 assistant token 计损失——模型只为自己的决策担梯度；系统提示、用户轮、工具观察全置 0。",
+        "构造：拼多轮序列时按轮记录 assistant 消息的 token 区间置 1，其余置 0。",
+        "坑一：必须保留推理引擎返回的原始 Choice 对象（带逐 token log 概率）；字符串重建会丢 logprob，轨迹被静默 mask 掉——不报错，只是数据偷偷变少。",
+        "坑二：工具返回的角色名要归一成模板认识的（observation→tool），否则模板把工具观察整段丢掉，agent 等于看不见环境返回。"
+      ]
+    },
+    "related_ids": ["proj-agentic-gov-deep-handwrite-cispo-loss", "proj-agentic-gov-deep-envelope-template"]
+  },
+  {
+    "id": "proj-agentic-gov-deep-reward-walkthrough",
+    "question": "走查你们的 reward 结算：一个 episode 结束后从轨迹到 R_total 的完整数据流是什么？",
+    "category": "project",
+    "tags": ["reward 设计", "代码走查", "agentic-gov", "深问"],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "入口先过配置绑定校验：规范化配置、绑定标识、判定器包逐层对（不只是比一个哈希），不一致直接失败拒绝。",
+        "状态分：导出真实终态，按比对规范逐字段比（精确/属于集合等操作符），先剥运行时影子表。",
+        "终局动作分：自报标签与最后一个结构化动作记录双重核对，缺失异常按 0、绝不反推；完成度 = 状态分 × 动作分（门控）。",
+        "告知分走三层判定链（NLI→关键词→裁判），负面槽位一票否决；效率罚对照冻结回放中位数轮次。",
+        "红线违规总分直接归零；否则按权重加总，全链路留逐分量审计记录可回查。"
+      ]
+    },
+    "related_ids": ["proj-agentic-gov-deep-reward-evolution", "proj-agentic-gov-deep-hybrid-nli-judge"]
+  },
+  {
+    "id": "proj-agentic-gov-deep-envelope-template",
+    "question": "你们的输出协议（envelope）和训推一致性怎么保证？chat template 上踩过什么坑？",
+    "category": "project",
+    "tags": ["训练实现", "输出协议", "agentic-gov", "深问"],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "输出协议：自定义 分析/动作 两段信封，全库唯一解析器、解析失败即拒；不用基座原生思考通道（冗余且破坏格式契约）。",
+        "训推一致性 = 训练模板与推理模板逐 token 一致；坑：训练框架的 qwen 模板与 Qwen3 官方 jinja 有两处差异（默认系统提示的有无、末轮空思考块注入）。",
+        "最阴的坑：enable_thinking=False 的语义是「插一个空思考块」不是「关思考」——误配后硬违规率实测从 0 飙到 0.6875。",
+        "修复：手写与训练侧逐 token 等价的 jinja 模板，把「逐 token 对比完全一致」做成上线门。",
+        "原则：约束我们的是训推一致性，不是模板叫什么名字——名字是标签，字节才是契约。"
+      ]
+    },
+    "related_ids": ["proj-agentic-gov-inline-thinking", "proj-agentic-gov-deep-loss-mask"]
+  }
+]
