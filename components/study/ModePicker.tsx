@@ -31,6 +31,8 @@ interface ModePickerProps {
   categories?: { value: string; label: string; count: number }[];
   /** 按顺序刷题的按钮总卡数。仅在 modes 含 'sequential' 时需要。 */
   sequentialTotal?: number;
+  /** 按顺序刷题的续刷起始位置（1-based，人类计数）；null = 无断点，从头开始。 */
+  sequentialResumeAt?: number | null;
 }
 
 function formatMinutesUntil(ts: number): string {
@@ -42,7 +44,7 @@ function formatMinutesUntil(ts: number): string {
   return `${hrs} 小时后`;
 }
 
-export function ModePicker({ todayDueCount, counters, onSelectMode, weakestCount, topTags, difficultyCounts, categories, sequentialTotal, modes }: ModePickerProps) {
+export function ModePicker({ todayDueCount, counters, onSelectMode, weakestCount, topTags, difficultyCounts, categories, sequentialTotal, sequentialResumeAt, modes }: ModePickerProps) {
   const sweepTotal = (categories ?? []).reduce((sum, c) => sum + c.count, 0);
   return (
     <motion.div
@@ -120,7 +122,11 @@ export function ModePicker({ todayDueCount, counters, onSelectMode, weakestCount
           >
             <span className={styles.weakestIcon}>📖</span>
             <span className={styles.weakestText}>按顺序刷题</span>
-            <span className={styles.weakestMeta}>从头过一遍题库 · 共 {sequentialTotal ?? 0} 题</span>
+            <span className={styles.weakestMeta}>
+              {sequentialResumeAt
+                ? `上次刷到第 ${sequentialResumeAt - 1} 题 · 从第 ${sequentialResumeAt} 题继续 · 共 ${sequentialTotal ?? 0} 题`
+                : `从头过一遍题库 · 共 ${sequentialTotal ?? 0} 题`}
+            </span>
           </motion.button>
         </motion.section>
       )}

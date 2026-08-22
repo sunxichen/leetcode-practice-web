@@ -6,7 +6,7 @@ import type {
   SessionMode,
 } from '@/lib/types';
 import type { DeckConfig } from '@/lib/decks/types';
-import { generateQueue, type QueueOptions, type SessionCard } from '@/lib/studyQueue';
+import { generateQueue, sequentialStartIndex, type QueueOptions, type SessionCard } from '@/lib/studyQueue';
 import { ymd } from '@/lib/dailyStats';
 
 /**
@@ -66,9 +66,12 @@ export function useStudyQueue<C extends SessionCard>(
   useEffect(() => {
     if (!progressData || progressData.lastUpdatedAt === 0) return;
 
+    // sequential 是固定队列 + 断点续刷：队列始终是全量题库顺序，断点只决定
+    // 起始下标（上次自评卡的下一位；无断点/卡已不在 = 从头开始）。
+    const freshQueue = generateQueue(mode, cards, progressData.progress, deck.schedulingParams, undefined, queueOptions());
     setSessionState({
-      queue: generateQueue(mode, cards, progressData.progress, deck.schedulingParams, undefined, queueOptions()),
-      currentIndex: 0,
+      queue: freshQueue,
+      currentIndex: mode.kind === 'sequential' ? sequentialStartIndex(freshQueue, progressData.sequentialCursor) : 0,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [modeKey, progressData.lastUpdatedAt === 0]);

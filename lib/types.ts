@@ -91,6 +91,13 @@ export interface UserProgressData {
   progress: Record<string, QuestionProgress>;
   dailyStats?: Record<string, DailyStat>;
   streak?: StreakInfo;
+  /**
+   * 按顺序刷题（sequential）的断点：最后一次自评的卡 id + 时间戳。
+   * 缺省 / null / 卡已不在题库中 = 下次从头开始；刷完一整轮自动清空。
+   * 只由 sequential 模式读写，与其他模式互不干扰；随进度文档走
+   * reconcile 与备份，无需单独迁移。
+   */
+  sequentialCursor?: { cardId: string; timestamp: number } | null;
 }
 
 export type FeedbackType = 'again' | 'hard' | 'good' | 'easy';

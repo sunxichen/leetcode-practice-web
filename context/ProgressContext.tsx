@@ -8,6 +8,7 @@ const defaultDeckValue: DeckProgressValue = {
   progressData: { lastUpdatedAt: 0, lastSessionCursor: null, progress: {} },
   updateProgress: () => {},
   saveSessionCursor: () => {},
+  saveSequentialCursor: () => {},
   undoLast: () => false,
   undoSnapshot: null,
   isLoading: true,

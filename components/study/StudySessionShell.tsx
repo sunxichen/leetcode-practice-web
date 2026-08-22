@@ -11,7 +11,7 @@ import { SessionSummary } from '@/components/study/SessionSummary';
 import { resolveSessionView } from '@/components/study/sessionView';
 import { UndoToast } from '@/components/ui/UndoToast';
 import { SPRING_CONFIG, EXIT_ANIMATIONS, ENTER_ANIMATION } from '@/lib/constants';
-import type { SessionCard } from '@/lib/studyQueue';
+import { sequentialStartIndex, type SessionCard } from '@/lib/studyQueue';
 import type { UndoSnapshot } from '@/context/ProgressContext';
 import type { FeedbackType, SessionMode, UserProgressData } from '@/lib/types';
 import styles from './StudySessionShell.module.css';
@@ -67,6 +67,9 @@ export function StudySessionShell<C extends SessionCard>(props: StudySessionOpti
 
   // Mode picker (gateway) — only if no mode has been chosen and no deeplink.
   if (view === 'picker') {
+    // 按顺序刷题的续刷提示：断点下一位的 1-based 位置；从头开始则不显示。
+    const allCardIds = deck.dataSource.getAllCards().map(card => card.id);
+    const sequentialStart = sequentialStartIndex(allCardIds, session.progressData.sequentialCursor);
     return (
       <ModePicker
         todayDueCount={session.todayDueCount}
@@ -75,7 +78,8 @@ export function StudySessionShell<C extends SessionCard>(props: StudySessionOpti
         topTags={pickerData.topTags}
         difficultyCounts={pickerData.difficultyCounts}
         categories={pickerData.categories}
-        sequentialTotal={deck.dataSource.getAllCards().length}
+        sequentialTotal={allCardIds.length}
+        sequentialResumeAt={sequentialStart > 0 ? sequentialStart + 1 : null}
         modes={deck.sessionModes}
         onSelectMode={session.selectMode}
       />

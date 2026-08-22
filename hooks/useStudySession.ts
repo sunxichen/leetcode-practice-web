@@ -38,6 +38,7 @@ export function useStudySession<C extends SessionCard>({
     progressData,
     updateProgress,
     saveSessionCursor,
+    saveSequentialCursor,
     undoLast,
     undoSnapshot,
     isLoading,
@@ -124,6 +125,16 @@ export function useStudySession<C extends SessionCard>({
       });
     }
 
+    // 按顺序刷题的断点：每次自评后记录当前卡，刷完一整轮（这是最后一张）
+    // 自动清空，下次从头开始。中途退出/关页也不丢——断点已随进度文档落盘。
+    if (activeMode.kind === 'sequential') {
+      saveSequentialCursor(
+        currentIndex + 1 >= queue.length
+          ? null
+          : { cardId: currentCard.id, timestamp: Date.now() },
+      );
+    }
+
     // Wait for exit animation then advance
     setTimeout(() => {
       // Single-card mode: after one feedback, hand over to the route-layer
@@ -140,7 +151,7 @@ export function useStudySession<C extends SessionCard>({
       setCardKey(prev => prev + 1);
       isAnimatingRef.current = false;
     }, 400);
-  }, [currentCard, triggerHaptic, updateProgress, goNext, saveSessionCursor, queue, currentIndex, activeMode.kind, onSingleComplete, deck.schedulingParams]);
+  }, [currentCard, triggerHaptic, updateProgress, goNext, saveSessionCursor, saveSequentialCursor, queue, currentIndex, activeMode.kind, onSingleComplete, deck.schedulingParams]);
 
   const handleUndo = useCallback(() => {
     if (isAnimatingRef.current) return;

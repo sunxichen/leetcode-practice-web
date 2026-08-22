@@ -35,6 +35,8 @@ export interface DeckProgressValue {
   /** 调度参数由调用方从题集配置注入。 */
   updateProgress: (questionId: string, feedback: FeedbackType, params: SchedulingParams) => void;
   saveSessionCursor: (cursor: UserProgressData['lastSessionCursor']) => void;
+  /** 按顺序刷题的断点：每次自评后写入，刷完一整轮传 null 清空。 */
+  saveSequentialCursor: (cursor: UserProgressData['sequentialCursor']) => void;
   undoLast: () => boolean;
   undoSnapshot: UndoSnapshot | null;
   isLoading: boolean;
@@ -280,6 +282,23 @@ export function useProgress() {
     [],
   );
 
+  // Save the sequential-mode cursor（同 saveSessionCursor 的写入模式：本地立即落盘，
+  // 远端走脏标记防抖；不 bump lastUpdatedAt——它总是紧跟一次已 bump 的 updateProgress）。
+  const saveSequentialCursor = useCallback(
+    (deckId: DeckId, cursor: UserProgressData['sequentialCursor']) => {
+      setDataByDeck((prevAll) => {
+        const prev = prevAll[deckId];
+        const updated = { ...prev, sequentialCursor: cursor };
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(progressKeyFor(deckId), JSON.stringify(updated));
+        }
+        return { ...prevAll, [deckId]: updated };
+      });
+      runtimesRef.current[deckId].dirty = true;
+    },
+    [],
+  );
+
   // Visibility change: flush on background
   useEffect(() => {
     const handleVisibilityChange = () => {
@@ -313,11 +332,12 @@ export function useProgress() {
         undoSnapshot: undoSnapshot && undoSnapshot.deckId === id ? undoSnapshot : null,
         updateProgress: (questionId, feedback, params) => updateProgress(id, questionId, feedback, params),
         saveSessionCursor: (cursor) => saveSessionCursor(id, cursor),
+        saveSequentialCursor: (cursor) => saveSequentialCursor(id, cursor),
         undoLast: () => undoLast(id),
       };
     }
     return out;
-  }, [dataByDeck, loadingByDeck, undoSnapshot, updateProgress, saveSessionCursor, undoLast]);
+  }, [dataByDeck, loadingByDeck, undoSnapshot, updateProgress, saveSessionCursor, saveSequentialCursor, undoLast]);
 
   return { byDeck };
 }

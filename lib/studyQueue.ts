@@ -245,8 +245,24 @@ export function generateQueue<C extends SessionCard = SessionCard>(
     case 'sequential': {
       // 按顺序刷题：题库数组顺序就是唯一顺序——不按重要度排、不按到期筛、
       // 不做 3:1 编织、不受新卡额度约束（同 sweep 的固定队列语义）。自评
-      // 照常写入调度，顺序刷完一轮即完成一次全量遍历。
+      // 照常写入调度，顺序刷完一轮即完成一次全量遍历。断点续刷只影响
+      // 起始下标（sequentialStartIndex），不改变队列本身。
       return cards.map(card => card.id);
     }
   }
+}
+
+/**
+ * 按顺序刷题的断点续刷起始下标：断点记的是上次自评的卡，下次从它的
+ * 下一位开始。断点缺失、卡已不在队列（题库变动）或已刷到最后一位时
+ * 回落 0（从头开始）。
+ */
+export function sequentialStartIndex(
+  queue: string[],
+  cursor: { cardId: string } | null | undefined,
+): number {
+  if (!cursor?.cardId) return 0;
+  const idx = queue.indexOf(cursor.cardId);
+  if (idx === -1) return 0;
+  return idx + 1 >= queue.length ? 0 : idx + 1;
 }

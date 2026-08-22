@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generateQueue } from '@/lib/studyQueue';
+import { generateQueue, sequentialStartIndex } from '@/lib/studyQueue';
 import { HOT100_SCHEDULING_PARAMS, INTERVIEW_SCHEDULING_PARAMS } from '@/lib/schedulingParams';
 import { sortInterviewNewCards } from '@/lib/interview';
 import type { InterviewCard, InterviewCategory, Priority } from '@/lib/interview-types';
@@ -581,5 +581,30 @@ describe('sequential queue — 题库数组顺序', () => {
     const queue = generateQueue({ kind: 'sequential' }, cards, {}, INTERVIEW_SCHEDULING_PARAMS, NOW, options);
     // 注入了按重要度排序也保持原顺序；额度耗尽仍返回全部卡。
     expect(queue).toEqual(['i-bonus', 'i-must']);
+  });
+});
+
+/**
+ * 按顺序刷题的断点续刷：断点记上次自评的卡，起始下标 = 它的下一位；
+ * 断点缺失 / 卡已不在队列 / 已是最后一位 → 回落 0（从头开始）。
+ */
+describe('sequentialStartIndex — 断点续刷', () => {
+  const queue = ['a', 'b', 'c', 'd'];
+
+  it('无断点 / null / undefined → 从头开始', () => {
+    expect(sequentialStartIndex(queue, null)).toBe(0);
+    expect(sequentialStartIndex(queue, undefined)).toBe(0);
+  });
+
+  it('断点在队列中间 → 从下一位继续', () => {
+    expect(sequentialStartIndex(queue, { cardId: 'b' })).toBe(2);
+  });
+
+  it('断点是最后一张（刷完一轮的边界）→ 从头开始', () => {
+    expect(sequentialStartIndex(queue, { cardId: 'd' })).toBe(0);
+  });
+
+  it('断点卡已不在队列（题库变动）→ 从头开始', () => {
+    expect(sequentialStartIndex(queue, { cardId: 'z' })).toBe(0);
   });
 });
