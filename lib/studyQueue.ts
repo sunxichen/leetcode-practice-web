@@ -242,5 +242,11 @@ export function generateQueue<C extends SessionCard = SessionCard>(
       const ordered = options?.sortNewCards ? options.sortNewCards(filtered as C[]) : filtered;
       return ordered.map(card => card.id);
     }
+    case 'sequential': {
+      // 按顺序刷题：题库数组顺序就是唯一顺序——不按重要度排、不按到期筛、
+      // 不做 3:1 编织、不受新卡额度约束（同 sweep 的固定队列语义）。自评
+      // 照常写入调度，顺序刷完一轮即完成一次全量遍历。
+      return cards.map(card => card.id);
+    }
   }
 }

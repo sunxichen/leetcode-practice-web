@@ -44,7 +44,7 @@ export const hot100Deck: DeckConfig<Question> = {
     getCardById: getQuestionById,
   },
   schedulingParams: HOT100_SCHEDULING_PARAMS,
-  sessionModes: ['smart', 'difficulty', 'tag', 'weakest', 'single'],
+  sessionModes: ['smart', 'sequential', 'difficulty', 'tag', 'weakest', 'single'],
   components: {
     CardFront,
     CardBack,

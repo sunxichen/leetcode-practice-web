@@ -31,7 +31,7 @@ describe('题集注册表 (deck registry)', () => {
     // 调度参数：与票 2 锁定的取值是同一份对象
     expect(deck.schedulingParams).toBe(HOT100_SCHEDULING_PARAMS);
     // 可选会话模式清单：LeetCode 题集提供的全部模式
-    expect(deck.sessionModes).toEqual(['smart', 'difficulty', 'tag', 'weakest', 'single']);
+    expect(deck.sessionModes).toEqual(['smart', 'sequential', 'difficulty', 'tag', 'weakest', 'single']);
     // 卡片正反面渲染组件
     expect(typeof deck.components.CardFront).toBe('function');
     expect(typeof deck.components.CardBack).toBe('function');
@@ -57,8 +57,8 @@ describe('题集注册表：面试题集（票 8）', () => {
     expect(deck.dataSource.getCardById(cards[0].id)).toBe(cards[0]);
     // 调度参数：照方案文档对照表取值的那份对象
     expect(deck.schedulingParams).toBe(INTERVIEW_SCHEDULING_PARAMS);
-    // 提供智能复习、全量扫题与单卡（按分类/按重要度复习维度不在本线范围）
-    expect(deck.sessionModes).toEqual(['smart', 'sweep', 'single']);
+    // 提供智能复习、按顺序刷题、全量扫题与单卡（按分类/按重要度复习维度不在本线范围）
+    expect(deck.sessionModes).toEqual(['smart', 'sequential', 'sweep', 'single']);
     expect(typeof deck.components.CardFront).toBe('function');
     expect(typeof deck.components.CardBack).toBe('function');
   });
@@ -117,7 +117,7 @@ describe('题集注册表：面试题集（票 8）', () => {
 
   it('Hot100 不提供全量扫题：sessionModes 不含 sweep，既有模式逐位不变，categories 为 undefined（票 11 零回归）', () => {
     const hot100 = getDeckConfig('hot100');
-    expect(hot100.sessionModes).toEqual(['smart', 'difficulty', 'tag', 'weakest', 'single']);
+    expect(hot100.sessionModes).toEqual(['smart', 'sequential', 'difficulty', 'tag', 'weakest', 'single']);
     expect(hot100.sessionModes).not.toContain('sweep');
     expect(hot100.getModePickerData(getAllQuestions()).categories).toBeUndefined();
   });

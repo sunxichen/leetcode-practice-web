@@ -109,4 +109,8 @@ export type SessionMode =
    * category 缺省 = 不限分类（全量）；有值 = 只扫该分类。category 是通用
    * 字符串——面试题集的分类字面量属于题集侧，不写进这个通用联合。
    */
-  | { kind: 'sweep'; category?: string };
+  | { kind: 'sweep'; category?: string }
+  /** 按顺序刷题：无视到期时间与进度状态，按题库数组顺序遍历全部卡。
+   * 与 sweep 同为固定队列模式：不排序、不编织、不受新卡额度约束；
+   * 自评照常写入调度。 */
+  | { kind: 'sequential' };

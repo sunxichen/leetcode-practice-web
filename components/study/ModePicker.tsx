@@ -29,6 +29,8 @@ interface ModePickerProps {
   /** 全量扫题的分类 chips：由题集配置从卡片集派生（value/label/count）。
    * 仅在 modes 含 'sweep' 时需要；不含时留 undefined，不编造零值。 */
   categories?: { value: string; label: string; count: number }[];
+  /** 按顺序刷题的按钮总卡数。仅在 modes 含 'sequential' 时需要。 */
+  sequentialTotal?: number;
 }
 
 function formatMinutesUntil(ts: number): string {
@@ -40,7 +42,7 @@ function formatMinutesUntil(ts: number): string {
   return `${hrs} 小时后`;
 }
 
-export function ModePicker({ todayDueCount, counters, onSelectMode, weakestCount, topTags, difficultyCounts, categories, modes }: ModePickerProps) {
+export function ModePicker({ todayDueCount, counters, onSelectMode, weakestCount, topTags, difficultyCounts, categories, sequentialTotal, modes }: ModePickerProps) {
   const sweepTotal = (categories ?? []).reduce((sum, c) => sum + c.count, 0);
   return (
     <motion.div
@@ -102,6 +104,25 @@ export function ModePicker({ todayDueCount, counters, onSelectMode, weakestCount
             <polyline points="9 18 15 12 9 6" />
           </svg>
         </motion.button>
+      )}
+
+      {modes.includes('sequential') && (
+        <motion.section
+          className={styles.section}
+          initial={{ y: 12, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ ...SPRING_CONFIG.enter, delay: 0.18 }}
+        >
+          <motion.button
+            className={styles.weakestButton}
+            onClick={() => onSelectMode({ kind: 'sequential' })}
+            whileTap={{ scale: 0.98 }}
+          >
+            <span className={styles.weakestIcon}>📖</span>
+            <span className={styles.weakestText}>按顺序刷题</span>
+            <span className={styles.weakestMeta}>从头过一遍题库 · 共 {sequentialTotal ?? 0} 题</span>
+          </motion.button>
+        </motion.section>
       )}
 
       {modes.includes('difficulty') && (

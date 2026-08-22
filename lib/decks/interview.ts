@@ -54,7 +54,7 @@ export const interviewDeck: DeckConfig<InterviewCard> = {
     getCardById: getInterviewCardById,
   },
   schedulingParams: INTERVIEW_SCHEDULING_PARAMS,
-  sessionModes: ['smart', 'sweep', 'single'],
+  sessionModes: ['smart', 'sequential', 'sweep', 'single'],
   components: {
     CardFront: InterviewCardFront,
     CardBack: InterviewCardBack,

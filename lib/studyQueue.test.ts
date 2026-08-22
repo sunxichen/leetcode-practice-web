@@ -551,3 +551,35 @@ describe('sweep queue — 不受每日新卡上限影响（票 11）', () => {
     expect(sweep).toEqual(cards.map(c => c.id));
   });
 });
+
+/**
+ * 按顺序刷题（sequential）：题库数组顺序就是唯一顺序——不排序、不到期筛选、
+ * 不受新卡额度约束（与 sweep 同为固定队列模式，但连重要度排序也不做）。
+ */
+describe('sequential queue — 题库数组顺序', () => {
+  it('保持题库数组顺序，无视进度状态与到期时间', () => {
+    const cards = [
+      question('q3'),
+      question('q1'),
+      question('q2'),
+    ];
+    const progress = {
+      q1: reviewProgress(NOW - DAY),          // review 逾期
+      q2: learningProgress(NOW + 10 * MIN),   // learning 未到期
+      // q3 全新卡，无进度
+    };
+    const queue = generateQueue({ kind: 'sequential' }, cards, progress, HOT100_SCHEDULING_PARAMS, NOW);
+    expect(queue).toEqual(['q3', 'q1', 'q2']);
+  });
+
+  it('不受每日新卡上限与排序注入影响（对照 smart/sweep 的额度与排序）', () => {
+    const cards = [
+      interviewCard('i-bonus', 'bonus'),
+      interviewCard('i-must', 'must'),
+    ];
+    const options = { newCardsIntroducedToday: 14, sortNewCards: sortInterviewNewCards };
+    const queue = generateQueue({ kind: 'sequential' }, cards, {}, INTERVIEW_SCHEDULING_PARAMS, NOW, options);
+    // 注入了按重要度排序也保持原顺序；额度耗尽仍返回全部卡。
+    expect(queue).toEqual(['i-bonus', 'i-must']);
+  });
+});
