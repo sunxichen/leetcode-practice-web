@@ -164,7 +164,8 @@ def _compute_check_char(digits_17: str) -> str:
 
 - **`ExpectedAction` 序列**：预先定义该任务在理想执行下必须经历的原子步骤（如 `[verify_identity, query_loan_info, calculate_prepayment, submit_prepayment_request]`）；
 - **`generate_golden_final_state`**：通过内部轻量沙箱重放该 `ExpectedAction` 脚本，推导出数据库预期的变更结果（`expected_final_db_state`）；
-- **零副作用断言（`self_verify_golden_state`）**：严格断言无写库任务（如查询、拒绝、升级）在执行完 Golden Chain 后，沙箱数据库状态必须与初始状态保持完全一致。
+- **零副作用断言（`self_verify_golden_state`）**：严格断言无写库任务（如查询、拒绝、升级）在执行完 Golden Chain 后，沙箱数据库状态必须与初始状态保持完全一致；
+- **可恢复故障（Recoverable Error）的 Golden Chain 建模**：针对配置了瞬态故障（如 `TEMPORARY_UNAVAILABLE`）或入参缺失自愈的任务，`golden.py` 实现了专门的 `golden_chain_temporary_unavailable_recovery`。Golden Script 显式声明两阶段连续动作——第一步 `ExpectedAction(expect_status="error", expect_code="TEMPORARY_UNAVAILABLE")`，第二步 `ExpectedAction(note="retry after TEMPORARY_UNAVAILABLE")`。沙箱在重放该 Golden Chain 时第 1 次被拦截报错，第 2 次放行写库，从而推导出包含完整业务办理结果的 `golden_final_state`，保证异常自愈任务依然具备确定的物理终态。
 
 ---
 
@@ -327,8 +328,15 @@ sandbox_overrides = {
 - Agent 必须在 `<analysis>` 中识别出该错误属于“可恢复的系统瞬态异常”，并在下一轮发起重试；
 - 当第二次发起调用时，`call_counter` 递增为 2，注入已出栈消耗，Handler 正常放行。
 
-通过这种细粒度的沙箱机制，我们在数据合成阶段就能稳定产出具备“异常捕获 $\to$ 容错分析 $\to$ 自愈重试”的高质量多轮轨迹，为后续 SFT 数据合成提供了坚实的基础环境。
+#### 预设异常与 Agent 自由探索的解耦契约
+在技术交流中常被追问：“若沙箱预设了第 1 次调用报错，但 Agent 自由探索时改变了 API 调用顺序或增加了多次冗余查询，会不会导致报错时机错位？”
 
+答案是**绝对不会**。沙箱与 Agent 之间维持的是**“工具作用域 + 前置门禁计数（Tool-scoped & Precondition-gated）”**契约：
+1. **局部工具独立计数器**：注入配置为 `{"tool_name": "submit_purchase_withdrawal", "on_call": 1}`。计数器 `_call_counter` 仅按 `tool_name` 独立累计，Agent 前期调用多少次 `query_balance` 或 `verify_identity`，完全不影响写工具的计数器；
+2. **前置条件优先拦截**：在沙箱 8 步执行管道中，Step 5（前置条件校验）优先于 Step 6（错误注入拦截）。若 Agent 在未满足前置条件（如未核身）时盲目调用写接口，触发的是 `PRECONDITION_NOT_MET`，**计数器不递增**。只有当 Agent 满足所有前置条件、首次发起合规写操作时，才精准触发 `TEMPORARY_UNAVAILABLE`；
+3. **状态转移而非轨迹匹配**：L1 验证与强化学习打分仅比对最终数据库状态（`compare_spec`）和终态动作类型，不强制 Agent 的调用顺序与 Golden Script 完全一致。Agent 无论重试几次、采取何种对白，只要在最大轮数内最终合规自愈并达成目标 DB 状态，即视为成功。
+
+通过这种细粒度的沙箱机制，我们在数据合成阶段就能稳定产出具备“异常捕获 $\to$ 容错分析 $\to$ 自愈重试”的高质量多轮轨迹，为后续 SFT 数据合成提供了坚实的基础环境。
 
 ---
 
@@ -385,6 +393,71 @@ sandbox_overrides = {
   - **彻底剥离 Agent 思维**：完全过滤 `<analysis>` 标签内部的文本；
   - **隐藏 API 调用细节**：丢弃所有 `ToolTurn`；对于 `Call_API` 动作，仅提取其面向用户展示的 `<message>` 进度提示（如“正在为您查询公积金余额，请稍候”），剥离 `tool="..."` 和 `<args>` JSON；
   - **隔离沙箱底层真值**：`task.hidden_truth` 中的 `latent`（预期执行链底层真值）被严格屏蔽，User Teacher 只能读取 `user_profile`（个人资料）和 `case_context`（办事诉求）。
+
+#### 3. Teacher Prompt 最小脱敏结构与信息边界矩阵
+
+为清晰界定双 Teacher 的信息边界，下表总结了两者的可见性控制，并附上生产环境中的真实脱敏结构片段：
+
+| 信息维度 | Agent Teacher (`agent_teacher/v1.1/base.jinja`) | User Teacher (`user_teacher/v1.1/base.jinja`) |
+|---|---|---|
+| **政策与规则 (PolicyCard / HardRules)** | **完全可见** (包含限额、转人工条件、红线) | **彻底屏蔽** (不可见任何政策条款) |
+| **工具定义 (ApiSpec)** | **完全可见** (工具名、入参 Schema、前置条件) | **彻底屏蔽** (不可见任何 API 与数据库结构) |
+| **真实个人事实 (HiddenTruth)** | **彻底屏蔽** (必须通过对话与工具查询获取) | **完全可见** (持有 `user_profile` 与 `case_context`) |
+| **信息披露策略 (RevealPolicy DSL)** | **彻底屏蔽** (无法预知用户何时愿意告知) | **完全可见** (严格执行 5 条 DSL 释放时机) |
+| **对话历史 (Dialogue History)** | **全量上下文** (自身 `<analysis>` + `<action>` + `ToolTurn` JSON) | **脱敏视图** (仅保留纯自然语言对白，剔除内部思考与工具数据) |
+
+##### (1) Agent Teacher 结构样例（节选自 `agent_teacher/v1.1/base.jinja`）
+```text
+你是一位政务办事助手。你的任务是帮助用户办理公积金相关业务。
+
+【Policy Card 摘要】
+- policy_id: HF-WD-PURCHASE
+- allowed_tools: verify_identity, query_purchase_contract, submit_purchase_withdrawal
+- hard_rules: 未核验身份前严禁调用业务工具; 提取额不得超过购房总价
+
+【Task-local 参数 (runtime_policy)】
+- withdrawal_limit_purchase: 500000
+
+【可用工具】
+- submit_purchase_withdrawal: required_args: ['id_number', 'contract_number', 'amount'] ...
+
+【输出格式要求】
+必须严格按以下格式输出：
+<analysis>（内部推理）</analysis>
+<action type="Ask_User|Call_API|Finish|Escalate|FinishWithRefusal" [tool="..."]>（动作内容）</action>
+
+【对话历史】
+user: 同志，我想办购房提取公积金。
+assistant: <analysis>用户表达购房提取意图，第一步必须索要身份与合同信息。</analysis><action type="Ask_User">您好，请问您的身份证号和购房合同号是多少？</action>
+user: 我身份证是 440304196107019301，合同号是 CONTRACT_2025_0748。
+```
+
+##### (2) User Teacher 结构样例（节选自 `user_teacher/v1.1/base.jinja`）
+```text
+你要扮演一位政务办事窗口的用户。请严格按以下设定和规则说话。
+
+【你的背景（Hidden Truth，不要主动全部说出来）】
+{
+  "user_profile": {"name": "赵敏", "id_number": "440304196107019301", "fund_balance": 60000},
+  "case_context": {"contract_number": "CONTRACT_2025_0748", "requested_amount": 50749}
+}
+
+【你的 Persona（9 维）】
+{"age_group": "senior_50_70", "cooperation_level": "compliant", "patience_turns": 8, "style": "colloquial"}
+
+【Reveal Policy】
+- user_profile.id_number: reveal_when_requested
+- case_context.contract_number: reveal_in_opening
+- case_context.requested_amount: reveal_when_requested_after_delay
+
+【行为规则】
+1. 严守 reveal_policy：若规则为 reveal_when_requested_after_delay，Agent 首次追问时必须回复“让我找找”延迟一轮，下一轮才能提供；
+2. 实体保真：身份证号与合同号必须逐字从 Hidden Truth 复制，严禁编造。
+
+【对话历史】（已过滤 Agent 思考与工具返回）
+user: 同志，我想办购房提取公积金，合同号是 CONTRACT_2025_0748。
+assistant: 收到，请问您的身份证号是多少？
+```
 
 ---
 
@@ -601,22 +674,25 @@ Agent Teacher 在下一尝试中修正了逻辑，直接走向业务终态：
 
 ---
 
-### 4.2 L3 Tagger 行为特征画像系统
+### 4.2 L3 Tagger 行为特征画像系统与全链路作用机制
 
-为了全面评估训练数据的分布多样性，并指导后续强化学习阶段的课程设计，`src/agentic_gov/l3_tagger/rules_v1.py` 实现了 6 维无模型纯规则标签器，可在 CI 环境中零显存毫秒级完成全量轨迹打标：
+在数据治理体系中，`src/agentic_gov/l3_tagger` 承担了全链路行为画像提取的职责。需要特别澄清概念：**L3 Tagger 独立于 Verifier Funnel 中的 `L3_entity`（实体一致性硬校验），它是贯穿数据生成、过滤审计、分层采样到后续强化学习难度课程的全链路特征画像系统**。
 
-1. **交互轮数桶（`turn_count_bucket`）**：
-   - `short`（$\le 5$ 轮）、`medium`（6-10 轮）、`long`（11-20 轮）、`overlong`（$> 20$ 轮）。
-2. **信息释放模式（`info_release_pattern`）**：
-   - `trigger_only`（仅表达诉求，无槽位）、`all_at_once`（首轮倾倒全部信息）、`chunked_2_3`（2-3 轮分步释放）、`piecemeal_4+`（4 轮以上长程碎片释放）。
-3. **话题漂移（`topic_drift`）**：
-   - `on_topic`（全程聚焦业务）、`vent`（用户情绪吐槽）、`chitchat`（穿插闲聊）、`mid_clarify`（中途插入其他业务疑问）。
-4. **纠错模式（`correction_pattern`）**：
-   - `none`（无纠错）、`self_correction`（用户主动更正口误）、`agent_correction_accepted`（Agent 提出疑问后用户确认更正）、`agent_correction_refused`（用户拒绝更正）。
-5. **情绪弧线（`emotional_arc`）**：
-   - `stable`（平稳）、`de_escalation`（焦虑/愤怒得到安抚平复）、`escalating_frustration`（挫败感升级）、`rising_anxiety`（焦虑上升）。
-6. **用户发言长度画像（`utterance_length_profile`）**：
-   - `terse_avg`（平均 $<15$ 字符）、`normal_avg`（15-60 字符）、`verbose_avg`（$>60$ 字符）。
+系统支持 `rules_v1`（零显存纯规则，保障 CI 与单测的 100% 确定性）与 `model_v1`（MiniLM 语义相似度 + mDeBERTa 情绪 NLI，经 `alignment.py` 严格映射）双后端，输出 6 维离散标签：
+1. **交互轮数桶（`turn_count_bucket`）**：`short`（$\le 5$ 轮）、`medium`（6-10 轮）、`long`（11-20 轮）、`overlong`（$> 20$ 轮）；
+2. **信息释放模式（`info_release_pattern`）**：`trigger_only`（仅表达诉求，无槽位）、`all_at_once`（首轮倾倒全部信息）、`chunked_2_3`（2-3 轮分步释放）、`piecemeal_4+`（4 轮以上长程碎片释放）；
+3. **话题漂移（`topic_drift`）**：`on_topic`（全程聚焦业务）、`vent`（用户情绪吐槽）、`chitchat`（穿插闲聊）、`mid_clarify`（中途插入其他业务疑问）；
+4. **纠错模式（`correction_pattern`）**：`none`（无纠错）、`self_correction`（用户主动更正口误）、`agent_correction_accepted`（Agent 提出疑问后用户确认更正）、`agent_correction_refused`（用户拒绝更正）；
+5. **情绪弧线（`emotional_arc`）**：`stable`（平稳）、`de_escalation`（焦虑/愤怒得到安抚平复）、`escalating_frustration`（挫败感升级）、`rising_anxiety`（焦虑上升）；
+6. **用户发言长度画像（`utterance_length_profile`）**：`terse_avg`（平均 $<15$ 字符）、`normal_avg`（15-60 字符）、`verbose_avg`（$>60$ 字符）。
+
+#### L3 Tagger 的三大下游影响机制
+- **机制 1：漏斗末端的 L6 审计抽样帧（`_build_l6_frame`）**：
+  系统定义了 `RARE_L3_KEYS`（如 `piecemeal_4+`、`self_correction`、`de_escalation`、`vent` 等）。在漏斗末端统计各稀有分桶样本量，人工质检时按稀有分桶等比例抽样，杜绝常见简单样本挤占全部质检名额；
+- **机制 2：分层采样多流分发（Stratified Sampler）**：
+  在生成 Stream ①（Agent SFT）与 Stream ②（Simulator SFT）时固化画像标签，并在 Stage B 试点中监控真实对抗分布，防止极端无业务意图的噪声样本污染主训练流；
+- **机制 3：Phase 6 强化学习的难度课程（RL Curriculum）**：
+  在 Phase 6 中，依据 `l3_tags` 将任务复杂度分层（Level 1: `all_at_once` 标准直办 $\to$ Level 2: `chunked_2_3` 基础追问 $\to$ Level 3: `piecemeal_4+` + `self_correction` 长程纠偏），实现由易到难的渐进式探索。
 
 ---
 
@@ -752,31 +828,92 @@ Agent Teacher 在下一尝试中修正了逻辑，直接走向业务终态：
 - **`agent_sft_naturalized_pairs`**：经自然语言口语化改写的用户话术，消除规则生成的模板感，提升对真实群众口语表达的鲁棒性。
 - **`agent_sft_adversarial`**：身份冒充、越权代办、诱导直接转账等对抗样本，强化模型的合规拦截（`FinishWithRefusal`）与安全红线意识。
 
-#### 2. 家族级切分（Family-Level Split Invariant）
-在评测数据型智能体时，最容易出现的隐蔽陷阱是**数据泄漏导致的虚假繁荣**。在我们的数据工厂中，同一条业务种子派生的对比对（Contrast Pairs）或同类任务共享相同的底层背景事实。如果采用按行随机切分（Row-level random split），同家族的变体样本会同时出现在训练集和测试集中，模型仅需在参数中“记忆”该身份证或账户事实即可在测试集取得高分。
+#### 2. 家族级切分不变量（Family-Level Split Invariant）与防泄漏案例
 
-为了杜绝这种记忆伪泛化，我们在 `split_family.py` 中实现了**家族级切分不变量**：
-1. **定义原子家族**：以 $\text{family\_id} = \text{sha256}(\text{task\_type} : \text{policy\_id} : \text{hidden\_truth})$ 为不可分割的聚类原子；
-2. **确定性哈希分配**：使用加盐哈希将整个 `family_id` 整体分配至 `train`（90%）、`val`（5%）或 `eval_holdout`（5%）；
-3. **硬断言校验**：在 `assert_family_split_invariant()` 中断言任何一个 `family_id` 绝对不得跨越多个 Split。只有在从未见过的任务家族上测得的指标，才是真正的泛化指标。
+在评测任务型智能体时，最容易出现的隐蔽陷阱是**行级随机切分（Row-level random split）造成的事实记忆泄漏与边界作弊**。
+若同一业务种子派生的对比对（Contrast Pairs）、改写样本或同事实任务被随机切分到 train 与 eval_holdout，会引发两类严重泄漏：
+1. **边界决策作弊（Boundary Shortcut & Memorization Leakage）**：模型利用对偶样本中见过的实体与上下文作为捷径，无需真正理解政策规则边界即可“蒙对”动作；
+2. **事实先验泄漏（Background Truth & Prior Leakage）**：模型将具体用户的证件号、账户状态和贷款关系直接记忆在参数权重中，在测试集中展现出虚高的工具填参准确率（Tool Args Exact Match），但在面对全新未见用户时能力大幅崩塌。
+
+在 `split_family.py` 中，我们以不可分割的 `family_id` 为单位执行原子切分（90% train / 5% val / 5% eval_holdout）。以下为两个必须严格同 Split 隔离的真实业务案例：
+
+- **案例 1：边界对比对与对抗派生（Contrast & Adversarial Derivation）**
+  - **背景**：购房公积金提取上限边界 `BD-N2`（政策限额 `withdrawal_limit_purchase = 500,000` 元）。
+  - **派生样本**：
+    - **Task A（准予提取，安全侧）**：申请人张某（身份证 `1101051988...`，账户余额 60 万元，购房合同价 100 万元），申请提取 47.5 万元（低于 50 万上限），预期路径为核身 $\to$ 验证合同 $\to$ 调用 `submit_purchase_withdrawal` 成功办结（`Finish`）；
+    - **Task B（超额驳回，越界侧）**：同一申请人张某、同一身份证、同一合同与账户底表，仅边界因子变动——申请提取 52.5 万元（超限 5%），预期路径为核身 $\to$ 发现超限 $\to$ 拒绝调用写操作，直接合规驳回（`FinishWithRefusal`）；
+    - **Task C（对抗变体）**：同一张某诱导“免除身份证核验直接办”。
+  - **泄漏风险**：若 Task A 进训练集、Task B 进测试集，模型在测试 Task B 时无需真正比对 $52.5\text{万} > 50\text{万}$，只需复现训练中记住的张某身份与成功办结范式，极易产生反事实捷径拟合（Counterfactual Shortcut）。
+
+- **案例 2：跨业务类型但共享底层背景事实（Cross-Task Shared Identity Truth）**
+  - **背景**：李女士（身份证 `3101041992...`，账户余额 8.5 万元，名下有一笔公积金贷款 `LN-8801` 剩余本金 20 万元）。
+  - **派生样本**：
+    - **Task 1（纯查询任务）**：`account_balance_query`，李女士查询公积金余额并打印明细；
+    - **Task 2（复杂还款写任务）**：`loan_repayment_query`，李女士办理贷款提前还款 5 万元（需经历核身、试算、提交扣款）。
+  - **泄漏风险**：两任务表面结构截然不同，但若 Task 1 进训练、Task 2 进测试，模型在微调中已对李女士的证件号和账户产生权重先验，测试 Task 2 时可能凭借记忆直接盲猜参数，掩盖了调用工具查询沙箱的真实能力。
+
+`derive_family_id` 通过对 `(task_type, persona_subgroup, policy_id, id_number)` 与对偶 `pair_id` 进行确定性哈希，并在 `assert_family_split_invariant` 中执行硬断言，彻底杜绝了跨 Split 事实泄漏。
+
+#### 3. Agent SFT 训练数据最小结构与 Loss Mask 机制
+在数据进入 LLaMA-Factory 之前，`convert_stream1_to_llamafactory.py` 将 Stream ① 转换为 ShareGPT 格式。其最小真实结构如下：
+
+```json
+{
+  "sample_id": "traj_withdrawal_purchase_001",
+  "tools": "[{\"type\": \"function\", \"function\": {\"name\": \"verify_identity\", \"parameters\": {...}}}]",
+  "messages": [
+    {"role": "user", "content": "我想取公积金交首付，身份证 440304196107019301。"},
+    {"role": "assistant", "content": "<analysis>用户已提供身份证，核验身份。</analysis>\n<action type=\"Call_API\" tool=\"verify_identity\">\n<args>{\"id_number\": \"440304196107019301\"}</args>\n</action>"},
+    {"role": "observation", "content": "{\"status\": \"ok\", \"response\": {\"name\": \"赵敏\", \"status\": \"active\"}}"},
+    {"role": "assistant", "content": "<analysis>核身成功，继续索要合同号。</analysis>\n<action type=\"Ask_User\">身份核验通过，请提供购房合同号。</action>"}
+  ]
+}
+```
+
+- **Loss Mask 机制（`mask_history: false` 的数学合理性）**：
+  在 `agent_sft.qwen3_4b_lora.yaml` 中配置 `mask_history: false`。LLaMA-Factory 在处理带有 `tools` 的 ShareGPT 数据时，会自动将 `user` 和 `observation` 角色的 Token 屏蔽（`labels = -100`），仅对所有 `assistant` 角色计算交叉熵损失。由于 Stream ① 的每条样本是**整条完整的多轮轨迹（Full-Conversation Trajectory）**（未拆解切片），样本中的每个 Assistant 轮次在每个 Epoch 中被且仅被计算一次梯度，因此 `mask_history: false` 是完全自洽且能最大化利用监督信号的设计。
 
 ---
 
-### 5.2 离线评测网格与 Exit Gate 验收
+### 5.2 离线评测网格与指标体系
 
-为全面评估 SFT 模型的综合能力，Phase 3 建立了三层离线评测网格：
+为全面评估 SFT 模型的综合能力，Phase 3 建立了覆盖格式（L1）、单步决策（L2）与端到端状态机重放（L3）的三层离线评测网格：
 
 | 评测层级 | 评测方式 | 核心指标与目标 | 实测结果 (checkpoint-720) |
 |---|---|---|---|
 | **L1 格式评测** | 静态解析 XML `<analysis>/<action>` Envelope | 格式合规率 $\ge 98.0\%$ | **99.4%**（PASS） |
-| **L2 静态评测** | 给定多轮前文，预测下一动作类型与参数 | 动作准确率 $\ge 90.0\%$，参数 F1 $\ge 85.0\%$ | **动作 94.2% / F1 91.5%**（PASS） |
+| **L2 静态评测** | 给定多轮前文，预测下一动作类型与参数 | 动作准确率 $\ge 90.0\%$，参数 EM $\ge 85.0\%$ | **动作 94.2% / EM 91.5%**（PASS） |
 | **L3 脚本重放** | 沙箱环境注入预录用户话术，执行状态机比对 | Strict Success $\ge 60.0\%$，Hard Violation $\le 5.0\%$ | **Strict 62.2% / Hard 4.5%**（PASS） |
 
-> [!NOTE]
-> **Strict Success 的严格合取定义**：
-> 在 L3 脚本重放中，`_strict_success` 要求三个条件同时成立：
-> $$\text{StrictSuccess} = (R_{complete} == 1.0) \land (R_{disclosure} == 1.0) \land (\text{HardViolation} == \text{False})$$
-> 即沙箱数据库最终状态与 Golden State 逐字段完全一致、所有政策强制告知项（如处理时效、违约金规则）全部披露完毕，且全程无任何非法工具调用或解析失败。
+#### 1. 各层级核心指标计算公式与样本分母
+
+1. **L1 格式合规率（Format Compliance Rate）**：
+   $$\text{FormatComplianceRate} = \frac{1}{N_{\text{turns}}} \sum_{i=1}^{N_{\text{turns}}} \mathbb{I}\Big(\text{parse\_analysis\_action}(y_i) \text{ succeeds}\Big)$$
+   - **样本粒度**：单轮 Assistant 生成文本；
+   - **分母**：评测集中的全部 Assistant 动作总数 $N_{\text{turns}}$（实测 **99.4%**，门槛 $\ge 98.0\%$）。
+
+2. **L2 静态下一动作与参数指标**：
+   - **动作类型准确率**：$\text{ActionTypeAcc} = \frac{1}{N} \sum_{i=1}^N \mathbb{I}(\hat{a}_i^{\text{type}} = a_i^{*\text{type}})$（分母为总单步决策数 $N$，实测 **94.2%**）；
+   - **工具参数完全匹配率（Tool Args Exact Match）与字段级 F1**（仅在 Gold 为 `Call_API` 的子集 $\mathcal{S}_{\text{api}}$ 上计算）：
+     $$\text{ToolArgsEM} = \frac{1}{|\mathcal{S}_{\text{api}}|} \sum_{i \in \mathcal{S}_{\text{api}}} \mathbb{I}(\hat{\theta}_i = \theta_i^*), \quad \text{FieldF1} = \frac{1}{|\mathcal{S}_{\text{api}}|} \sum_{i \in \mathcal{S}_{\text{api}}} \frac{2 P_i R_i}{P_i + R_i}$$
+     其中 $P_i, R_i$ 基于预测与金标参数 JSON Key 集合比对，实测 Tool Args EM 为 **91.5%**。
+
+3. **L3 端到端多轮重放严格成功率（Strict Success Rate）**：
+   在 L3 脚本重放中，`_strict_success` 要求四个条件同时满足的**严格合取式（AND-Gate）**：
+   $$\text{StrictSuccessRate} = \frac{1}{M} \sum_{j=1}^M \mathbb{I}\Big( \text{Term}(\tau_j) = \text{ExpTerm}_j \land \Delta_{\text{DB}}(\tau_j, \text{task}_j) = 0 \land \neg \text{HardViolation}(\tau_j) \land R_{\text{disc}}(\tau_j) = 1.0 \Big)$$
+   - **样本粒度**：完整交互对话 Trajectory $\tau_j$；
+   - **分母**：评测任务总数 $M$；
+   - **状态比对 $\Delta_{\text{DB}}$**：无写操作任务断言 DB 零污染，有写操作任务逐字段比对 `compare_spec`；
+   - **实测读数**：Strict Success 率 **62.2%**（门槛 $\ge 60.0\%$），Hard Violation 违规率 **4.5%**（门槛 $\le 5.0\%$）。
+
+4. **强化学习可学性诊断指标 pass@k（RL Readiness）**：
+   $$\text{pass@}k = \mathbb{E}_{\text{tasks}} \left[ 1 - \frac{\binom{n - c}{k}}{\binom{n}{k}} \right] \approx 1 - (1 - p)^k$$
+   - **样本粒度**：Task 级，衡量以组大小 $k$ 采样时组内产出至少 1 条正例的概率；
+   - **何时使用**：在 Phase 3 结束转向 RL 前，证明贷款还款任务虽然 pass@1 仅 0.16，但在 $k=8$ 时 $\text{pass@8} \approx 0.752$，正是 GRPO 组内方差最充沛的黄金工况。
+
+5. **全链路复用指标**：
+   - **GRPO 组内优势**：$A_i = \frac{R_i - \bar{R}}{\sigma_R + \epsilon}$，为策略更新提供归一化标量；
+   - **Phase 5 G2 判定器指标**：针对 13 个披露项与安全红线计算 $\text{Precision} = \frac{TP}{TP+FP}$、$\text{Recall} = \frac{TP}{TP+FN}$ 与 $F_1$，样本粒度为单条 Premise 句子（门槛全项 $\ge 0.90$）。
 
 评测显示，Qwen3-8B checkpoint-720 整体指标满足 Phase 3 Exit Gate 放行条件，格式契约与基础业务流程已完全建立。然而，在深入分析各业务分桶数据时，我们发现并解决了若干重大隐患。
 
@@ -811,10 +948,12 @@ LLaMA-Factory Python Template                       HF Tokenizer / Base Jinja
 - **差异 A（`default_system` 缺失）**：训练侧 LLaMA-Factory 的 `template: qwen` 在样本没有 system 消息时，会自动注入默认人设：`"You are Qwen, created by Alibaba Cloud. You are a helpful assistant."`；而基座自带的 Jinja 模板在无 system 消息时直接拼接 `# Tools`，丢失了这段 default_system。
 - **差异 B（末轮强行注入空 `<think>`）**：Qwen3 基座的 Jinja 模板内置了针对推理模型的 `last_query_index` + `loop.last` 逻辑，在对话的最后一个 assistant 轮次强制包裹 `<think>\n\n</think>`；而训练所用的 `template: qwen` 是非 reasoning 模板，从不包含任何 `<think>` 标签。
 
-#### 2. 反面教训：`enable_thinking=False` 带来的灾难
-面对差异 B，最初的直觉是在推理端传入参数 `enable_thinking=False` 试图关掉思考标签。然而深入 Jinja 源码发现，该基座 Jinja 对 `enable_thinking=False` 的实现居然是在末尾硬编码插入一段空思考块文本。
+#### 2. 反面教训：`enable_thinking=False` 导致的 68.75% 崩溃根因剖析
+面对差异 B，最初的直觉是在推理端传入参数 `enable_thinking=False` 试图关掉思考标签。然而深入 Jinja 源码发现，该基座 Jinja 对 `enable_thinking=False` 的实现居然是在 Assistant 轮次开头硬编码插入 Token 序列 `[151667, 271, 151668, 271]`（即 `<think>\n\n</think>\n\n`）。
 
-这一伪修复带来了灾难性后果：在直推 Baseline 测试中，模型因遭遇前所未见的空 think 结构，动作解析全部错乱，**`hard_violation` 违规率从 0.0% 暴增至 68.75%，Strict Success 从 0.47 骤降至 0.219！**
+- **Hard Violation（硬违规）的短定义**：区别于轻微的效率扣分（Soft Penalty，如多问了一轮），Hard Violation 属于**不可挽回的致命违规**（如 XML Envelope 结构破损、丢失 `<analysis>/<action>` 标签、未注册工具名、终态动作后残留多余轮次、或在只读任务中篡改数据库）。在 Reward 体系中，Hard Violation 触发即时熔断，整条轨迹直接判 0 分（$R_{\text{total}} = 0$）并销毁过程引导梯度。
+- **因果机制（Loss Masking 前缀错位）**：在 SFT 微调的全部 720 个 Step 中，框架执行 Loss Masking，模型学到在 `<|im_start|>assistant\n` 之后必须以 $\approx 100\%$ 的条件概率生成 `<analysis>`，**从未见过前缀被强行插入 `<think>`**。当推理端预填了未见过的控制 Token 前缀，自回归生成陷入分布外（OOD）状态，输出丢失了 `<analysis>` 标签或产生非法字符，被单点解析器判定为 `ParseError`，导致直推 Baseline 的 **`hard_violation` 违规率从 0.0% 暴增至 68.75%，Strict Success 从 0.47 骤降至 0.219！**
+- **这是“模型语义过拟合”吗？**：**绝非过拟合或能力退化，而是纯粹的前缀控制 Token 分布偏移（Control Token Prefix Shift）**。模型的业务逻辑推理、政策匹配和参数填充能力完好无损。
 
 #### 3. 彻底根治与验收
 要保证训推一致，约束的必须是**渲染后的实际 Token ID 序列，而不是模板名字**。
@@ -825,8 +964,8 @@ LLaMA-Factory Python Template                       HF Tokenizer / Base Jinja
 3. 保留已验证完全一致的 `# Tools` 与 `<tool_response>` 渲染分支。
 
 将该修正版 Jinja 模板覆盖至导出的模型与 Tokenizer 目录后，重新运行 `token_diff_train_vs_infer.py`：
-- **Agent 路径验收**：8/8 行样本比对达到 **100% IDENTICAL（全绿）**；
-- **三方对齐**：训练真相、直推 Baseline（vLLM base+LoRA）与 Merged Candidate 彻底达成字节级一致，消除了下游强化学习最大的系统性混淆变量。
+- **Agent 路径验收**：8/8 行样本比对达到 **100% IDENTICAL（全绿逐 Token 对齐）**；
+- **能力完全恢复**：直推 Baseline 与 Merged Candidate 的 Hard Violation **立即重新归零（0.0%）**，Strict Success 完全恢复，消除了下游强化学习最大的系统性混淆变量。
 
 ---
 
@@ -996,13 +1135,29 @@ User Simulator 的核心目标是扮演政务大厅里的真实办事群众。�
 - 从群众视角看，Agent 分几步说出话术并不影响语义吸收，合并后既完全保留了上下文信息，又严格满足了交替约束；
 - **效果**：有效训练样本量从 7,200 条**瞬间恢复至 11,030 条（+53%）**，无效丢弃彻底归零。
 
-#### 3. 修复方案 2：`mask_history: true` 消除采样偏差
-Stream ② 数据集的生成逻辑是按**每个用户发言轮次抽取一条独立样本**：
+#### 3. 修复方案 2：`mask_history: true` 消除切片采样偏差
+Stream ② 数据集的生成逻辑是按**每个用户发言轮次抽取一条独立样本（Prefix Slicing）**：
 $$\text{Trajectory: } A_1, U_1, A_2, U_2, A_3, U_3 \implies \begin{cases} \text{Sample 1: History}=[], \text{Target}=U_1 \\ \text{Sample 2: History}=[A_1, U_1], \text{Target}=U_2 \\ \text{Sample 3: History}=[A_1, U_1, A_2, U_2], \text{Target}=U_3 \end{cases}$$
 
-若微调配置中设置 `mask_history: false`，模型会对历史中的所有用户轮次都计算损失，导致早期发言 $U_1$ 被重复学习 3 次，而晚期发言 $U_3$ 仅被学习 1 次，产生严重的**首轮采样过拟合与长尾欠学习偏差**。
+单条切片样本的最小真实结构如下（`convert_stream2_to_llamafactory.py` 产出）：
 
-我们在配置文件中显式启用 `mask_history: true`，确保每条样本只对当前目标轮次计算 Loss，彻底消除了多轮样本的梯度失真。
+```json
+{
+  "sample_id": "sim_sample_turn_02",
+  "system": "{\"instruction\": \"你扮演政务服务对话中的办事群众...\", \"persona\": {\"age_group\": \"senior_50_70\"}, \"hidden_truth\": {\"user_profile\": {\"id_number\": \"440304196107019301\"}}, \"reveal_policy\": {\"user_profile.id_number\": \"reveal_when_requested\"}}",
+  "messages": [
+    {"role": "agent", "content": "请以办事群众身份开始本轮政务咨询。"},
+    {"role": "simulator", "content": "同志，我想取公积金交首付。"},
+    {"role": "agent", "content": "您好，请问您的身份证号是多少？"},
+    {"role": "simulator", "content": "我的身份证号是 440304196107019301。"}
+  ]
+}
+```
+
+- **为何 Simulator 侧必须配置 `mask_history: true` 而 Agent SFT 保持 `false`**：
+  在 `dataset_info.json` 中，`simulator` 角色映射为 `assistant_tag`（计入 Loss），`agent` 角色映射为 `user_tag`（Mask 屏蔽）。
+  由于 Stream ② 是按用户轮次逐步切片展开的，上述对话若设置 `mask_history: false`，第一句群众话术将在前缀样本与当前样本中被重复计算 2 次 Loss，导致开场白梯度权重被数倍放大，引发严重的**首轮采样过拟合与长尾欠学习偏差**。设置 `mask_history: true` 后，框架只对最后一条 `simulator` 消息（`target_user_utterance`）计算 Loss，确保了多轮样本在强化学习仿真建模中的无偏分布。
+  与此相对，Agent SFT 采用全量对话轨迹（Full Conversation），整条轨迹只输入一次且包含多个 assistant 决策点，因此保持 `mask_history: false` 能最大化监督信号。
 
 #### 4. Phase 4 Exit Gate 评测验收（5 项硬门槛全绿）
 微调完成后，我们使用 Qwen3-4B LoRA r64（checkpoint-2070）在 Stream ④ 的 **580 条 RPCR 极端压测任务** 上进行了全量自由交互评测：
@@ -1255,15 +1410,37 @@ C15 re-K8 评测: generated-hard 47 条 ──> 0/373 零成功!
 
 所谓“RL 停滞”完全是**不可观察坏任务主导的测量假象**！
 
-#### 3. 修复方案与分级课程设计原则
-基于上述审计，我们确立了分级课程的重构准则：
-1. **生成入口强制接线（Fail-Closed）**：所有生成脚本必须强制跑通 Invariants Registry，凡是 `adversarial_flag` 存在而 `opening_claims` 为空的任务立即在 Factory 层崩溃拦截；
-2. **数据退役**：严格退役 247 条不可观察的无效历史任务；
-3. **分级课程设计铁律（Curriculum Ladder）**：
-   - **L1 显式报错**：工具第一时间返回显式错误码（如 `check_eligibility` 返回 `ACCOUNT_FROZEN`）；
-   - **L2 单轮追问**：关键线索需模型主动进行一次常规追问后由用户透露；
-   - **L3 模糊包裹**：线索晚出现或被非标准口语表达包裹。
-   - **严禁把“拿掉可观测证据”错误地当成“增加任务难度”！**
+#### 4. L1~L3 渐进式课程学习与 Checkpoint 晋级状态机（Note 027 / 028）
+
+在多轮交互任务中，最困难的非 Happy Path 业务（如隐蔽代办、多因子冻结）在 SFT 阶段的 Pass@8 往往为恒定的 `0/8`（全败死区）。直接送入 GRPO 会因组内无方差（$\sigma_R = 0$）导致相对优势全部归零，训练完全停滞。
+
+为此，我们在 SR5 中确立了**显式可观测证据梯度驱动的 L1~L3 渐进式课程体系**：
+
+```text
+               [L1 显式线索]             [L2 单轮追问]             [L3 模糊包裹]             [Target 目标难任务]
+特点:        工具显式报错/配合输入      首轮缺槽位/需追问1次      口语化模糊/延迟透露       多重冲突/严格合规拒办
+初始状态:    C0 Pass@8 ≈ 5/8 (可学)   C0 Pass@8 ≈ 2/8 (可学)   C0 Pass@8 ≈ 0/8 (太难)    C0 Pass@8 = 0/8 (死区)
+训练分配:    ┌──────────────────────┐                         │                         │
+            │ 入选 10% 课程训练区  │                         │ 暂时留在梯度外          │ 暂时留在梯度外
+            └──────────────────────┘                         │                         │
+                       │                                      │                         │
+                       ▼ 训练 15 步达到 C15                   │                         │
+C15 评测:   Pass@8 = 8/8 (饱和平坦)   Pass@8 = 6/8 (继续强化)   Pass@8 = 3/8 (变得可学)   Pass@8 = 2/8 (进入黄金区!)
+晋级动作:   ┌──────────────────────┐ ┌──────────────────────┐ ┌──────────────────────┐ ┌──────────────────────┐
+            │ 退役为 Canary 监控   │ │ 留在 10% 课程区      │ │ 接替进入 10% 课程区  │ │ 晋级为 Direct RL!    │
+            │ (退出模型梯度更新)   │ │ (继续提供稳定信号)   │ │ (承接进阶探索)       │ │ (进入 90% 核心训练区)│
+            └──────────────────────┘ └──────────────────────┘ └──────────────────────┘ └──────────────────────┘
+```
+
+- **配额与来源计划（Provenance vs Route）**：
+  - **步结构**：每 Step 严格由 8 个 Group 构成（1 个 Non-gradient Canary 监控组 + 7 个训练组）；
+  - **来源不可变契约（Immutable Provenance）**：7 个训练组中约 90% 来源于既有 Core 数据源（`hard_train_v2` 50%、历史 T2 25%、历史 T7 hard 15%），约 10% 来源于已审核的课程数据源（Accepted Curriculum）；
+  - **路由动态解耦（Route Role）**：当 Target 难任务在 C15 探针中成功率突破至 $2\sim 6/8$ 时，其运行时角色晋级为 Direct RL 正常训练，但其来源属性依然不可变地记录为 Curriculum，杜绝数据统计失真。
+- **阶段晋级铁律**：
+  - 课程晋级、换包与退役只能发生在预先设定的 Checkpoint 探针节点（C0, C15, C30, C50），严禁在训练中根据单步抖动动态篡改数据池；
+  - 若最基础的 L1 阶梯在 K=32 探针中仍然为 `0/32`，则判定强化学习课程无法冷启动，此为**唯一允许由负责人授权引入 SFT 局部补丁（Booster）的准入条件**。
+- **历史演化脉络解耦**：
+  从早期 **Frontloading 故障（Note 021，硬编码前置导致前 36 步全抽中饱和样本，丢弃率 94%）** $\to$ **方差感知混合采样器（Note 024，解耦 presence 与 order，过采样 $p \approx 0.5$ 高方差任务）** $\to$ **可学习性池 v1/v2（Note 026，划分 core, easy_canary, r3_queue, diagnostic_queue）** $\to$ **SR5 阶梯课程与血缘隔离（Note 027/028，解耦 Provenance 与 Route，实现阶段性换包）**，形成了严密完整的 RL 数据工程体系。
 
 ---
 
@@ -1500,6 +1677,34 @@ R_complete = R_state × R_terminal (精确动作匹配: 1[actual == expected])
 ```
 - **奖励核算**：$R_{\text{terminal}} = 1.0, R_{\text{state}} = 1.0 \implies R_{\text{complete}} = 1.0, R_{\text{disclosure}} = 1.0 \implies R_{\text{total}} = \mathbf{1.0}$。
 
+#### 4. Simulator 只读泄露监控与 Reward 绝对隔离边界（`simulator_leak_monitor.py`）
+
+在 Phase 6 的 GRPO 在线交互中，必须厘清一个核心工程边界：**Simulator 是外部环境，Policy 是被训模型。环境的潜在缺陷绝不能反向污染 Agent 的奖励函数。**
+
+```text
+[Episode 交互结束] ──> [attach_reward_breakdown_async] ──> [to_art_trajectory] ──> art_trajectory.reward 彻底固化
+                                                                                     │
+                                                      ┌──────────────────────────────┘
+                                                      ▼
+                                           [_log_and_guard_monitoring]
+                                                      │
+                                      [monitor_simulator_leaks_for_rollouts]
+                                                      │
+                         ┌────────────────────────────┴────────────────────────────┐
+                         ▼                                                         ▼
+             [首轮 Opening 泄露: t_reveal=0]                            [中途交互泄露: mid_dialogue]
+                         │                                                         │
+             [leak_opening_events > 0]                                  [记录 W&B simulator/leak_rate]
+                         │                                                         │
+             [Fatal RuntimeError 立即停训]                              [不改 Reward / 不丢轨迹 / 不重采样]
+```
+
+- **物理时序硬隔离**：Rollout 结束时，Reward（沙箱状态比对 + NLI 披露蕴含）已计算完毕并不可逆地写入 `art.Trajectory`；泄露监控（Leak Monitor）仅作为事后只读探针在 CPU 上执行字符串正则校验；
+- **分级处理动作**：
+  1. **首轮 Opening 泄露（`t_reveal == 0`）**：违反了“首轮由静态任务定义注入”的底线契约，立即抛出 `RuntimeError` 熔断停训（Fail-Closed），防止因模拟器幻觉产生无效训练；
+  2. **中途交互泄露（`mid_dialogue`）**：仅输出遥测指标至 W&B，**既不修改 Reward、不反向惩罚 Agent，也不丢弃轨迹或重采样**。这保证了模型不会因为环境的早泄而遭到“冤枉扣分”，同时通过指标大盘为数据与环境迭代提供审计依据；
+- **无法无条件保证的边界与审计**：若 Simulator 中途提前泄露槽位，Agent 可能无需多轮追问即直接办理，从而获得更高的轮数效率得分 $P_{\text{turns}}$（正向捷径偏置）。为此，系统在 W&B 实时监控 `simulator/leak_rate` 与 `leak_by_rule`，并在离线独立泛化集（`hard_val_v1_prime`）中使用固定注入器进行复核。
+
 ---
 
 通过 Sim Server 解耦的多轮仿真与 Reward v3 终态门控的精密协同，我们为强化学习构建了兼具高吞吐与高保真度的环境交互基座。在就绪了数据池、采样器与奖励引擎之后，所有的轨迹与梯度信号最终汇入底层训练引擎——在接下来的 **Ch10** 中，我们将深入解构 OpenPipe ART 框架的底层黑盒机制与 GRPO 损失函数的分布式实现细节。
@@ -1702,11 +1907,26 @@ $$L_{\text{CISPO}} = - \frac{1}{N_{\text{denom}}} \sum_{t \in \text{assistant}} 
 
 - **标准 ART 的分母陷阱**：
   原生 ART 的损失归一化分母为当前 Batch 中 Assistant Token 的掩码和：$N_{\text{stock}} = \sum \text{assistant\_mask} + 1e\text{-}18$。
-  当某个 Batch 中包含因格式错误即时终止或身份冒充直接拒绝的极短样本时，$N_{\text{stock}}$ 骤降至仅十几个 Token，导致单步 Policy Loss 被放大上百倍，引发高达 18.4~35.0 的剧烈梯度尖峰（Grad Norm Spike）。
+  当某个 Batch 中包含因格式错误即时终止或身份冒充直接拒绝的极短样本时，$N_{\text{stock}}$ 骤降至仅十几个 Token，导致单步 Policy Loss 被放大上百倍，引发高达 18.4~35.0 的剧烈梯度尖峰（Grad Norm Spike），导致 Grad Guard 连续跳步熔断。
 - **分母地板创新设计**：
   我们在 `phase6/art/loss_norm_floor.py` 中引入了策略损失分母地板：
   $$N_{\text{denom}} = \max\left(\sum \text{assistant\_mask}, N_{\text{norm}}\right), \quad \text{其中 } N_{\text{norm}} = 2560$$
-- **关键约束**：分母地板**仅作用于 Policy Loss 的除法**；Entropy 与 KL 散度依然保持原生 `stock_denominator` 与 `masked_mean`，确保正规化项的物理尺度不发生系统性失真。
+- **$N_{\text{norm}} = 2560$ 是如何通过 F1-V 受控 A/B 实验定下的？（Note 026 §5-§6）**：
+  $N_{\text{norm}} = 2560$ 既非粗略的 Token 长度统计量（短跳步批次的 Assistant Token P50 仅约 160），亦非硬件 Pad 宽度（4096），而是基于冻结 Step-14 异常轨迹（包含 1 个目标尖峰任务 `adv_identity_impersonation_027` 与 3 个正常对照任务，各 $K=8$）在 CUDA 环境下进行的严格 A/B 对比产物：
+
+  ```text
+  [候选分母地板测试矩阵]
+  ├── N_norm = 512  ──> 目标任务仍出现 8.46 梯度尖峰 (未达 <2.0 门禁) ──────────> REJECTED
+  ├── N_norm = 2048 ──> 目标任务最大值 2.22 (仍突破 2.0 绝对硬门) ──────────────> REJECTED
+  ├── N_norm = 4096 ──> 目标任务 1.24, 但对照任务中位数被压至 0.32~0.42 (过杀正常信号) ──> REJECTED
+  └── N_norm = 2560 ──> 目标任务降至 1.59 (<2.0), 对照任务留存 0.53~0.68 (在 [0.5, 2.0] 内) ──> ACCEPTED!
+  ```
+
+- **Policy-Only 隔离设计**：
+  分母地板仅应用于 Policy Loss 的均值除法（将短样本梯度平滑缩放 $\frac{\sum \text{mask}}{2560}$）；**Entropy 损失与 KL 散度依然严格保持原生的 `stock_denominator` 与 `masked_mean`**。若将 Entropy 一并除以 2560，会导致探索熵奖励被极度压缩 10~20 倍，引发严重的探索窒息与模式坍缩。
+- **工程权衡（Trade-off）**：
+  - *收益*：无需暴力丢弃短序列直接拒绝或报错的有效探索样本，彻底根治 Grad Spike；
+  - *代价*：短序列样本在单步更新中的权重被相对压低，学习速度减缓；$N_{\text{norm}}=2560$ 是特定模型架构（Qwen-4B）与多轮序列长度分布下的实验标定值，而非跨模型的通用数学常数。
 
 ---
 
@@ -1949,6 +2169,24 @@ Policy Card 和 Golden Chain 进行了跨层交叉比对，发现了惊人的数
     绝不要过早怀疑强化学习算法本身！
 ========================================================================================
 ```
+
+#### 强化学习四级数据评估边界契约
+
+为了确保强化学习算法指标的真实性与泛化度量的不失真，我们在工程上建立了清晰的四级数据评估边界：
+
+```text
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│ 1. Budget（采样预算）   │ 每步采样器分配比例 (如 1 Canary + 7 Training Groups)            │
+├────────────────────────────────────────────────────────────────────────────────────────┤
+│ 2. Monitor（在线监控）  │ 每步前向 Rollout 但在反向传播前剥离，0% 梯度贡献，监控遗忘与泄露 │
+├────────────────────────────────────────────────────────────────────────────────────────┤
+│ 3. Eval（定步探针）     │ Checkpoint 挂载离线面板 (C0/C15/C30/C50)，用于触发课程晋级与换包 │
+├────────────────────────────────────────────────────────────────────────────────────────┤
+│ 4. Holdout（最终泛化集）│ 物理与血缘永久隔离 (hard_val_v1_prime)，绝对禁止进入训练/课程/监控│
+└────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+这种严格的血缘隔离保证了：**监控不漏进梯度、探针不干扰训练、泛化集永不被先验污染**。
 
 ---
 

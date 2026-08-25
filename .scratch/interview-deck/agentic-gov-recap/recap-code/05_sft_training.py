@@ -27,7 +27,7 @@ from agentic_gov.runtime.tokenizer_config import normalize_tokenizer_dir
 from agentic_gov.schemas.task import CanonicalTask
 from agentic_gov.task_types.registry import TaskTypeRegistry
 from agentic_gov.verifier.format import FORMAT_PARSER_VERSION, ParseError, parse_analysis_action
-from phase3.data.build_manifest import derive_family_id, manifest_row_to_jsonl
+from phase3.data.build_manifest import manifest_row_to_jsonl
 
 
 # ===========================================================================
@@ -153,6 +153,54 @@ def convert_dir(
 # ===========================================================================
 # 2. 家族级切分器（Family-Level Split Invariant）
 # ===========================================================================
+
+def derive_family_id(
+    *,
+    metadata: Mapping[str, Any],
+    task_type: str,
+    policy_id: str,
+    hidden_truth: Mapping[str, Any] | None = None,
+) -> str:
+    """生成稳定的不可分割家族 ID，确保对偶样本与同事实样本共享相同的 family_id。
+    
+    【防泄漏机制】
+    1. 显式指定的 family_id 优先；
+    2. 对比对 (pair_id) 与改写对 (naturalization_of) 统一归纳为对偶锚点；
+    3. 否则基于底层四元组 (task_type, persona_subgroup, policy_id, id_number) 绑定。
+    """
+    fam = metadata.get("family_id")
+    if isinstance(fam, str) and fam:
+        return fam
+
+    pair_id = metadata.get("pair_id")
+    naturalization_of = metadata.get("naturalization_of")
+    if isinstance(naturalization_of, str) and naturalization_of:
+        pair_key = naturalization_of
+    elif isinstance(pair_id, str) and pair_id:
+        pair_key = pair_id[:-len("__nat")] if pair_id.endswith("__nat") else pair_id
+    else:
+        pair_key = ""
+
+    if pair_key:
+        digest = hashlib.sha1(f"pair_id={pair_key}".encode("utf-8")).hexdigest()
+        return f"fam_{digest[:16]}"
+
+    persona_subgroup = str(metadata.get("persona_subgroup") or "unknown")
+    id_number = ""
+    if isinstance(hidden_truth, Mapping):
+        user_profile = hidden_truth.get("user_profile")
+        if isinstance(user_profile, Mapping):
+            id_number = str(user_profile.get("id_number") or "")
+
+    key_parts = (
+        f"task_type={task_type}",
+        f"persona_subgroup={persona_subgroup}",
+        f"policy_id={policy_id}",
+        f"id_number={id_number}",
+    )
+    digest = hashlib.sha1("|".join(key_parts).encode("utf-8")).hexdigest()
+    return f"fam_{digest[:16]}"
+
 
 @dataclass(slots=True)
 class FamilyMembership:

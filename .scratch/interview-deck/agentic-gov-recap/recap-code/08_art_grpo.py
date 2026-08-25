@@ -146,6 +146,48 @@ async def collect_train_groups(
     return cast(list[Any], groups)
 
 
+def log_and_guard_simulator_monitoring(
+    groups: Sequence[Any],
+    step: int,
+    split: str = "train",
+    leak_warn_threshold: float = 0.05,
+    wandb_run: Any | None = None,
+) -> dict[str, float]:
+    """只读监控旁路：评估模拟器泄露并在首轮泄露时执行 Fail-Closed 熔断。
+    
+    【执行逻辑】
+    1. 提取 Rollout 阶段挂载的私有 Payload；
+    2. CPU 正则扫描计算 leak_rate 与 opening_leak；
+    3. 若首轮 opening_leak > 0，立即抛出 RuntimeError 熔断停训（Fail-Closed）；
+    4. 若中途 mid_dialogue 泄露，仅记录指标至 W&B，绝不修改 Reward 或反向惩罚 Policy。
+    """
+    from agentic_gov.runtime.simulator_leak_monitor import monitor_rollout_leaks
+
+    trajectories = [traj for g in groups for traj in getattr(g, "trajectories", [])]
+    leak_pairs = [
+        (getattr(t, "_phase6_episode_trajectory"), getattr(t, "_phase6_task"))
+        for t in trajectories
+        if hasattr(t, "_phase6_episode_trajectory") and hasattr(t, "_phase6_task")
+    ]
+    if trajectories and not leak_pairs:
+        raise RuntimeError("Rollout payload missing; leak monitor bypassed!")
+
+    report = monitor_rollout_leaks(leak_pairs, warn_threshold=leak_warn_threshold)
+    leak_metrics = {
+        f"{split}/simulator/leak_rate": report.leak_rate,
+        f"{split}/simulator/leak_events": float(report.n_leaking),
+        f"{split}/simulator/leak_opening_events": float(report.by_timing.get("opening", 0)),
+    }
+
+    if leak_metrics[f"{split}/simulator/leak_opening_events"] > 0:
+        raise RuntimeError("simulator opening leak detected; stopping Phase 6 training")
+
+    if wandb_run is not None:
+        wandb_run.log({"training_step": float(step), **leak_metrics}, commit=False)
+
+    return leak_metrics
+
+
 async def train_grpo(
     *,
     model_config: Any,
@@ -163,7 +205,7 @@ async def train_grpo(
        a. 场景采样：select_train_step_scenarios 抽取 N 个任务；
        b. 并发采样：collect_train_groups 采集 N*K 条多轮轨迹；
        c. 监控与熔断评估：TrainFuse 检查是否有连续退化或异常违规；
-       d. 零方差过滤：filter_zero_variance_groups 剔除无方差组；
+       d. 零方差过滤：filter_zero_variance_groups 剔除无方差组（Canary 组被剥离出梯度路径）；
        e. 梯度反向传播：backend.train 执行 CISPO Loss + KL Penalty 更新；
        f. 权重推送与归档：向 vLLM 推送 Merged 权重，并调用 model.log 写入 Parquet 轨迹文件。
     """
@@ -195,10 +237,15 @@ async def train_grpo(
                 group_size_k=train_config.group_size_k,
                 step=step,
             )
+
+            # 2.5 只读 Simulator 泄露监控与 Fail-Closed 熔断 (只读探针，不污染 Reward)
+            log_and_guard_simulator_monitoring(groups, step=step)
             
-            # 3. 剥离 Canary 监控任务，对真实梯度任务执行零方差过滤
+            # 3. 剥离 10% Canary 监控任务 (0% 梯度贡献)，对真实训练组做零方差过滤
+            canary_flags = [getattr(s, "is_canary", False) for s in batch]
+            gradient_groups = [g for g, is_canary in zip(groups, canary_flags) if not is_canary]
             train_groups = filter_zero_variance_groups(
-                groups,
+                gradient_groups,
                 epsilon=train_config.dynamic_filter_epsilon,
             )
             
@@ -430,6 +477,20 @@ def loss_fn(
         "kl_policy_ref": kl_metric if kl_metric is not None else torch.tensor(0.0),
         "prob_ratio_mean": prob_ratio[assistant_mask.bool()].mean(),
     }
+
+
+def compute_loss_scales(mask_sum: float, n_norm: float = 2560.0) -> tuple[float, float]:
+    """返回 (policy_scale, entropy_scale)，明确两者在分母地板上的尺度解耦。
+    
+    【设计考量】
+    Policy Loss 在短序列时除以 N_norm=2560 进行平滑衰减，避免梯度暴冲；
+    Entropy Loss 与 KL 散度严格保持原生 stock_denom (scale=1.0)，防止探索熵被过度压缩。
+    """
+    stock = float(mask_sum) + 1e-18
+    floored_policy = max(stock, float(n_norm))
+    policy_scale = stock / floored_policy  # 当 mask_sum < 2560 时 < 1.0
+    entropy_scale = 1.0                    # 恒为 1.0，严禁缩放探索熵
+    return policy_scale, entropy_scale
 
 
 class LocalBackend:

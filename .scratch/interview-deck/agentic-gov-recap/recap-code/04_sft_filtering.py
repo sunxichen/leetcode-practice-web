@@ -332,6 +332,53 @@ def tag_trajectory_rules_v1(trajectory: Any) -> L3Tags:
     return L3Tags.model_validate(tags)
 
 
+RARE_L3_KEYS = (
+    ("turn_count_bucket", "short"),
+    ("info_release_pattern", "trigger_only"),
+    ("topic_drift", "vent"),
+    ("correction_pattern", "self_correction"),
+    ("emotional_arc", "de_escalation"),
+    ("utterance_length_profile", "terse_avg"),
+)
+
+
+def _build_l6_frame(records: list[dict[str, Any]], candidates: list[dict[str, str]]) -> dict[str, Any]:
+    """构建用于 L6 离线审计的抽样分层帧，聚合 RARE_L3_KEYS 稀有行为标签。
+    
+    【设计考量】
+    L3 Tagger 的下游输出在漏斗末端被聚合为稀有特征帧，人工质检时按稀有分桶等比例抽样，
+    防止长尾高价值交互（如用户主动纠错、情绪安抚）在常规随机抽样中被淹没。
+    """
+    strata: dict[str, Counter[str]] = {
+        "concept_primary": Counter(),
+        "task_type": Counter(),
+        "adversarial_flag": Counter(),
+        "rare_l3_tags": Counter(),
+        "vulnerable_persona": Counter(),
+    }
+    for rec in records:
+        task = rec.get("task", {})
+        md = task.get("metadata", {})
+        strata["concept_primary"][md.get("concept_primary", "unknown")] += 1
+        strata["task_type"][task.get("task_type", "unknown")] += 1
+        strata["adversarial_flag"][md.get("adversarial_flag") or "none"] += 1
+
+        if md.get("persona_subgroup") == "vulnerable":
+            strata["vulnerable_persona"]["vulnerable"] += 1
+        else:
+            strata["vulnerable_persona"]["other"] += 1
+
+        tags = md.get("l3_tags") or {}
+        for key, value in RARE_L3_KEYS:
+            if tags.get(key) == value:
+                strata["rare_l3_tags"][f"{key}={value}"] += 1
+
+    return {
+        "candidate_pipeline_ids": candidates,
+        "strata_counts": {k: dict(v) for k, v in strata.items()},
+    }
+
+
 # ===========================================================================
 # 3. 三路分层采样器 (Stratified Sampler)
 # ===========================================================================

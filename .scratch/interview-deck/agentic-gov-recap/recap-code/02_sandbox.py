@@ -184,7 +184,7 @@ class SandboxRuntime:
                     self._record(tool_name, args, res)
                     return res
 
-        # Step 5: 前置业务条件（如必须先核身）
+        # Step 5: 前置业务条件校验 (Preconditions): 未满足时不递增计数器，直接拦截返回
         for pre in spec.preconditions:
             flag_key = pre
             if not self.runtime_flags.get(flag_key, False):
@@ -192,11 +192,11 @@ class SandboxRuntime:
                 self._record(tool_name, args, res)
                 return res
 
-        # Step 6: 错误注入 (Error Injection)
+        # Step 6: 错误注入拦截 (Error Injection): 仅对合法触达本步骤的调用递增局部工具计数器
         self._call_counter[tool_name] = self._call_counter.get(tool_name, 0) + 1
         injected = self._pop_injection(tool_name, self._call_counter[tool_name])
         if injected:
-            # 模拟可恢复错误（如 TEMPORARY_UNAVAILABLE）
+            # 命中预设注入（如 TEMPORARY_UNAVAILABLE），第 N 次拦截，第 N+1 次放行支持自愈重试
             res = error_result(SandboxError(injected["error_code"]), injected=True)
             self._record(tool_name, args, res)
             return res

@@ -114,6 +114,34 @@ def derive_task_ground_truth(task: CanonicalTask) -> tuple[list[ExpectedAction],
     return expected_script, expected_final_db_state
 
 
+def golden_chain_temporary_unavailable_recovery(
+    tool_name: str,
+    args: dict[str, Any],
+) -> list[ExpectedAction]:
+    """可恢复瞬态故障（如 TEMPORARY_UNAVAILABLE）的两阶段 Golden Chain 建模。
+    
+    【设计考量】
+    对于系统瞬态异常自愈任务，Golden Script 显式声明连续动作：
+      第一步：期望捕获 TEMPORARY_UNAVAILABLE；
+      第二步：保持参数自愈重试，沙箱放行写库并推导出完整的 golden_final_state。
+    """
+    return [
+        ExpectedAction(
+            tool_name=tool_name,
+            args=args,
+            expect_status="error",
+            expect_code="TEMPORARY_UNAVAILABLE",
+            note="first call encounters transient system error",
+        ),
+        ExpectedAction(
+            tool_name=tool_name,
+            args=args,
+            expect_status="ok",
+            note="retry after TEMPORARY_UNAVAILABLE succeeds and mutates DB",
+        ),
+    ]
+
+
 # ===========================================================================
 # 3. 对抗种子生成器 (Adversarial Seed Generator)
 # ===========================================================================
