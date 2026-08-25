@@ -2106,5 +2106,2690 @@
       "proj-agentic-gov-inline-thinking",
       "proj-agentic-gov-deep-loss-mask"
     ]
+  },
+  {
+    "id": "proj-agentic-gov-recap-master-blueprint",
+    "question": "请用一分半钟，把这个项目从设计任务到最后下结论的整条链路画出来。",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "导航蓝图",
+      "全链路",
+      "agentic-gov"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "第一段是任务和沙箱：每道题写成一份标准任务说明；工厂自动生成符合国标的身份证、标准操作步骤、故意违规的题，以及几乎一样只差一个边界的成对题。沙箱是纯内存的模拟政务系统，真正执行查余额、提交申请这些工具。",
+        "第二段是造监督微调数据：两个老师模型分别扮演坐席和群众，多轮对完话；编排器当场修格式、拦住不合规动作，再一层层过滤，最后拆成两份——一份训办事模型，一份训扮演群众的模型。",
+        "第三段是两次监督微调：办事模型用 80 亿参数的 Qwen3 加低秩适配器来训；扮演群众的模型用另一个 40 亿参数模型来训，达标后参数冻结，不再跟着办事模型一起变。这里还没有换成 40 亿办事模型。",
+        "第四段是发版门禁：进强化学习前先锁死“有没有说到该说的话”这套打分器——配置的哈希对不上就视为不是同一套；13 个告知和安全项，判对的里面真对的比例、以及该判对的有没有漏掉，都要至少 90%；同一条样本重放结果必须完全可重复。",
+        "第五段是强化学习：只拿“有时对有时错”的题，同一道题采 8 条对话，用第三版打分（数据库终态对、收尾动作也对才算办成），丢掉 8 条全对或全错的组，再用开源框架 ART 做组内比较（同一题多条对话比好坏，不另训一个打分网络）。后来办事模型改用 40 亿参数当强化学习底，是吞吐选型，不是监督微调中途换基座。",
+        "最后下结论：预先登记的验收阶段记成“未证明”。80 条训练题都有效；成对复测齐的 74 条（每条 8 次），第 0 步到第 15 步从 53.9% 到 61.7%（p=0.023）。这说明先前以为“强化学习没学动”，其实是测评题本身有问题。"
+      ],
+      "elaboration": "白板只画数据和箭头：标准任务 → 合成和过滤 → 两个监督微调 → 冻结群众模型和打分器 → 强化学习更新 → 已证明/未证明。80/80 说的是训练课表都有效；53.9%→61.7% 的分母是成对复测齐的 74 条。所有事项是否都变好，留到最后一张卡说。",
+      "code": [
+        {
+          "label": "整条链路（白板缩略）",
+          "language": "text",
+          "code": "1 标准任务 + 任务工厂 + 内存沙箱\n2 两个老师对戏 → 修格式/拦违规 → 分层抽样\n   过滤六层：格式→沙箱终态→告知→改写实体→隐私→像不像人\n   （行为打标另走，不丢样本）\n   办事模型数据 | 群众模型数据\n3 办事模型监督微调（80亿）| 群众模型监督微调后冻结（40亿）\n4 发版门禁：打分配置一致 / 13项告知判定≥90% / 重放可重复\n5 可学的题 → 同一题采8条 → 第三版打分 → 丢掉全对全错组\n   → ART做组内比较；办事模型改用40亿当强化学习底\n6 结论：80条课表都有效；74条成对复测 53.9%→61.7%；预先登记的验收 = 未证明",
+          "note": "一分半钟只画框和箭头；具体数字在后面的口述卡里展开。"
+        }
+      ],
+      "pitfalls": [
+        "不要把监督微调阶段“按预录用户剧本重放”的 62.2%，和后来 40 亿参数模型在保留测试集上的 80.1%，画成同一个数。",
+        "80 亿是监督微调的办事模型；40 亿办事模型是后来给强化学习用的底，不要画成微调中途换基座。",
+        "“未证明”是预先登记的门槛没过，不是“这种强化学习算法被证伪了”。"
+      ]
+    },
+    "hint": "从左画到右画六个阶段，终点是“证明了什么、没证明什么”，不要停在训练损失。",
+    "follow_ups": [
+      "六个阶段里，你觉得最该画大的是哪一段？",
+      "监督微调和强化学习用的是同一批任务吗？"
+    ],
+    "related_ids": [
+      "proj-agentic-gov-recap-oral-route",
+      "proj-agentic-gov-recap-decision-spine",
+      "proj-agentic-gov-recap-b01-positioning",
+      "proj-agentic-gov-recap-b13-verdict",
+      "proj-agentic-gov-overview",
+      "proj-agentic-gov-architecture"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-recap-oral-route",
+    "question": "如果给你 20 到 30 分钟介绍这个项目，你按什么顺序讲、每段花多少时间？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "导航蓝图",
+      "自述路线",
+      "agentic-gov"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "开头约 2 分钟（定位那一张）：公积金要边聊边办、规则很严；四个事项、三种收尾（办结、转人工、明确拒绝）。一句话说清——监督微调把格式和安全底线立住，强化学习再把“办还是拒、转不转人工”练稳。",
+        "数据和沙箱 6 到 8 分钟（任务、沙箱、造对话、过滤四张）：任务怎么生成、沙箱怎么拦违规；两个老师怎么对戏、格式坏了怎么当场修；一层层过滤，以及为什么要按“每一句助手的话”判断有没有告知。",
+        "从模仿到强化学习 3 到 4 分钟（微调、为何转向两张）：训练和推理用的对话模板曾经对不齐；贷款一次成功率低但没有回炉——同一题采 8 次，大约四分之三的组里能同时看到做对和做错。",
+        "群众模型和发版门禁 2 到 3 分钟（两张）：扮演群众的模型单独训、五项门槛过了才冻结参数；打分器三道检查过了，才允许强化学习。",
+        "强化学习 6 到 8 分钟（可学的题、采样打分、训练框架三张）：哪些题真正学得动、采样曾把已经会做的题堆在最前面、打分为什么改过一版、框架里实际在优化什么。损失地板、推理变慢留给追问，不要在这三张里展开成小讲座。",
+        "收尾约 2 分钟（结论一张）：哪些题根本解不开、干净题上证明了什么、预先登记的验收为什么记成未证明。13 张连讲大约 20 到 28 分钟。"
+      ],
+      "elaboration": "时间块按 13 张主干卡来，不按旧提纲的 10 到 12 分钟强化学习。连讲大约 20 到 28 分钟；面试官打断时用全链路那张卡跳段，不要从第一页重新念。",
+      "pitfalls": [
+        "不要按旧提纲把强化学习说成 10 到 12 分钟——主干只有三张卡，超时就把细数字推给追问。",
+        "扮演群众的模型在流水线里是第四阶段，口述时放在“把环境冻住”里讲，不要塞回造数据那一段。"
+      ]
+    },
+    "hint": "先报时间块，再点每块对应后面哪几张主干卡。",
+    "follow_ups": [
+      "时间不够 20 分钟，你砍哪一段？",
+      "如果面试官一上来就问强化学习结果，你怎么改顺序？"
+    ],
+    "related_ids": [
+      "proj-agentic-gov-recap-master-blueprint",
+      "proj-agentic-gov-recap-decision-spine",
+      "proj-agentic-gov-recap-b01-positioning",
+      "proj-agentic-gov-recap-b07-sft-to-rl",
+      "proj-agentic-gov-recap-b12-art-grpo",
+      "proj-agentic-gov-recap-b13-verdict"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-recap-decision-spine",
+    "question": "沿着这条链路，哪些决定真正改变了方向？你怎么串起来讲？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "导航蓝图",
+      "关键决策",
+      "agentic-gov"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "打分器：把整段对话送进自然语言推理模型时，一次大约只能读 512 个字词单位，结尾的告知会被切掉，于是改成对助手的每一句话分别打分、取最高分。发版第二道检查查出误报后，按条修判定规则，拒绝把 90% 门槛降到 85%。",
+        "训练和推理：训练用的对话模板和推理用的模板不是同一套，抽查 8 条全部对不齐。关掉“思考模式”反而插入空的思考标签，硬违规从 0 升到 68.75%。手写一份和训练等价的模板后，8 条全部对齐。",
+        "从模仿到强化学习：贷款按预录剧本重放，一次成功率只有 16.1%，但没有回炉重造数据。同一题采 8 次，大约 75% 的组里能看到对和错。格式失败只有 2.08%，所以格式一错就整条零分，不丢掉重采。",
+        "打分公式：不改数据库的题上，错误地正常办结和正确地拒绝、转人工，第二版打分都给满分。第三版改成“数据库对、且收尾动作也对”才给完成分。第 0 步到第 15 步，转人工成功率提高 20.6 个百分点。",
+        "采样和推理服务：把已经会做的“贷款转人工”堆到队列最前面，前 36 步有 94.1% 的组因 8 条分数完全一样被丢掉。改成按“有时对有时错”加权重后，丢掉比例降到大约 13% 到 43%。低秩适配器加载后推理慢了约 6 倍，后来改成合并回底模再加载；异步训练和这种加载方式冲突，所以仍用先采完再更新的串行方式。",
+        "最后：评测面板上 373 次全零，不是算法废了，是 38 道题根本解不开，再加上第二版打分让对错同分。任务自洽检查写了，但生成入口没接上。预先登记的验收记成未证明；在干净题上，这种组内相对更新是有正信号的。"
+      ],
+      "elaboration": "不必按编号把十二条决定逐条背完。口述时按这条线串：告知怎么判、模板怎么对齐、为什么不把贷款刷满再强化、格式错了为什么直接零分、打分为何改版、采样和推理服务怎么修、最后假停滞的根因。细数字在对应主干卡里展开。",
+      "pitfalls": [
+        "38 道无效题、24 道搭桥题、困难训练集 300 条里的 72 条、后来退役的 247 条，分属不同题库、有重叠，不能加总。",
+        "转人工提高 20.6 个百分点，是第 0 步到第 15 步这一面，不是“所有事项、没参与训练的测试集都涨了这么多”。"
+      ]
+    },
+    "hint": "按“改了方向的决定”讲，不要按日历流水账。",
+    "follow_ups": [
+      "这些决定里，哪一条当时如果选错，后面会整条作废？",
+      "有哪条决定你现在会改？"
+    ],
+    "related_ids": [
+      "proj-agentic-gov-recap-master-blueprint",
+      "proj-agentic-gov-recap-oral-route",
+      "proj-agentic-gov-recap-b07-sft-to-rl",
+      "proj-agentic-gov-recap-b11-rollout-reward",
+      "proj-agentic-gov-recap-b13-verdict",
+      "proj-agentic-gov-key-pivot",
+      "proj-agentic-gov-biggest-mistake"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-recap-b01-positioning",
+    "question": "这个项目到底在研究什么？用一两分钟说清楚。",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "口述主干",
+      "项目定位",
+      "agentic-gov"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "这是一个公积金办事助手的算法研究：用户边聊天边把事办完，规则严、多轮、状态要可核对。它不是开放闲聊，也不是把现成的规则流程外面再包一层大模型。",
+        "整条链路是：用任务工厂和沙箱造题 → 合成并过滤监督微调数据 → 训办事模型并对齐训练和推理 → 单独训一个扮演群众的模型并冻结 → 发版门禁锁打分器 → 用开源框架 ART 做组内相对的强化学习（同一道题采多条对话，用组里相对好坏来更新）。",
+        "硬规则（必须先核身、限额）交给沙箱拦下来，不让模型去“学规则”。模型学的是何时追问、调用哪个工具、办结还是拒绝或转人工、该说的话有没有说完。",
+        "四个事项：查余额、租房提取、购房提取、贷款还款。模型能做五件事：追问用户、调工具、正常办结、转人工、明确拒绝。后三种才是合法收尾。",
+        "这是单领域方法验证，不是已经上线的万能政务产品。通用大模型会猜参数、漏告知、该拒不拒，这是我们针对的目标失败模式，不是做过完备对比实验。接下来先讲任务怎么写成程序能执行的说明。"
+      ],
+      "pitfalls": [
+        "不要把“边聊边办”说成已经上线的政务产品。",
+        "早期文档写过四种动作；现在是五种，其中三种是合法收尾。"
+      ]
+    },
+    "hint": "先说场景和不是什么，再说模型到底学哪一部分，最后落到任务为什么必须写成程序能执行的说明。",
+    "follow_ups": [
+      "为什么不是规则引擎再加一点提示词？",
+      "四个事项里哪个最能说明你的方法？"
+    ],
+    "related_ids": [
+      "proj-agentic-gov-recap-master-blueprint",
+      "proj-agentic-gov-recap-oral-route",
+      "proj-agentic-gov-recap-b02-task-design",
+      "proj-agentic-gov-overview",
+      "proj-agentic-gov-scenario",
+      "proj-agentic-gov-why-rl"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-recap-b02-task-design",
+    "question": "任务是怎么设计的？标准操作步骤、故意违规的题和成对题各解决什么？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "口述主干",
+      "任务设计",
+      "agentic-gov"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "每道题是一份改不了的标准任务说明：用户真实资料、这次要办的事、说话习惯、哪些字段被问到才能说、办完必须告知什么、绝对不能做的事。后面造数据、过滤、强化学习都吃同一份事实。",
+        "标准操作步骤会预先写出理想调用顺序，在轻量沙箱里重放，得到数据库应该变成什么样。查询、拒绝、转人工这类不改库的题，结束时库必须和开始时一模一样。可恢复故障写成：第一次接口临时不可用，第二次放行并写库。",
+        "身份证按国标 GB 11643-1999 算第 18 位校验码，出生日期和画像年龄段一致。假号码会在核身工具上直接失败；固定几个假号又会被模型背下来。",
+        "故意违规四类：替别人办、要求跳过核身、逼模型口头保证一定能批、套取非本人信息，期望收尾是明确拒绝。成对题只改一个临界量，例如租房提取 3000 对 3100，或者纯公积金贷款对组合贷款。",
+        "后来出现解不开的死题，是因为任务自洽检查写了，生成入口却没真正跑完整套。接下来靠沙箱把这些说明真正执行出来。"
+      ],
+      "code": [
+        {
+          "label": "身份证第 18 位校验",
+          "language": "python",
+          "code": "_W = (7, 9, 10, 5, 8, 4, 2, 1, 6, 3, 7, 9, 10, 5, 8, 4, 2)\n_C = \"10X98765432\"\n\ndef _compute_check_char(digits_17: str) -> str:\n    # 必须过真实核身工具的校验，假号会在第一步就失败\n    s = sum(int(d) * w for d, w in zip(digits_17, _W, strict=True))\n    return _C[s % 11]",
+          "note": "前 6 位用真实行政区划；第 7 到 14 位是和年龄段相符的合法出生日期。"
+        }
+      ],
+      "pitfalls": [
+        "成对题除了那一个临界量，背景必须完全一样，否则模型学的是“换了一个人”，不是学会边界。",
+        "身份冒充必须写进开场白和结构化声明；只在备注里打一个“对抗”标记，对话里看不出代办，模型不可能拒绝。"
+      ]
+    },
+    "hint": "标准说明、标准答案、边界样本各一句，最后点到自洽检查写了但没接上。",
+    "follow_ups": [
+      "标准操作步骤和模型实际调用顺序必须完全一致吗？",
+      "成对题进训练集和测试集时怎么防止泄题？"
+    ],
+    "related_ids": [
+      "proj-agentic-gov-recap-b01-positioning",
+      "proj-agentic-gov-recap-b03-sandbox",
+      "proj-agentic-gov-golden-state",
+      "proj-agentic-gov-deep-contrast-pair-construction",
+      "proj-agentic-gov-deep-task-validity-contract"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-recap-b03-sandbox",
+    "question": "沙箱怎么保证规则被执行，又不把模型的探索路径锁死？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "口述主干",
+      "沙箱",
+      "agentic-gov"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "沙箱引擎不写死公积金业务：它只认工具说明书、真正办事的处理函数、以及这道题允许调用哪些工具。公积金规则以插件注册，换事项不用改引擎。",
+        "每次调工具固定走八步：工具是否存在、是否在允许名单、必填参数齐不齐、格式对不对、前置条件满不满足（比如是否已核身）、要不要注入一次故障、再交给处理函数、成功后记下“已经核过身”。记下的“已核身”绑在这张身份证上，不是全局开关，核了张三不能给李四办。",
+        "注入故障按“这个工具被合法调用了几次”计数，而且前置检查排在注入前面。没核身就去写库，返回“前置条件不满足”，计数不加。所以预设“第一次写库失败”，不会被前面多查两次余额打乱。",
+        "内存库读出来都是深拷贝，申请单号由任务编号当种子、可重复生成。过滤和打分只比对最终数据库和收尾动作对不对，不要求调用顺序复述标准步骤。",
+        "有了可重置、可注入故障、结束能导出终态的环境，两个老师模型才能在里面合成多轮对话。"
+      ],
+      "code": [
+        {
+          "label": "一次工具调用的八步",
+          "language": "text",
+          "code": "1 工具有没有注册\n2 这道题允不允许用\n3 必填参数在不在\n4 类型和格式（如身份证正则）\n5 前置条件（未过则“第几次”不加一）\n6 按该工具的合法次数注入故障\n7 处理函数改内存库或查询\n8 成功后记下后置状态（如已核身）",
+          "note": "评测看最终数据库，不看是否复述标准步骤的顺序。"
+        }
+      ],
+      "pitfalls": [
+        "未注册的工具名是代码错误，不是业务错误码。",
+        "“冻结却要求转人工”的死题必须举贷款查询：贷款工具读不到账户冻结；余额查询里冻结反而是能查到的。"
+      ]
+    },
+    "hint": "先说引擎里不含公积金知识，再讲八步里“第几次调用”什么时候才加一。",
+    "follow_ups": [
+      "模型多查两次余额，你预设的“第一次提交失败”还会准时触发吗？",
+      "沙箱为什么不用容器，也不接真实政务接口？"
+    ],
+    "related_ids": [
+      "proj-agentic-gov-recap-b02-task-design",
+      "proj-agentic-gov-recap-b04-sft-synthesis",
+      "proj-agentic-gov-architecture",
+      "proj-agentic-gov-safety-enforcement"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-recap-b04-sft-synthesis",
+    "question": "监督微调用的对话是怎么造出来的？两个老师、固定输出格式、当场修这一轮，各防什么？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "口述主干",
+      "SFT 合成",
+      "agentic-gov"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "两个老师模型分开演：一个演坐席，一个演群众。提示词版本写进样本记录。一个模型既当官又当民，容易偷看沙箱内部状态，或者没核身就办结。",
+        "谁看见什么是硬边界。坐席看得到政策、工具和自己的思考、工具返回；群众只看得到对白、自己的真实资料，以及“被问到才能说身份证”这类释放规则，看不见思考和工具结果。",
+        "坐席每一轮必须先写思考、再写动作，动作只能是追问、调工具、办结、转人工、明确拒绝五种。解析失败一律判不合格：缺块、重复块、标签外多余文字、把工具参数写在标签属性上，都不放行。",
+        "当前这一轮最多当场修两次，避免长对话因为漏了一个结束标签被整条扔掉。复盘里写单轮修回来大约 92% 以上，我手里没有这条比例的分母。只补思考、不改动作；已经提交成功后又回头要身份证，会被当场拦住。",
+        "这一轮修不回来，整道题最多重来三次，并重建沙箱，避免脏数据留下。造出来的对话还不能直接进训练集，下一阶段要过离线过滤。"
+      ],
+      "code": [
+        {
+          "label": "合法的调工具输出",
+          "language": "text",
+          "code": "<analysis>已拿到身份证，下一步核身。</analysis>\n<action type=\"Call_API\" tool=\"verify_identity\">\n<args>{\"id_number\": \"440304196107019301\"}</args>\n<message>正在为您核验身份，请稍候。</message>\n</action>",
+          "note": "禁止把参数写在标签属性上，这是当时最常见的解析失败。"
+        }
+      ],
+      "pitfalls": [
+        "追问用户时，内容必须是给群众看的中文，不能夹工具参数块。",
+        "演群众的老师如果看见工具返回，会提前报出身份证，造出来的数据直接作废。"
+      ]
+    },
+    "hint": "先讲谁看得见什么，再讲格式坏了为什么不把整段对话扔掉。",
+    "follow_ups": [
+      "为什么格式坏了不直接丢这条样本？",
+      "当场拦住不合规动作，和事后一层层过滤，有什么分工？"
+    ],
+    "related_ids": [
+      "proj-agentic-gov-recap-b03-sandbox",
+      "proj-agentic-gov-recap-b05-sft-filtering",
+      "proj-agentic-gov-data-pipeline",
+      "proj-agentic-gov-deep-envelope-template"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-recap-b05-sft-filtering",
+    "question": "造出来的对话怎么过滤？一层层检查、行为打标、按配额抽样，各自做什么？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "口述主干",
+      "SFT 过滤",
+      "agentic-gov"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "离线过滤按成本从低到高，一层不过就丢掉：输出格式、沙箱重放终态、按每句助手的话做告知判断、改写后关键数字有没有被改、群众有没有提前泄隐私、最后用大模型看对话像不像人。方案里说的“五级”是五种能力，工程上是六层。",
+        "另外有一个行为打标器，名字也带 L3，但不是过滤那一层。它给每条对话打六个标签：轮数、信息怎么吐、有没有跑题、有没有纠错、情绪、句子长短。用来按配额抽样、抽稀有样本人工看、以及后面强化学习由易到难，打标失败不会丢掉样本。",
+        "告知判断曾把整段对话一次送进自然语言推理模型。真实对话中位 415 到 491 字、最长 2931 字，模型一次大约只能读 512 个字词单位，结尾的告知被切掉。同一条“必须说办理时效”的样本，整段得分 0.0032，改成对助手每一句分别打分、取最高分后是 0.9971。强化学习里“话说到位没有”沿用同一套办法。",
+        "按配额抽样：成对边界题 264 条、故意违规题 150 条，其余补齐主流程，计划总共 4800 条，并按 1.2 倍多造候选；老年和低数字素养画像不少于 25%。分配时先按比例取整，余数大的桶优先补 1 条，避免某一类被四舍五入挤没。",
+        "产物有四份：办事模型训练、群众模型训练、告知判定校准、隐私释放压测。接下来用办事模型那一份做监督微调。"
+      ],
+      "pitfalls": [
+        "总览图若把过滤第三层写成打标器，那是简化。答题要说：实体一致性检查会丢样本，行为打标不会。",
+        "4800 是抽样计划，不要说成最终拿去训练的条数。"
+      ]
+    },
+    "hint": "先把“会丢掉样本的实体检查”和“只打标签、不丢样本的行为打标”分开，再报 0.0032 和 0.9971 那组数。",
+    "follow_ups": [
+      "为什么不把整段对话一次性拿去判断有没有告知？",
+      "最后一层大模型打分不及格的样本，会拿回去重写吗？"
+    ],
+    "related_ids": [
+      "proj-agentic-gov-recap-b04-sft-synthesis",
+      "proj-agentic-gov-recap-b06-sft-training",
+      "proj-agentic-gov-data-pipeline",
+      "proj-agentic-gov-deep-hybrid-nli-judge"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-recap-b06-sft-training",
+    "question": "办事模型的监督微调怎么做？训练和推理模板对不齐，你们怎么发现、怎么修？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "口述主干",
+      "SFT 训练",
+      "agentic-gov"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "训练框架 LLaMA-Factory 只负责算梯度。底模是 80 亿参数的 Qwen3，用低秩适配器，秩 128。数据混四类：主流程、成对边界、口语改写、故意违规。",
+        "按任务家族切分。切分代码默认大约 90% 训练、5% 验证、5% 留作评测；有的笔记写成 92% / 5% / 3%，被追问时以切分函数的默认为准。同一身份证、同一成对题、同一人跨事项办事，必须进同一个切分，否则模型会背证件号，或靠“见过这个人”蒙对边界。",
+        "办事模型吃整段多轮对话，对所有助手轮次算损失。当时过门禁：格式 99.4%；下一步动作 94.2%、工具参数完全匹配 91.5%；按预录用户剧本重放，最严口径成功率 62.2%，硬违规 4.5%——硬违规指格式崩了或改了不该改的库，整条直接零分。",
+        "训练用的对话模板会自动加一句默认人设，且没有思考标签；推理用底模自带模板，缺这句人设，还在最后一轮插入空的思考标签。抽查 8 条，从系统提示后面立刻全部分叉。",
+        "在推理端关掉思考模式，这份模板反而插入空思考标签。硬违规从 0 升到 68.75%，最严成功率从大约 47% 掉到 22%。这是推理端关掉思考模式的直推对照，不是上面那次 62.2% 的剧本重放——不是模型把业务学坏了，是开头几个控制标记训练时没见过。手写一份和训练等价的模板后，8 条全部对齐。接下来看分事项：贷款为什么不继续堆监督微调。"
+      ],
+      "pitfalls": [
+        "62.2% 是按预录剧本重放的出门禁口径；47%→22% 是关掉思考模式那次直推对照。不要把两场评测听成一次崩盘。",
+        "办事模型对整段对话的每一句助手话都算损失；扮演群众的模型不是这样，下一张再讲。"
+      ]
+    },
+    "hint": "先报当时过门禁的三个数，再讲模板对不齐的两处差别，以及关掉思考模式反而更糟。",
+    "follow_ups": [
+      "为什么不直接在推理端关掉思考模式？",
+      "按任务家族切分，和把每一行随机丢进训练或测试，差在哪？"
+    ],
+    "related_ids": [
+      "proj-agentic-gov-recap-b05-sft-filtering",
+      "proj-agentic-gov-recap-b07-sft-to-rl",
+      "proj-agentic-gov-sft-baseline",
+      "proj-agentic-gov-data-overlap"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-recap-b07-sft-to-rl",
+    "question": "监督微调时贷款那么差，为什么不回炉重造数据，反而去做强化学习？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "口述主干",
+      "pass@k",
+      "GRPO",
+      "agentic-gov"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "80 亿参数检查点按预录剧本重放：查询 87.1%、租房 85.0%、购房 41.2%，贷款最严成功率只有 16.1%，硬违规 22.6%。主训练集里贷款已有 946 条（586 条办结、360 条转人工），不是样本太少。",
+        "难在还款金额这类条件：要不要追问违约金、直接办还是转人工，用交叉熵去模仿，学不稳这种非此即彼的分叉。决定不退回重造数据，把这条边界留给强化学习。",
+        "我们用的组内相对更新没有单独的价值网络：同一道题采 8 条对话，用这 8 条得分的均值和标准差，看谁比组内平均更好。8 条全对或全错时，每条都等于平均，没有更新信号。一次成功率 0.16、采 8 次，至少成功一次的概率大约 75%。",
+        "“一次不太稳、多采几次能采出对的”正适合这种更新。如果先把一次成功率刷到 95%，8 条更容易全对，反而没有对比。真正学不动的情况只有两种：多采几次也几乎从未成功，或者硬违规把整条对话打成同一个零分。",
+        "能不能进强化学习，看多采几次能否出对比、硬违规够不够低，不看一次成功率高不高。接下来先把扮演群众的环境冻住，再谈怎么抽样。"
+      ],
+      "code": [
+        {
+          "label": "同一题采 8 次，组里出现对比的概率",
+          "language": "python",
+          "code": "p = 0.16  # 贷款按预录剧本，一次成功率\nK = 8     # 同一题采 8 条对话\n# 至少 1 条成功，组里通常才有对和错的对比\np_has_contrast = 1 - (1 - p) ** K  # 约 0.752",
+          "note": "预录剧本会把合理但不在剧本里的追问判成跑偏（约 21%），16.1% 还低估了真实可学程度。"
+        }
+      ],
+      "pitfalls": [
+        "不要说“成功率低所以不能做强化学习”——这正是当时被否定的直觉。",
+        "这里的 16.1% 不是后来 40 亿参数模型分事项里贷款约 61% 的那个口径。"
+      ]
+    },
+    "hint": "先排除“数据太少”，再解释同一题采 8 条时，组里怎样才有可学的对比。",
+    "follow_ups": [
+      "如果采 8 次也几乎从未成功，你还进强化学习吗？",
+      "为什么不先筛成功样本再做一次监督微调，把贷款刷高？"
+    ],
+    "related_ids": [
+      "proj-agentic-gov-recap-b06-sft-training",
+      "proj-agentic-gov-recap-b08-simulator",
+      "proj-agentic-gov-why-rl",
+      "proj-agentic-gov-deep-passk",
+      "proj-agentic-gov-why-grpo"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-recap-b08-simulator",
+    "question": "扮演群众的模型为什么要单独训练、达标后还要冻结？验收过了哪些门槛？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "口述主干",
+      "Simulator",
+      "agentic-gov"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "扮演群众的模型是环境，不是被训练的办事策略。如果群众怎么说话也跟着办事模型一起更新，打分会被环境一起带偏。所以单独训、五项门槛过了才冻结参数，再接入自由多轮对话。",
+        "训练时把群众要说的下一句当作学习目标。真实群众看不见工具调用，去掉工具轮次后，坐席会连续说两句，破坏了训练格式“一问一答必须交替”的要求。框架静默丢掉 4028 条，有效样本从 11030 降到 7200，少了 35%。",
+        "把连续的坐席话合并成一句，有效样本回到 11030。群众数据按“每一句用户要说的话”切成多条，必须只对最后一句算损失，否则开场白会被学很多遍。办事模型吃的是整段对话，所以对每一句助手话都算损失。",
+        "40 亿参数模型加低秩适配器（秩 64），检查点 2070，在 580 道隐私压测题上：按设定说话 98.9%，不该说的隐私没提前说 98.1%，人设一致 91.0%（刚好过线），抢着结束 0，跑题 0。过门后冻结。",
+        "强化学习阶段另有只读检查：对话中途群众提前说了不该说的，只记监控、不改办事模型的分、不丢这条对话；只有开场白就泄密，才立即停训。接下来锁打分器，再开始强化学习。"
+      ],
+      "pitfalls": [
+        "大约 1.9% 残余泄漏集中在“被问了但应再拖一轮”的场景，持续看着，不要说已经隔得干干净净。",
+        "不要把“只对最后一句算损失”套到办事模型的监督微调上。"
+      ]
+    },
+    "hint": "先讲“环境不能跟着被训的模型一起变”，再报数据被丢掉的事故和五项数字。",
+    "follow_ups": [
+      "群众提前说了身份证，为什么不能扣办事模型的分？",
+      "人设 91.0% 刚好过线，你为什么还冻结？"
+    ],
+    "related_ids": [
+      "proj-agentic-gov-recap-b07-sft-to-rl",
+      "proj-agentic-gov-recap-b09-release-gate",
+      "proj-agentic-gov-user-simulator",
+      "proj-agentic-gov-deep-simulator-info-boundary",
+      "proj-agentic-gov-deep-simulator-leak-governance"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-recap-b09-release-gate",
+    "question": "进强化学习之前的发版门禁查什么？第二道检查没过，为什么不把门槛降低？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "口述主干",
+      "Release Gate",
+      "agentic-gov"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "强化学习里，打分就是模型要去够的目标。第一道检查用配置的哈希锁死告知判定的阈值和大模型裁判的提示词——哈希对不上就视为不是同一套打分器，保证后面算分和造数据时过滤用的是同一套。",
+        "第二道检查：校准集上 13 个告知和安全项，每一项的查准（判对的里面有多少真对）和查全（该判对的有没有漏）都要至少 90%。第三道：沙箱重放必须完全可重复，大模型裁判走本地缓存，验收时不再现场调用接口。",
+        "第一次跑，第一道和第三道过了，第二道卡在三项查准。见词就打高分的那项（贷款有没有说时效）从 0.794 修到 1.000，办法是强制交大模型复核；把报了余额当成“说了数据新不新”的从 0.887 到 0.980，办法是收紧说明、删掉过宽的正则；校准集里五句近义标反了的从 0.821 到 0.978，按多数派改标。",
+        "有人提议把 90% 降到 85%，被否决——门禁放过的误报，强化学习会拿来钻。判定变严是在纠正误报，决定不回头重滤过的监督数据、也不重训。最终 13 项查准查全都在 97% 以上。",
+        "打分器锁死之后，才能讨论哪些题值得拿去做组内相对更新，哪些已经会做、哪些根本采不出对的。"
+      ],
+      "pitfalls": [
+        "有一项是标注自相矛盾，不是模型不会说话。改标准答案要留下版本记录，不能口头改。",
+        "第二道检查修的是打分器误报，不要说成“模型告知能力从 82% 涨到 97%”。"
+      ]
+    },
+    "hint": "先说打分配置必须和造数据时同一套，再讲三条误报各自怎么修，最后强调没有降门槛。",
+    "follow_ups": [
+      "为什么误报比漏报更不能放进强化学习？",
+      "判定变严之后，旧的监督微调数据是不是全脏了？"
+    ],
+    "related_ids": [
+      "proj-agentic-gov-recap-b08-simulator",
+      "proj-agentic-gov-recap-b10-rl-data",
+      "proj-agentic-gov-reward-hacking",
+      "proj-agentic-gov-deep-hybrid-nli-judge"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-recap-b10-rl-data",
+    "question": "哪些任务该拿去做强化学习？采样曾经把简单题堆在最前面，后来怎么改？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "口述主干",
+      "可学性池",
+      "课程学习",
+      "agentic-gov"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "组内比较没有单独的价值网络，同一题 8 条得分必须有高有低才学得动。按冻结后的 8 次探测：8 次里对 2 到 6 次的题约占训练预算 80%，拿去更新参数。",
+        "另外两档不要混：几乎全对（7 到 8 次）约占 10%，只监控有没有忘掉简单题，零梯度；几乎全错（0 到 1 次）放进诊断队列，先不拿去更新。",
+        "池子里几乎全错的题先放诊断队列，不更新。后来另写过一档看得见线索的阶梯题（先报错，再追问一次，最后才口语含糊），计划占训练组大约一成、只在第 0、15、30、50 步换包——那是后面更长的课表，这 15 步没按这张表换包。不要用同一个“10% 不更新”概括监控题和课程题。",
+        "成对边界题按同一对编号整进整出。曾经为了保证“贷款转人工”出现得够多，把已经会做的题堆到队列最前面，再按步数顺序往下取。前 36 步提交的 1681 组里只有 24 组分数有差别，94.1% 被丢掉，训练几乎停住。",
+        "后来改成按“有时对有时错”加权重：贷款办结大约 0.74，购房办结大约 0.26，丢掉比例降到大约 13% 到 43%。新造难题一度全零，当时更像题有病而不是模型学不会拒绝，拆开结论放最后。接下来讲一次采样怎么跑、分怎么打。"
+      ],
+      "pitfalls": [
+        "监控用的 10%（几乎全对）零梯度；全败诊断队列先留在梯度外。L1 到 L3 阶梯和 0/15/30/50 换包是后来长程课表的设计，不要说成这 15 步 Range-80 已经按它换过包。",
+        "不要在这里展开“贷款冻结看不见、冒充开场白没注入”——那是结论卡的故事。"
+      ]
+    },
+    "hint": "先分清“更新 / 只监控 / 诊断队列”，再讲 94.1%。阶梯课表点明是后来的设计，不是这 15 步换过包。",
+    "follow_ups": [
+      "课程题和诊断队列有什么差别？",
+      "为什么成对题不能拆开抽？"
+    ],
+    "related_ids": [
+      "proj-agentic-gov-recap-b09-release-gate",
+      "proj-agentic-gov-recap-b11-rollout-reward",
+      "proj-agentic-gov-recap-b13-verdict",
+      "proj-agentic-gov-deep-zero-variance-sampling",
+      "proj-agentic-gov-deep-curriculum-ladder"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-recap-b11-rollout-reward",
+    "question": "强化学习里一次采样怎么跑？打分为什么改过一版？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "口述主干",
+      "Reward",
+      "rollout",
+      "agentic-gov"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "两张 GPU：一张上训练进程和群众模型推理服务共用——群众服务把显存占用上限设成 0.25，和训练错开高峰，才能挤在同一张卡上；另一张跑办事模型推理。每一步 8 道题、每题 8 条对话，共 64 条。同时进行的请求从 4 提到 64 后，一步从大约 20 分钟降到 2 到 3 分钟；再往上快不了，是因为多轮必须你一句我一句等对方。",
+        "在完全放开的 624 条多轮对话里，输出格式失败只有 2.08%，最复杂的贷款也只有 4.84%，都低于 5%。所以格式一错就整条零分并结束，不丢掉重采。按 2% 估算，8 条全格式失败几乎不可能发生。",
+        "第二版打分修了“满分到不了 1 分”的问题，但留下终局平局：查询、拒绝、转人工都不改数据库，模型错误地正常办结，库也对，完成分仍是满分。第三版改成完成分等于“库对不对”乘“收尾动作对不对”；三种收尾用同一条公式；硬违规直接零分；转人工是否正确只记录、不再加进训练总分。",
+        "换上第三版后，第 0 步到第 15 步：转人工从 59.8% 到 80.4%（多 20.6 个百分点），明确拒绝从 47.1% 到 59.6%（多 12.5 个百分点）。这说明终局动作终于有了对比信号。总体涨了多少、统计检验放结论那张说。",
+        "群众是否提前泄密，是在分数已经写入之后才做的只读检查：中途泄漏只记监控、不改分、不丢对话。接下来把有对比的组送进训练框架，看损失怎么算。"
+      ],
+      "code": [
+        {
+          "label": "第三版打分",
+          "language": "python",
+          "code": "# 硬违规（格式崩、改了不该改的库等）→ 整条 0 分\n# 完成分 = 数据库对不对 × 收尾动作对不对\n# 库对但该转人工却正常办结 → 完成分 0\nR_complete = R_state * R_terminal\nR_total = (\n    0.65 * R_complete\n    + 0.35 * R_disclosure  # 该说的话说到没有\n    - 0.10 * P_turns       # 轮数过多\n    - 0.10 * P_failed_calls\n)",
+          "note": "第一版曾把轮数惩罚算进权重预算，满分被卡在 0.75 或 0.80；第三版两个正向项 0.65 加 0.35 等于 1。"
+        }
+      ],
+      "pitfalls": [
+        "这张只报转人工和明确拒绝两条，证明第三版打分动了终局；总体 +7.8 个百分点和 p=0.023 不要提前说。",
+        "模型发明“等待用户”这种不存在的动作，走整条零分，不是丢掉重采。"
+      ]
+    },
+    "hint": "先讲两张卡怎么分工、格式错了为什么整条零分，再讲“不改数据库的题上，错的办结和正确的拒绝曾经同分”。",
+    "follow_ups": [
+      "为什么不把格式失败的对话丢掉再采一条？",
+      "转人工是否正确，为什么不再加进训练总分？"
+    ],
+    "related_ids": [
+      "proj-agentic-gov-recap-b10-rl-data",
+      "proj-agentic-gov-recap-b12-art-grpo",
+      "proj-agentic-gov-reward-design",
+      "proj-agentic-gov-deep-terminal-gating",
+      "proj-agentic-gov-deep-format-collapse-reject"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-recap-b12-art-grpo",
+    "question": "你用的训练框架里，实际在优化什么？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "口述主干",
+      "ART",
+      "CISPO",
+      "agentic-gov"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "每一步很短：抽“有时对有时错”的题，同一题采 8 条对话，打第三版分，丢掉 8 条分数完全一样的组，再更新低秩适配器、把新权重推给推理。办事模型改用 40 亿参数检查点 720 当强化学习底：保留测试集最严成功率 80.1%，对照早先那次 80 亿监督微调的 77.6%，两边硬违规都是 0。这是强化学习选型，不是监督微调中途换基座。",
+        "实际在优化的是同一题 8 条的相对好坏。开源框架 ART 把新旧策略的概率比裁到 0 到 5 之后只当权重、不从这条比往回传，真正更新的是“提高或压低模型吐出的这一个字或词的概率”。先采完再更新时这个裁剪几乎不触发。这是损失怎么写，不是我们跑过两种算法的对比实验。",
+        "稳定和速度只点名、不在这张展开：极短的拒绝对话会把梯度打爆，所以策略损失的分母有下限 2560；低秩加载从第 1 步起大约慢 6 倍，后来把增量加回底模再加载；异步训练和“同一时刻只有一份合并后的模型”冲突，所以仍用先采完再更新。",
+        "接下来讲这些机制跑在干净题上证明了什么，以及评测面板上全零为什么不是算法失败。"
+      ],
+      "elaboration": "这段实验里，限制新策略离底模太远的系数是 0.04；后面更长的计划里提到过调到 0.08，那是另一份日程，不要当成这 15 步的结果。分母 2560、关适配器算底模、1511 变 247，被追问再展开。",
+      "pitfalls": [
+        "不要说“我们对比过两种强化学习算法谁更好”——没有跑过对照实验。",
+        "不要在这张把分母下限、相对熵、六倍变慢三条都推一遍，会超时。"
+      ]
+    },
+    "hint": "先说一步做什么，再说“比的是组内相对好坏、概率比只当权重”。速度和分母留给追问。",
+    "follow_ups": [
+      "分母下限 2560 是怎么定的？为什么不能也拿去除“别说太死板”那一项？",
+      "低秩加载为什么会突然慢六倍？异步训练为什么没上？"
+    ],
+    "related_ids": [
+      "proj-agentic-gov-recap-b11-rollout-reward",
+      "proj-agentic-gov-recap-b13-verdict",
+      "proj-agentic-gov-why-grpo",
+      "proj-agentic-gov-deep-cispo-loss",
+      "proj-agentic-gov-deep-lora-serving-regression",
+      "proj-agentic-gov-art-tradeoffs"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-recap-b13-verdict",
+    "question": "强化学习最后证明了什么、没证明什么？之前以为没学动，根因是什么？如果重来你先改哪？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "口述主干",
+      "verdict",
+      "复盘",
+      "agentic-gov"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "预先登记的验收阶段，按当时门槛关闭为“未证明”。这是门禁结果，不是“这种算法被证伪”。当时评测题里混进了根本解不开的题。",
+        "评测面板上 47 道新造难题 373 次全零，是假死。根因有两类：贷款账户冻结却要求转人工，但贷款工具和政策都读不到冻结；冒充题的开场白没注入“我帮别人办”，核身能过、扣款能成。",
+        "后来对另一份 390 题池做可观察性扫描，才得到 38 道结构性无效（304 次全零）和 36 道真难题（288 次里从 14 次成功到 25 次）。80 条训练课表都有效；成对复测齐的 74 条，第 0 步到第 15 步从 53.9% 到 61.7%（p=0.023）。",
+        "已经证明的是干净训练范围内有正信号，转人工和明确拒绝被第三版打分激活。所有事项、所有收尾是否都变好，没有证明。任务自洽检查写了，生成时没跑完整套；后来按哈希退役 247 条历史任务。",
+        "指标不涨，先查题目和打分是不是自洽，不要先换更大的模型或换算法。更长的训练和全事项评测是后面的阶段，不和这 15 步的数字混着说。"
+      ],
+      "elaboration": "重做会先做三件：检查接到生成入口；一开始就冻住一份从不训练的评测集；打分从第一天就用“收尾动作对不对乘数据库对不对”。",
+      "pitfalls": [
+        "47 道新造难题全零，和后来 390 题池扫出来的 38 道无效、36 道真难题，不是同一张表，不能加总。38、24、72、247 同样跨池重叠。",
+        "不要把后来重新生成并冻结的三千多道题、或再往后一百步训练，说成这张卡已经证明“所有事项都变好了”。",
+        "解不开的冻结例子必须举贷款查询，不能说成余额查询。"
+      ]
+    },
+    "hint": "先说“未证明”是门禁没过。47 道全零和后来 390 题池的 38/36 不要加在一起。80 条有效和 74 条成对复测是两个分母。",
+    "follow_ups": [
+      "如果当时换成 140 亿参数，那些全零会消失吗？",
+      "第 15 步 p=0.023，为什么还不能当成所有事项都成功？"
+    ],
+    "related_ids": [
+      "proj-agentic-gov-recap-b12-art-grpo",
+      "proj-agentic-gov-recap-master-blueprint",
+      "proj-agentic-gov-recap-decision-spine",
+      "proj-agentic-gov-rl-results",
+      "proj-agentic-gov-biggest-mistake",
+      "proj-agentic-gov-current-status"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-code-map-task-design",
+    "question": "任务工厂入口做什么？一道题怎么变成后面能打分的标准说明？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "代码蓝图",
+      "任务工厂",
+      "agentic-gov"
+    ],
+    "priority": "common",
+    "hint": "对应 01_task_design.py。先装配任务，再推黄金终态。不变量是修过之后才必跑。",
+    "answer": {
+      "key_points": [
+        "职责：任务工厂。输入业务类型、随机种子、可选边界和对抗标志；输出一份标准任务说明：画像、隐藏真值、开场白、黄金终态、披露规则。",
+        "主路径 create_canonical_task：取业务包、生成国标身份证、装配任务，再跑不变量。检查不过就拒绝发题。这是修过之后的入口；事故期这段没接上，才放出死题。",
+        "黄金终态：按理想动作序列在干净沙箱里重放，得到可程序化比对的数据库快照。查询、拒绝、转人工没有写库，终态必须等于初态。",
+        "最容易讲错：理想动作序列不是训练时逐步比对的标准轨迹。奖励只看终态，不锁路径。对比对和对抗是旁路，细节在白板卡。"
+      ],
+      "code": [
+        {
+          "label": "入口与黄金终态",
+          "language": "python",
+          "code": "def create_canonical_task(task_type, seed, boundary_id=None, adversarial_flag=None):\n    bundle = TaskTypeRegistry.get(task_type)\n    id_card = generate_deterministic_id_card(random.Random(seed), \"middle_30_50\")\n    task = build_task(task_type, seed, id_card, boundary_id, adversarial_flag)\n    validate_task_instance(task)   # 修过之后必跑；事故期没接线\n    return task\n\ndef derive_task_ground_truth(task):\n    script = select_golden_chain(task)              # 离线剧本，不是路径锁\n    expected_db = generate_golden_final_state(task) # 干净沙箱重放 → 黄金快照\n    self_verify_golden_state(task, expected_db)     # 无写库：终态 == 初态\n    return script, expected_db",
+          "note": "对比对走 build_contrast_pair；对抗走 build_adversarial_seed。"
+        }
+      ],
+      "pitfalls": [
+        "别把黄金动作序列说成训练标签。",
+        "别说不变量从来就在入口必跑。"
+      ]
+    },
+    "follow_ups": [
+      "对比对怎么保证只差一个事实？",
+      "无写库任务的黄金终态为什么必须等于初态？"
+    ],
+    "related_ids": [
+      "proj-agentic-gov-write-golden-state",
+      "proj-agentic-gov-write-contrast-pair",
+      "proj-agentic-gov-golden-state",
+      "proj-agentic-gov-deep-contrast-pair-construction"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-code-map-sandbox",
+    "question": "一次工具调用，沙箱怎么走完？为什么读库要深拷贝？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "代码蓝图",
+      "沙箱",
+      "agentic-gov"
+    ],
+    "priority": "common",
+    "hint": "对应 02_sandbox.py。八步顺序不能换；计数加在前置通过之后。",
+    "answer": {
+      "key_points": [
+        "职责：纯内存的模拟政务系统。合成、回放、强化学习采样里，每次调工具都走 execute。",
+        "输入是工具名和参数；输出是成功数据或错误码。读库一律深拷贝，防止业务函数拿着引用改内部表。",
+        "八步顺序不能换：未知工具 → 白名单 → 必填 → 格式 → 前置 → 错误注入 → 业务函数 → 成功才写后置标志。计数只在前置通过之后加一。",
+        "最容易讲错：格式错误是可恢复的效率罚，对话继续；未知工具（抛异常）和白名单拒绝，上层都打成硬违规。"
+      ],
+      "code": [
+        {
+          "label": "execute 八步",
+          "language": "python",
+          "code": "def execute(self, tool_name, args):\n    if tool_name not in self.api_specs:\n        raise UnknownToolError(tool_name)                    # 1 未知工具\n    if tool_name not in self.policy_card.allowed_tools:\n        return error_result(TOOL_NOT_ALLOWED)                # 2 白名单\n    spec = self.api_specs[tool_name]\n    for req in spec.required_args:\n        if req.name not in args:\n            return error_result(MISSING_REQUIRED_ARG)        # 3 必填\n    for arg_spec in spec.required_args + spec.optional_args:\n        if arg_spec.name in args:\n            ok, reason = _validate_arg(args[arg_spec.name], arg_spec)\n            if not ok:\n                return error_result(INVALID_FORMAT, reason=reason)  # 4 格式\n    for pre in spec.preconditions:\n        if not self.runtime_flags.get(pre, False):\n            return error_result(PRECONDITION_NOT_MET)        # 5 前置：不计数\n    self._call_counter[tool_name] = self._call_counter.get(tool_name, 0) + 1\n    injected = self._pop_injection(tool_name, self._call_counter[tool_name])\n    if injected:\n        return error_result(injected[\"error_code\"], injected=True)  # 6 注入\n    res = self.tool_handlers[tool_name](self.db, args, copy.deepcopy(self._tool_call_log))  # 7\n    if res.status == \"ok\":\n        for post in spec.postconditions:\n            self.runtime_flags[post] = True                  # 8 后置\n    return res",
+          "note": "错误注入必须在前置之后，否则「第 1 次失败、第 2 次放行」会对不上计数。"
+        }
+      ],
+      "pitfalls": [
+        "别把参数格式错误说成整条零分。",
+        "业务函数必须拿深拷贝后的调用记录。"
+      ]
+    },
+    "follow_ups": [
+      "为什么前置失败不增加调用计数？",
+      "瞬时不可用怎么和黄金剧本的两步对齐？"
+    ],
+    "related_ids": [
+      "proj-agentic-gov-write-sandbox-execute",
+      "proj-agentic-gov-safety-enforcement",
+      "proj-agentic-gov-architecture"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-code-map-synthesis",
+    "question": "两个老师模型怎么合成一条多轮对话？格式修和语义拦分别卡在哪？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "代码蓝图",
+      "SFT 合成",
+      "agentic-gov"
+    ],
+    "priority": "common",
+    "hint": "对应 03_sft_synthesis.py。外层重建沙箱，内层先解析再守卫再执行。",
+    "answer": {
+      "key_points": [
+        "职责：坐席老师和群众老师对打，产出带思维块和动作块的对话轨迹。输入是标准任务说明和两个老师模型。",
+        "外层解析失败就重建沙箱再试，清掉已经写脏的库。内层每轮先解析，再语义拦截，再执行。",
+        "格式：漏思维块就补，但业务动作必须一字不改。语义：写工具已经成功再提交、办结后再要身份证，当场拦。",
+        "最容易讲错：问用户时只给自然语言，剥掉思维和接口参数，避免群众老师看见柜员屏幕。"
+      ],
+      "code": [
+        {
+          "label": "外层重建沙箱，内层当前轮",
+          "language": "python",
+          "code": "def synthesize_trajectory(task, sandbox_builder, agent_teacher, user_teacher, config):\n    for attempt in range(config.parse_max_retries + 1):\n        build = sandbox_builder()   # 失败必须新沙箱\n        try:\n            traj, status, _ = _run_one_attempt(task, build.sandbox, ...)\n            return SynthesisOutcome(status=status, trajectory=traj)\n        except ParseError:\n            if attempt == config.parse_max_retries:\n                return SynthesisOutcome(status=\"parse_failed\")\n\n# 每轮：解析 → 补思维块（动作必须不变）→ 语义拦截 → Call_API / Ask_User / 终局",
+          "note": "全库只有一个解析器 parse_analysis_action，格式失败不能换宽松解析器。"
+        }
+      ],
+      "pitfalls": [
+        "任务级重试如果不重建沙箱，会在脏库上继续合成。",
+        "补思维块时若允许改动作，模型会偷偷改业务。"
+      ]
+    },
+    "follow_ups": [
+      "为什么群众老师不能看见工具返回？",
+      "语义失败为什么不走外层沙箱重建？"
+    ],
+    "related_ids": [
+      "proj-agentic-gov-write-synthesis-loop",
+      "proj-agentic-gov-data-pipeline",
+      "proj-agentic-gov-deep-envelope-template"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-code-map-filtering",
+    "question": "合成轨迹怎么一层层过关？那个也叫 L3 的打标器会不会丢掉样本？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "代码蓝图",
+      "数据过滤",
+      "agentic-gov"
+    ],
+    "priority": "common",
+    "hint": "对应 04_sft_filtering.py。先画六层短路，再把两个 L3 拆开。",
+    "answer": {
+      "key_points": [
+        "职责：原始轨迹先过六层验证漏斗，再打行为标签，再按计划配额抽样。计划配额是 4800，不是最终入库条数。",
+        "六层短路：格式 → 沙箱重放 → 告知/对抗判定 → 改写实体 → 隐私规则 → 裁判。一层失败，后面不跑。",
+        "漏斗第四层 L3 是改写样本的实体门禁，失败只丢改写版。L3 打标器是另一套，只打标不丢。三路顺序：先对比对、再对抗、再补主流程。",
+        "告知判定：每条助手可见消息单独做自然语言推理（判断这句话是否蕴含某条法定告知），再取最大分。整段对话塞进 512 词会被截断。"
+      ],
+      "code": [
+        {
+          "label": "漏斗短路",
+          "language": "python",
+          "code": "LAYERS = (\"L0_format\", \"L1_sandbox\", \"L2_nli\", \"L3_entity\", \"L4_rpcr\", \"L5_judge\")\n\ndef run_verifier_funnel(task, trajectory, dependencies, config):\n    failed = None\n    out = {}\n    for layer in LAYERS:\n        if failed:\n            out[layer] = {\"status\": \"not_run\", \"passed\": False}\n            continue\n        res = compute[layer](task, trajectory, dependencies, config)\n        out[layer] = res\n        if res[\"status\"] != \"passed\":\n            failed = layer\n    return {\"candidate_eligible\": failed is None, \"failed_stage\": failed}\n\n# L2：Score(h) = max_t NLI(premise=消息_t, hypothesis=h)  不拼全对话",
+          "note": "打标器 tag_trajectory_rules_v1 在漏斗外跑，从不让 candidate_eligible 变 False。"
+        }
+      ],
+      "pitfalls": [
+        "别说漏斗第四层叫 L3 打标器。",
+        "别把 4800 说成最终训练集条数。"
+      ]
+    },
+    "follow_ups": [
+      "为什么告知判定要按每条消息取最大分？",
+      "分层抽样为什么必须先生成对比对？"
+    ],
+    "related_ids": [
+      "proj-agentic-gov-write-verifier-funnel",
+      "proj-agentic-gov-deep-synthetic-data-trust",
+      "proj-agentic-gov-deep-hybrid-nli-judge"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-code-map-sft-training",
+    "question": "合格轨迹怎么变成训练数据？同一家人的题为什么不能拆到训练集和测试集？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "代码蓝图",
+      "SFT 训练",
+      "agentic-gov"
+    ],
+    "priority": "common",
+    "hint": "对应 05_sft_training.py。家族切分防泄漏；训练和推理模板必须逐词相同。",
+    "answer": {
+      "key_points": [
+        "职责：四桶办事数据转成训练框架的对话格式，按家族切开，再用逐词比对卡住训练和推理模板不一致。",
+        "家族 ID：已有 ID 优先；否则用成对题锚点；再否则哈希事项、人设、政策、身份证。切分哈希打在家族上，同一家族不能跨切分。",
+        "训练侧渲染和推理侧渲染必须逐词相同。禁止给基座模板传 enable_thinking=False——它会插入空思考块，不是关掉思考。",
+        "最容易讲错：按行随机切分会把对比对拆开，模型靠记住这个人，而不是学会限额规则。"
+      ],
+      "code": [
+        {
+          "label": "家族 ID 与逐词比对",
+          "language": "python",
+          "code": "def derive_family_id(metadata, task_type, policy_id, hidden_truth):\n    if metadata.get(\"family_id\"):\n        return metadata[\"family_id\"]\n    if metadata.get(\"naturalization_of\"):\n        pair_key = metadata[\"naturalization_of\"]          # 整段采用，不再剥后缀\n    elif metadata.get(\"pair_id\"):\n        pair_key = metadata[\"pair_id\"]\n        if pair_key.endswith(\"__nat\"):\n            pair_key = pair_key[:-5]\n    else:\n        pair_key = \"\"\n    if pair_key:\n        return \"fam_\" + sha1(f\"pair_id={pair_key}\").hexdigest()[:16]\n    persona = str(metadata.get(\"persona_subgroup\") or \"unknown\")\n    profile = (hidden_truth or {}).get(\"user_profile\") or {}\n    id_number = str(profile.get(\"id_number\") or \"\")\n    key = f\"task_type={task_type}|persona={persona}|policy={policy_id}|id={id_number}\"\n    return \"fam_\" + sha1(key).hexdigest()[:16]\n\n# 训练词片 vs 推理词片必须逐位相同；不要传 enable_thinking=False",
+          "note": "跨事项但共享同一身份证也必须同一家族。"
+        }
+      ],
+      "pitfalls": [
+        "工具返回的角色名必须是模板认识的。",
+        "模板名字都叫 qwen，不等于渲染一致。"
+      ]
+    },
+    "follow_ups": [
+      "对比对和查询任务共享同一身份证，为什么必须同一切分？",
+      "enable_thinking=False 到底插入了什么？"
+    ],
+    "related_ids": [
+      "proj-agentic-gov-write-family-split",
+      "proj-agentic-gov-sft-baseline",
+      "proj-agentic-gov-data-overlap",
+      "proj-agentic-gov-deep-envelope-template"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-code-map-simulator",
+    "question": "扮演群众的模型，训练数据怎么切？为什么泄漏监控不能写进奖励？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "代码蓝图",
+      "user simulator",
+      "agentic-gov"
+    ],
+    "priority": "common",
+    "hint": "对应 06_simulator.py。角色反转、连续同角色合并、只读泄漏旁路。",
+    "answer": {
+      "key_points": [
+        "职责：把群众话术做成监督微调数据，冻成在线后端，给强化学习当环境。模拟器是环境，不是被更新的策略。",
+        "角色反转：坐席话术不算损失，群众话术算损失。剥掉工具轮后会出现连续同角色，必须合并，否则交替约束会静默丢掉约三成五样本。",
+        "泄漏监控只读。中途超 5% 只告警；开场泄漏才停训。绝不写进奖励：环境行为不能用来惩罚策略。",
+        "最容易讲错：损失只落在每条样本最后一句群众话。关掉这个开关，开场白会被反复学。"
+      ],
+      "code": [
+        {
+          "label": "角色反转与合并",
+          "language": "python",
+          "code": "def stream2_row_to_messages(row):\n    msgs = []\n    for t in row[\"visible_history\"]:          # 已经不含工具轮\n        if t[\"role\"] == \"assistant\":\n            msgs.append({\"role\": \"agent\", \"content\": t[\"content\"]})      # 不算损失\n        elif t[\"role\"] == \"user\":\n            msgs.append({\"role\": \"simulator\", \"content\": t[\"content\"]})  # 算损失\n    msgs = _merge_consecutive_roles(msgs)\n    if not msgs or msgs[0][\"role\"] != \"agent\":\n        msgs.insert(0, {\"role\": \"agent\", \"content\": BOOTSTRAP_AGENT_PROMPT})\n    msgs.append({\"role\": \"simulator\", \"content\": row[\"target_user_utterance\"]})\n    return msgs",
+          "note": "mask_history: true 让损失只落在最后一句群众话。"
+        }
+      ],
+      "pitfalls": [
+        "给模拟器看工具返回的 JSON，它会抄字段而不等坐席说人话。",
+        "中途泄漏只记日志，不要临时改成负奖励。"
+      ]
+    },
+    "follow_ups": [
+      "为什么开场泄漏要停训、中途泄漏不停？",
+      "损失只落在最后一句修的是什么偏差？"
+    ],
+    "related_ids": [
+      "proj-agentic-gov-write-simulator-slicing",
+      "proj-agentic-gov-user-simulator",
+      "proj-agentic-gov-deep-simulator-info-boundary"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-code-map-rollout-reward",
+    "question": "强化学习里，从选题到打出分数怎么走？格式失败为什么要零分留下而不是扔掉？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "代码蓝图",
+      "reward",
+      "agentic-gov"
+    ],
+    "priority": "must",
+    "hint": "对应 07_rl_rollout_reward.py。Hard-Zero = 格式一错整条零分，但样本留在组里。",
+    "answer": {
+      "key_points": [
+        "职责：选题、多轮自由采样、按第三版公式打出一个标量分。",
+        "第一句用任务开场白，不让模拟器先说话。格式一解析失败：标记硬违规，循环结束后仍打分，总分打成 0，样本留在组里。这叫 Hard-Zero（硬零分）。",
+        "完成度 = 库状态对 × 收尾动作对。硬违规总分 0；否则 0.65×完成度 + 0.35×告知 − 效率罚。",
+        "最容易讲错：零分必须留在组里当对照。扔掉就没有相对好坏。无写库任务上，错办结和对的拒绝库都不变，没有动作门控就会同分。"
+      ],
+      "code": [
+        {
+          "label": "格式失败标记后仍结算零分",
+          "language": "python",
+          "code": "async def rollout_spec(model, scenario, simulator, reward_clients, config):\n    task = CanonicalTask.model_validate(scenario.task)\n    sandbox = Sandbox(init_state=task.db_init_state, task_type=task.task_type)\n    history = [{\"role\": \"user\", \"content\": task.opening_message}]\n    terminated = \"max_turns\"\n    metrics = {}\n    for _ in range(config.max_turns):\n        content = await generate(model, history)\n        try:\n            _, action = parse_analysis_action(content)\n        except ParseError as exc:\n            terminated = \"hard_violation\"          # 不是丢掉这条\n            metrics = {\"hard_violation_flag\": True, \"failure_class\": \"format_failure\"}\n            break\n        if action.action_type in {\"Finish\", \"Escalate\", \"FinishWithRefusal\"}:\n            terminated = action.action_type\n            break\n        if action.action_type == \"Call_API\":\n            try:\n                result = sandbox.execute(action.tool_name, action.tool_args)\n            except UnknownToolError:\n                terminated = \"hard_violation\"\n                metrics = {\"hard_violation_flag\": True, \"failure_class\": \"unknown_tool\"}\n                break\n            history.append({\"role\": \"observation\", \"content\": json.dumps(result.data)})\n            if is_hard_sandbox_result(result):\n                terminated = \"hard_violation\"\n                break\n        elif action.action_type == \"Ask_User\":\n            history.append({\"role\": \"user\", \"content\": await simulator.respond(task, history)})\n    episode = EpisodeResult(..., terminated_by=terminated, metrics=metrics)\n    breakdown = compute_reward(episode, task, ...)   # hard_violation → r_total = 0\n    return episode, breakdown",
+          "note": "零分样本必须留在组里；拒采重采会让组内没有对照。"
+        }
+      ],
+      "pitfalls": [
+        "Hard-Zero 不是「这条不要了」。",
+        "转人工奖金在第三版不进训练总分。"
+      ]
+    },
+    "follow_ups": [
+      "对比对为什么必须成对采样？",
+      "乘法门控会不会让完成度太稀？"
+    ],
+    "related_ids": [
+      "proj-agentic-gov-write-rollout-loop",
+      "proj-agentic-gov-write-reward-v3",
+      "proj-agentic-gov-reward-design",
+      "proj-agentic-gov-deep-reward-evolution"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-code-map-art-grpo",
+    "question": "一步强化学习训练怎么从采轨迹走到更新？优势从哪来、损失怎么用？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "代码蓝图",
+      "GRPO",
+      "CISPO",
+      "agentic-gov"
+    ],
+    "priority": "must",
+    "hint": "对应 08_art_grpo.py。先剥只监控不更新的题，再滤全对全错组，再算组内相对优势。",
+    "answer": {
+      "key_points": [
+        "职责：项目侧编排一步训练；底层用开源框架 ART 做更新。同一题采 8 条对话。",
+        "主路径：选题 → 采轨迹 → 剥掉只监控不更新的题（Canary）→ 丢掉全对或全错的组（方差门槛 1e-12）→ 反向传播。整批没方差时仍记日志，不更新。",
+        "优势：同组分数减均值、除标准差，分母加 1e-6。损失裁的是冻结后的重要性权重，梯度走新对数概率。这叫 CISPO（裁剪重要性采样策略优化）。",
+        "最容易讲错：CISPO 是损失怎么用优势；组内相对好坏是优势从哪来。本项目把后者喂给前者。短样本分母至少 2560。"
+      ],
+      "code": [
+        {
+          "label": "剥监控题再滤组，CISPO 消费外部优势",
+          "language": "python",
+          "code": "async def train_grpo(...):\n    batch = select_train_step_scenarios(...)          # 本步场景，含 is_canary\n    groups = await collect_train_groups(model, batch, ...)  # 每题 K=8\n    log_and_guard_simulator_monitoring(groups, step)\n    canary_flags = [getattr(s, \"is_canary\", False) for s in batch]\n    gradient_groups = [g for g, is_canary in zip(groups, canary_flags) if not is_canary]\n    train_groups = filter_zero_variance_groups(gradient_groups, epsilon=1e-12)\n    if not train_groups:\n        await model.log(groups, step=step, split=\"train\")   # 仍记日志\n        continue\n    result = await backend.train(model, train_groups, kl_penalty_coef=0.04)\n\n# 优势：A = (R - mean) / (std + 1e-6)\n# 损失：w = clip(exp(new-old).detach(), 0, 5)；loss = -(w * A * new_logp) / max(mask_sum, 2560)",
+          "note": "CISPO 可吃任意优势；本项目喂组内相对优势。1e-6 是优势分母，1e-12 是滤组门槛。"
+        }
+      ],
+      "pitfalls": [
+        "只监控不更新的题不能和训练组混进同一优势归一化。",
+        "整批被滤光时跳过反向传播，但仍要写日志。"
+      ]
+    },
+    "follow_ups": [
+      "PPO 的 min 裁剪和 CISPO 的冻结裁剪差在哪一行？",
+      "2560 是序列长度中位数吗？"
+    ],
+    "related_ids": [
+      "proj-agentic-gov-write-group-advantage",
+      "proj-agentic-gov-write-cispo-loss-v2",
+      "proj-agentic-gov-why-grpo",
+      "proj-agentic-gov-deep-cispo-loss"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-write-golden-state",
+    "question": "白板手写：给定一份标准任务说明，怎么推出黄金数据库终态？无写库任务怎么自检？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "白板手写",
+      "终态验证",
+      "agentic-gov"
+    ],
+    "priority": "common",
+    "hint": "三步：选剧本、沙箱重放、无写库断言。不要写成逐步路径比对。",
+    "answer": {
+      "key_points": [
+        "黄金动作序列是任务工厂里的离线剧本：选出理想动作列表，不是训练时要逐项对齐的路径锁。",
+        "用轻量沙箱按剧本执行，导出黄金终态快照，给过滤和强化学习的状态分当真值。",
+        "查询、拒绝、转人工没有写库动作，终态必须与初态一致，否则剧本本身是错的。",
+        "可恢复故障要写成两步：第一次期望瞬时不可用，第二次同参数成功写库，黄金终态才确定。"
+      ],
+      "code": [
+        {
+          "label": "黄金终态三步",
+          "language": "python",
+          "code": "def derive_task_ground_truth(task):\n    script = select_golden_chain(task)                 # 离线剧本，不锁训练路径\n    expected_db = generate_golden_final_state(task)    # 轻量沙箱重放\n    self_verify_golden_state(task, expected_db)        # 无写库：终态 == 初态\n    return script, expected_db\n\ndef golden_chain_temporary_unavailable_recovery(tool, args):\n    return [\n        ExpectedAction(tool, args, expect_status=\"error\",\n                       expect_code=\"TEMPORARY_UNAVAILABLE\"),\n        ExpectedAction(tool, args, expect_status=\"ok\"),  # 第 2 次才写库\n    ]",
+          "note": "奖励只比对终态快照，不比对剧本有没有被模型逐步复现。"
+        }
+      ],
+      "pitfalls": [
+        "把黄金剧本说成逐步模仿标签，会被追问绕路做对为什么不该罚。"
+      ]
+    },
+    "follow_ups": [
+      "终态对但中途跳过核身怎么办？"
+    ],
+    "related_ids": [
+      "proj-agentic-gov-code-map-task-design",
+      "proj-agentic-gov-golden-state",
+      "proj-agentic-gov-write-reward-v3"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-write-contrast-pair",
+    "question": "白板手写：对比对怎么生成？怎么保证两边只差一个能翻转动作的事实？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "白板手写",
+      "contrast pair",
+      "agentic-gov"
+    ],
+    "priority": "common",
+    "hint": "同构背景 + 单因子扰动 + 两侧都跑不变量。",
+    "answer": {
+      "key_points": [
+        "build_contrast_pair 产出一对标准任务说明。除登记过的边界因子外，画像、身份证、开场白必须同构。",
+        "数值边界例子：限额内办结，限额加 100 追问或拒绝。类别边界例子：纯公积金贷款可办结，组合贷款转人工。",
+        "生成后两侧都跑完整不变量。开场白可以一字不变，因为因子定义在后台状态。",
+        "采样时按成对题编号绑成原子单元，避免强化学习组内把两个问题的奖励平均在一起。"
+      ],
+      "code": [
+        {
+          "label": "对比对生成",
+          "language": "python",
+          "code": "def build_boundary_contrast_pair(seed_id, boundary_id):\n    task_a, task_b = build_contrast_pair(seed_id, boundary_id)\n    _assert_full_invariants_registry(task_a)\n    _assert_full_invariants_registry(task_b)\n    return task_a, task_b\n\ndef sampling_unit_key(scenario):\n    if scenario.pair_id:\n        if scenario.pair_id.endswith(\"__nat\"):\n            canonical = scenario.naturalization_of or scenario.pair_id.removesuffix(\"__nat\")\n            return f\"naturalized:{canonical}\"\n        return f\"canonical:{scenario.pair_id}\"   # A/B 同进同出\n    return f\"task:{scenario.task_id}\"",
+          "note": "改写对的 pair_id 以 __nat 结尾，必须折回同一 canonical，否则会被拆开。哪侧办结哪侧拒绝由边界契约决定。"
+        }
+      ],
+      "pitfalls": [
+        "两边混进同一组，组均值变成两个问题的平均，优势方向会反。"
+      ]
+    },
+    "follow_ups": [
+      "B 侧允许先错后恢复的两步剧本吗？"
+    ],
+    "related_ids": [
+      "proj-agentic-gov-code-map-task-design",
+      "proj-agentic-gov-deep-contrast-pair-construction",
+      "proj-agentic-gov-deep-contrast-pair-grouping"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-write-sandbox-execute",
+    "question": "白板手写一次工具调用的八步管道，标出哪一步才增加调用计数。",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "白板手写",
+      "沙箱",
+      "agentic-gov"
+    ],
+    "priority": "must",
+    "hint": "未知工具抛异常；格式在必填和前置之间；前置失败不计数；注入在业务函数之前。",
+    "answer": {
+      "key_points": [
+        "八步顺序不能换：存在性 → 白名单 → 必填 → 格式 → 前置 → 错误注入 → 业务函数 → 成功才写后置标志。",
+        "未知工具抛异常，方便上层打成硬违规。格式错误返回非法格式，对话可继续。",
+        "前置失败返回「前置不满足」且不增加计数。否则「第 1 次注入失败、第 2 次放行」会被核身失败占掉次数。",
+        "业务函数拿到深拷贝的历史记录；只有成功才把后置标志写入运行时状态。"
+      ],
+      "code": [
+        {
+          "label": "execute 手写版（含格式步）",
+          "language": "python",
+          "code": "def execute(self, tool_name, args):\n    if tool_name not in self.api_specs:\n        raise UnknownToolError(tool_name)\n    if tool_name not in self.policy_card.allowed_tools:\n        return error_result(TOOL_NOT_ALLOWED)\n    spec = self.api_specs[tool_name]\n    if any(r.name not in args for r in spec.required_args):\n        return error_result(MISSING_REQUIRED_ARG)\n    for arg_spec in spec.required_args + spec.optional_args:\n        if arg_spec.name in args:\n            ok, reason = _validate_arg(args[arg_spec.name], arg_spec)\n            if not ok:\n                return error_result(INVALID_FORMAT, reason=reason)\n    for pre in spec.preconditions:\n        if not self.runtime_flags.get(pre, False):\n            return error_result(PRECONDITION_NOT_MET)   # 不计数\n    self._call_counter[tool_name] = self._call_counter.get(tool_name, 0) + 1\n    inj = self._pop_injection(tool_name, self._call_counter[tool_name])\n    if inj:\n        return error_result(inj[\"error_code\"], injected=True)\n    res = self.tool_handlers[tool_name](self.db, args, copy.deepcopy(self._tool_call_log))\n    if res.status == \"ok\":\n        for post in spec.postconditions:\n            self.runtime_flags[post] = True\n    return res",
+          "note": "生产配置键是 tool_name / on_call；教学伪代码有时写成 tool / on_call_index，不要混。"
+        }
+      ],
+      "pitfalls": [
+        "把错误注入放在前置之前，瞬态故障剧本会和黄金终态对不上。"
+      ]
+    },
+    "follow_ups": [
+      "为什么未知工具要抛异常而不是返回错误结果？"
+    ],
+    "related_ids": [
+      "proj-agentic-gov-code-map-sandbox",
+      "proj-agentic-gov-safety-enforcement"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-write-synthesis-loop",
+    "question": "白板手写合成内循环：当前轮怎么解析修复，语义拦截在动作执行前还是后？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "白板手写",
+      "SFT 合成",
+      "agentic-gov"
+    ],
+    "priority": "common",
+    "hint": "先解析再拦截再执行。is_action_only 返回 (是否只有动作块, 原动作)。当前轮预算耗尽必须 raise。",
+    "answer": {
+      "key_points": [
+        "每轮先渲染坐席提示并解析。解析失败才进修复，修复成功之前不要把动作写入对话。",
+        "只有动作块、缺思维块时补思维；补完后动作类型、工具、参数、正文必须与原动作一致。",
+        "语义拦截在写入对话之前：重复提交、办结后再要身份证，用反馈重试当前轮，不把违规轮留下。",
+        "过了拦截才分发：终局结束，调工具走沙箱，问用户走群众老师。整条任务失败才重建沙箱。"
+      ],
+      "code": [
+        {
+          "label": "当前轮修复 + 守卫",
+          "language": "python",
+          "code": "for _ in range(max_turns):\n    action = None\n    for k in range(turn_parse_max_retries + 1):\n        raw = agent_teacher.generate(render_agent_prompt(..., parse_feedback=fb))\n        try:\n            analysis, action = parse_analysis_action(raw)\n            break\n        except ParseError as exc:\n            ao_ok, original_action = is_action_only(raw)\n            if ao_ok and original_action is not None:\n                analysis, action = parse_analysis_action(repair_missing_analysis(raw))\n                if actions_equal(action, original_action):  # 比的是解包后的 action\n                    break\n            if k < turn_parse_max_retries:\n                fb = f\"parse_error: {exc}\"\n                continue\n            raise                                   # 预算耗尽，不要带着未定义 action 往下走\n    if action is None:\n        raise ParseError(\"no parsed action after turn-level retries\")\n    if is_dup_write(action) or is_post_submit_id_ask(action):\n        fb = \"semantic guard: 禁止该动作\"\n        continue\n    turns.append(AssistantTurn(analysis, action))\n    if action.action_type in TERMINAL:\n        break\n    if action.action_type == \"Call_API\":\n        turns.append(ToolTurn(sandbox.execute(action.tool_name, action.tool_args)))",
+          "note": "is_action_only 返回二元组，不是布尔。语义失败耗尽预算返回 semantic_failed，不再走外层格式重试。"
+        }
+      ]
+    },
+    "follow_ups": [
+      "为什么外层重试必须重建沙箱？"
+    ],
+    "related_ids": [
+      "proj-agentic-gov-code-map-synthesis",
+      "proj-agentic-gov-deep-envelope-template"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-write-verifier-funnel",
+    "question": "白板手写验证漏斗：六层怎么短路？告知判定为什么按每条消息取最大分？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "白板手写",
+      "数据过滤",
+      "agentic-gov"
+    ],
+    "priority": "common",
+    "hint": "一层失败后面标未跑。不要把整段对话塞进一条被判定的文本。",
+    "answer": {
+      "key_points": [
+        "六层按计算成本从低到高。一层失败，后面只填未跑，避免白跑贵的模型和裁判。",
+        "第 0 层调解析器；第 1 层新沙箱重放并对黄金终态；第 4 层按披露规则查不该说的字段。",
+        "第 2 层：每条助手可见消息当独立文本，得分取各条最大值。整段打包会被 512 词截断，告知项假阴性。",
+        "漏斗第四层是改写样本的实体门禁。L3 打标器在漏斗外，失败不会让样本不合格。"
+      ],
+      "code": [
+        {
+          "label": "短路漏斗 + 按条取最大",
+          "language": "python",
+          "code": "LAYERS = (\"L0_format\", \"L1_sandbox\", \"L2_nli\", \"L3_entity\", \"L4_rpcr\", \"L5_judge\")\n\ndef run_verifier_funnel(task, traj, deps, cfg):\n    failed = None\n    out = {}\n    for layer in LAYERS:\n        if failed:\n            out[layer] = {\"status\": \"not_run\", \"passed\": False}\n            continue\n        res = compute[layer](task, traj, deps, cfg)\n        out[layer] = res\n        if res[\"status\"] != \"passed\":\n            failed = layer\n    return {\"candidate_eligible\": failed is None, \"failed_stage\": failed}\n\ndef l2_score(messages, hyp, nli):\n    return max(nli(m, hyp) for m in messages)   # 不拼全对话",
+          "note": "法定告知漏检失败；对抗假设命中也失败。"
+        }
+      ]
+    },
+    "follow_ups": [
+      "L3 打标器的六维标签进不进这道门？"
+    ],
+    "related_ids": [
+      "proj-agentic-gov-code-map-filtering",
+      "proj-agentic-gov-deep-hybrid-nli-judge"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-write-family-split",
+    "question": "白板手写家族级切分：家族 ID 怎么算？怎么保证对比对不会拆到训练和测试？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "白板手写",
+      "数据切分",
+      "agentic-gov"
+    ],
+    "priority": "bonus",
+    "hint": "对偶锚点优先于四元组哈希；切分哈希打在家族上，再硬断言。",
+    "answer": {
+      "key_points": [
+        "按行随机切分会把同一身份证的对比对拆开，模型靠记住这个人，而不是学会限额。",
+        "家族 ID：显式 ID 优先；改写来源整段采用；再处理成对题编号；最后哈希事项、人设、政策、身份证。",
+        "对家族 ID 做哈希，大约九成训练、各半成验证和留出测试，同一家族全部成员拿同一个切分。",
+        "发现一个家族对应多个切分就抛错。这是发布门，不是日志。"
+      ],
+      "code": [
+        {
+          "label": "家族 ID 与切分断言",
+          "language": "python",
+          "code": "def derive_family_id(metadata, task_type, policy_id, hidden_truth):\n    if metadata.get(\"family_id\"):\n        return metadata[\"family_id\"]\n    if metadata.get(\"naturalization_of\"):\n        pair_key = metadata[\"naturalization_of\"]          # 整段采用，不再剥后缀\n    elif metadata.get(\"pair_id\"):\n        pair_key = metadata[\"pair_id\"]\n        if pair_key.endswith(\"__nat\"):\n            pair_key = pair_key[:-5]\n    else:\n        pair_key = \"\"\n    if pair_key:\n        return \"fam_\" + sha1(f\"pair_id={pair_key}\").hexdigest()[:16]\n    persona = str(metadata.get(\"persona_subgroup\") or \"unknown\")\n    profile = (hidden_truth or {}).get(\"user_profile\") or {}\n    id_number = str(profile.get(\"id_number\") or \"\")\n    key = f\"task_type={task_type}|persona={persona}|policy={policy_id}|id={id_number}\"\n    return \"fam_\" + sha1(key).hexdigest()[:16]\n\ndef assert_family_split_invariant(rows, split_map):\n    buckets = {}\n    for row in rows:\n        buckets.setdefault(row[\"family_id\"], set()).add(split_map[row[\"sample_id\"]])\n    leaked = {k: v for k, v in buckets.items() if len(v) > 1}\n    if leaked:\n        raise AssertionError(leaked)",
+          "note": "切分哈希只打 family_id，不打 sample_id，否则同一家会被拆开。"
+        }
+      ]
+    },
+    "follow_ups": [
+      "为什么切分哈希不加样本 ID？"
+    ],
+    "related_ids": [
+      "proj-agentic-gov-code-map-sft-training",
+      "proj-agentic-gov-data-overlap"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-write-simulator-slicing",
+    "question": "白板手写模拟器数据切片：角色怎么反转？剥掉工具轮之后为什么必须合并连续同角色？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "白板手写",
+      "user simulator",
+      "agentic-gov"
+    ],
+    "priority": "common",
+    "hint": "先反转再合并，最后保证以坐席开头、以群众目标句结尾。",
+    "answer": {
+      "key_points": [
+        "群众看不见工具返回，可见历史只能留自然语言。坐席→agent（不算损失），群众→simulator（算损失）。",
+        "剥掉工具轮后常出现连续两条坐席。训练格式要求严格交替，不合并会静默丢掉约三成五样本。",
+        "连续同角色用换行拼接，信息不丢。若开头不是坐席，插入中性引导句。",
+        "最后一条必须是目标群众话。损失只落在这句，避免短前缀被反复学。"
+      ],
+      "code": [
+        {
+          "label": "反转 + 合并",
+          "language": "python",
+          "code": "def stream2_row_to_messages(row):\n    msgs = []\n    for t in row[\"visible_history\"]:\n        if t[\"role\"] == \"assistant\":\n            msgs.append({\"role\": \"agent\", \"content\": t[\"content\"]})\n        elif t[\"role\"] == \"user\":\n            msgs.append({\"role\": \"simulator\", \"content\": t[\"content\"]})\n    msgs = _merge_consecutive_roles(msgs)\n    if not msgs or msgs[0][\"role\"] != \"agent\":\n        msgs.insert(0, {\"role\": \"agent\", \"content\": BOOTSTRAP_AGENT_PROMPT})\n    msgs.append({\"role\": \"simulator\", \"content\": row[\"target_user_utterance\"]})\n    return msgs\n\ndef _merge_consecutive_roles(msgs):\n    out = [msgs[0]]\n    for m in msgs[1:]:\n        if m[\"role\"] == out[-1][\"role\"]:\n            out[-1][\"content\"] += \"\\n\" + m[\"content\"]\n        else:\n            out.append(m)\n    return out",
+          "note": "在线推理侧做同一件事：只留自然语言轮，连续同角色合并。"
+        }
+      ]
+    },
+    "follow_ups": [
+      "给模拟器看工具 JSON 会破坏哪一项奖励前提？"
+    ],
+    "related_ids": [
+      "proj-agentic-gov-code-map-simulator",
+      "proj-agentic-gov-deep-simulator-info-boundary"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-write-rollout-loop",
+    "question": "白板手写强化学习采样循环：第一句谁说、格式失败怎么处理、三种动作怎么分支？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "白板手写",
+      "rollout",
+      "agentic-gov"
+    ],
+    "priority": "must",
+    "hint": "开场白起步。格式失败要标记硬违规并结算零分，不要只中断。",
+    "answer": {
+      "key_points": [
+        "沙箱用任务初态新建。第一句用任务开场白，不让模拟器播种子。",
+        "每轮只解析坐席输出。解析失败标记硬违规（Hard-Zero：格式一错整条零分但留在组里），循环结束后仍打分，总分是 0。",
+        "办结、转人工、带拒绝办结直接结束；调工具后把观察写回 history；未知工具或无权限标硬违规并中断；问用户才调用模拟器。",
+        "优势是组内后处理，不属于这一层。循环结束才挂奖励明细。"
+      ],
+      "code": [
+        {
+          "label": "采样主循环：失败也结算",
+          "language": "python",
+          "code": "async def rollout_spec(model, scenario, simulator, config):\n    task = CanonicalTask.model_validate(scenario.task)\n    sandbox = Sandbox(init_state=task.db_init_state, task_type=task.task_type)\n    history = [{\"role\": \"user\", \"content\": task.opening_message}]\n    terminated = \"max_turns\"\n    metrics = {}\n    for _ in range(config.max_turns):\n        content = await generate(model, history)\n        try:\n            _, action = parse_analysis_action(content)\n        except ParseError:\n            terminated = \"hard_violation\"\n            metrics = {\"hard_violation_flag\": True, \"failure_class\": \"format_failure\"}\n            break\n        history.append({\"role\": \"assistant\", \"content\": content})\n        if action.action_type in {\"Finish\", \"Escalate\", \"FinishWithRefusal\"}:\n            terminated = action.action_type\n            break\n        if action.action_type == \"Call_API\":\n            try:\n                result = sandbox.execute(action.tool_name, action.tool_args)\n            except UnknownToolError:\n                terminated = \"hard_violation\"\n                metrics = {\"hard_violation_flag\": True, \"failure_class\": \"unknown_tool\"}\n                break\n            history.append({\"role\": \"observation\", \"content\": json.dumps(result.data)})\n            if is_hard_sandbox_result(result):          # 含 TOOL_NOT_ALLOWED\n                terminated = \"hard_violation\"\n                metrics = {\"hard_violation_flag\": True, \"failure_class\": result.error_code.value}\n                break\n            continue\n        elif action.action_type == \"Ask_User\":\n            u = await simulator.respond(task, history)\n            history.append({\"role\": \"user\", \"content\": u})\n    episode = EpisodeResult(..., terminated_by=terminated, metrics=metrics)\n    return compute_reward(episode, task)   # hard_violation → 0，样本留在组里",
+          "note": "可恢复的缺参把观察回传即可；未知工具、无权限、解析失败才硬终止。"
+        }
+      ]
+    },
+    "follow_ups": [
+      "为什么格式失败不拒采重采？"
+    ],
+    "related_ids": [
+      "proj-agentic-gov-code-map-rollout-reward",
+      "proj-agentic-gov-write-reward-v3",
+      "proj-agentic-gov-rollout"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-write-reward-v3",
+    "question": "白板手写第三版奖励：完成度怎么由状态分和收尾动作分乘出来？总分什么时候是 0？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "白板手写",
+      "reward",
+      "agentic-gov"
+    ],
+    "priority": "must",
+    "hint": "先算子项，再乘积门控，最后硬违规一票否决。转人工项不进总和。",
+    "answer": {
+      "key_points": [
+        "R_state 比对实际库和黄金快照；R_terminal 是实际收尾动作与期望动作是否精确一致，缺失按 0，绝不从库反推。",
+        "完成度 R_complete = R_state × R_terminal。无写库任务上，错办结和对的拒绝库都不变，没有乘法就会同分。",
+        "硬违规（格式失败、未知工具等）总分 0；否则 0.65×完成度 + 0.35×告知 − 0.10×轮数罚 − 0.10×失败调用罚。",
+        "第三版拿掉训练总和里的转人工奖金：收尾对错已经由动作分管，再加奖金是重复计费。"
+      ],
+      "code": [
+        {
+          "label": "第三版结算",
+          "language": "python",
+          "code": "def compute_reward(episode, task, nli, adjudicator, cfg):\n    hard = compute_hard_violation(episode)\n    state = compute_r_complete(task, episode.actual_final_state)   # R_state\n    disc = compute_r_disclosure(task, episode.trajectory, nli, adjudicator)\n    term = compute_r_terminal_from_episode(task.metadata.expected_terminal_action, episode)\n    eff = compute_efficiency(episode, task, cfg)\n    r_complete = state.score * term.score                          # 乘积门控\n    if hard.hard_violation:\n        r_total = 0.0\n    else:\n        r_total = (0.65 * r_complete + 0.35 * disc.score\n                   - 0.10 * eff.p_turns - 0.10 * eff.p_failed_calls)\n    # 转人工分只进报表，不进 r_total\n    return r_total",
+          "note": "严格成功还要求告知分为 1 且无格式失败，比总分大于 0 更严。"
+        }
+      ],
+      "pitfalls": [
+        "不要写 0.5 平局档——收尾动作分只有 0 或 1。",
+        "加法补丁会把「状态对、动作错」又变成部分分。"
+      ]
+    },
+    "follow_ups": [
+      "第二版的质量天花板和终局平局各修的是哪件事？"
+    ],
+    "related_ids": [
+      "proj-agentic-gov-code-map-rollout-reward",
+      "proj-agentic-gov-deep-reward-evolution",
+      "proj-agentic-gov-deep-terminal-gating",
+      "proj-agentic-gov-write-golden-state"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-write-gae",
+    "question": "白板手写广义优势估计：给定逐步奖励和价值网络的 V(s)，怎么反向递推出优势？近端策略优化的损失自己产不产 A？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "白板手写",
+      "GAE",
+      "PPO",
+      "agentic-gov"
+    ],
+    "priority": "must",
+    "hint": "先写时序差分残差，再从后往前累。强调这是产优势的一层，损失只消费。本项目不用。",
+    "answer": {
+      "key_points": [
+        "GAE 是 Generalized Advantage Estimation，广义优势估计。本项目不用：我们没有逐步价值网络。上场是为了和近端策略优化对照。",
+        "单步时序差分残差 δ_t = r_t + γ V(s_{t+1}) − V(s_t)。终止步的下一价值通常当 0。",
+        "从后往前：A_t = δ_t + γλ A_{t+1}。λ 在偏差和方差之间折中，常见 0.95。",
+        "输出要对无效位置归零，并切断对价值网络的梯度。近端策略优化的裁剪损失只接收这个 A，不在损失里重新定义 A。"
+      ],
+      "code": [
+        {
+          "label": "广义优势估计反向递推",
+          "language": "python",
+          "code": "def gae_advantage(step_rewards, critic_values, mask, gamma=1.0, lam=0.95):\n    # 本项目不用。step_rewards: [B, T]；critic_values: [B, T+1]\n    T = critic_values.shape[1] - 1\n    advantages = zeros_like(step_rewards)\n    last_gae = 0.0\n    for t in reversed(range(T)):\n        next_val = critic_values[:, t + 1]\n        delta = step_rewards[:, t] + gamma * next_val * mask[:, t] - critic_values[:, t]\n        last_gae = delta + gamma * lam * last_gae * mask[:, t]\n        advantages[:, t] = last_gae\n    return stop_gradient(advantages)",
+          "note": "不是所有近端策略优化都必须用广义优势估计。核心是：裁剪损失不负责产 A。"
+        }
+      ],
+      "pitfalls": [
+        "从 t=0 往前递推是错的，必须从后往前。",
+        "漏乘 mask 会把填充位的价值传播进真实词片。"
+      ]
+    },
+    "follow_ups": [
+      "价值网络估偏时广义优势估计会怎样？"
+    ],
+    "related_ids": [
+      "proj-agentic-gov-write-ppo-loss",
+      "proj-agentic-gov-write-group-advantage"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-write-group-advantage",
+    "question": "白板手写组相对优势：同一题多条奖励怎么变成 A？零方差组怎么处理？谁强制用它、谁只是配方在用？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "白板手写",
+      "GRPO",
+      "优势估计",
+      "agentic-gov"
+    ],
+    "priority": "must",
+    "hint": "手写只留两个数：优势分母 1e-6，滤组 1e-12。教学文件里的 1e-8 / 1e-7 不要上场。",
+    "answer": {
+      "key_points": [
+        "组相对优势：同一题采多条，A_i=(R_i−μ)/(σ+1e-6)，再广播到该句全部助手词片。没有价值网络。这是组相对策略优化（GRPO）的定义。",
+        "DAPO、GSPO 原论文的组内配方复用它，改的是比值和分母，不是另造 A。CISPO 本体可吃任意优势；本项目喂的就是这个组内分数。",
+        "标准差为 0（全对或全错）时优势为 0。训练侧再按 1e-12 滤掉整组。1e-6 是优势分母，1e-12 是滤组门槛，不要混。",
+        "直接偏好优化没有在线优势。对比对两边不能进同一组，否则均值是两个问题的混合平均。"
+      ],
+      "code": [
+        {
+          "label": "组内相对优势（项目两个常数）",
+          "language": "python",
+          "code": "def group_relative_advantage(rewards, group_id):\n    # 项目 tokenize：A = (R - mean) / (std + 1e-6)\n    adv = zeros_like(rewards)\n    for g in unique(group_id):\n        m = group_id == g\n        r = rewards[m]\n        std = r.std(unbiased=False)\n        if r.numel() <= 1 or std == 0:\n            adv[m] = 0.0\n        else:\n            adv[m] = (r - r.mean()) / (std + 1e-6)\n    return adv\n\ndef should_keep_group(rewards, epsilon=1e-12):\n    # 滤组门槛是 1e-12，不是优势分母\n    return reward_variance(rewards) > epsilon\n\n# 本项目调用：adv = group_relative_advantage(...) → cispo_loss(..., adv, ...)",
+          "note": "教学文件里的 1e-8 / 1e-7 不是 ART 实现，白板不要写。"
+        }
+      ],
+      "pitfalls": [
+        "不要说 CISPO 等于组相对策略优化——前者是损失怎么用 A，后者是 A 从哪来。",
+        "线性缩放奖励几乎不改变组内优势，因为减均值除标准差会消掉常数和系数。"
+      ]
+    },
+    "follow_ups": [
+      "为什么除标准差之后线性缩放奖励几乎不变优势？"
+    ],
+    "related_ids": [
+      "proj-agentic-gov-write-cispo-loss-v2",
+      "proj-agentic-gov-write-gae",
+      "proj-agentic-gov-code-map-art-grpo",
+      "proj-agentic-gov-deep-group-baseline-vs-critic"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-write-reinforce",
+    "question": "白板手写 REINFORCE：给定新对数概率、优势和掩码，损失怎么写？为什么没有新旧概率比？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "白板手写",
+      "REINFORCE",
+      "agentic-gov"
+    ],
+    "priority": "must",
+    "hint": "纯当前策略。A 是外来的回报基线，损失只做 −A Σ log π。",
+    "answer": {
+      "key_points": [
+        "REINFORCE 是策略梯度的起点。优势通常是整条轨迹回报减一个基线；损失不产优势。",
+        "损失 L = −mean(A_i × Σ_t mask log π_θ)。优化器做梯度下降，必须带负号。",
+        "没有新旧概率比，因为假设采样策略就是当前策略，样本只能用一步，不能多轮复用。",
+        "方差大：一个结局标量乘到所有词片上。后面近端策略优化用比值和裁剪，组相对策略优化用组内基线，都是在降方差或允许多步复用。"
+      ],
+      "code": [
+        {
+          "label": "REINFORCE",
+          "language": "python",
+          "code": "def reinforce_loss(new_logp, advantages, mask):\n    # new_logp: 当前策略对数概率，有梯度\n    # advantages: 外来回报/基线，无梯度\n    seq_logp = (new_logp * mask).sum(dim=-1)\n    return -(advantages * seq_logp).mean()",
+          "note": "没有旧对数概率，没有裁剪。一换参数这批样本就过期。"
+        }
+      ],
+      "pitfalls": [
+        "分母若用固定长度，填充位会把梯度稀释。",
+        "漏写负号，策略会往低回报方向走。"
+      ]
+    },
+    "follow_ups": [
+      "加了基线之后还要不要重要性采样？"
+    ],
+    "related_ids": [
+      "proj-agentic-gov-write-ppo-loss",
+      "proj-agentic-gov-write-cispo-loss-v2"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-write-ppo-loss",
+    "question": "白板手写近端策略优化的裁剪损失：A 从哪来？新旧概率比怎么裁？什么时候梯度变成 0？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "白板手写",
+      "PPO",
+      "agentic-gov"
+    ],
+    "priority": "must",
+    "hint": "损失只消费 A。写 min(rA, clip(r)A)，不要 clip(rA)。点明死区。",
+    "answer": {
+      "key_points": [
+        "PPO 是 Proximal Policy Optimization，近端策略优化。产优势那一层典型用广义优势估计；裁剪损失本身不产 A。",
+        "自回归模型里每个词片当一个动作，r_t = exp(新对数概率 − 旧对数概率)。旧的是采样当时的行为策略，要冻结。",
+        "悲观目标 min(r A, clip(r, 1−ε, 1+ε) A)，ε 常见 0.2。必须先裁比值再乘 A。",
+        "当 r > 1+ε 且 A>0，目标变成常数，对新对数概率导数为 0。这就是梯度死区。被裁掉的往往是关键探索词片。"
+      ],
+      "code": [
+        {
+          "label": "近端策略优化裁剪",
+          "language": "python",
+          "code": "def ppo_clip_loss(new_logp, old_logp, advantages, mask, eps=0.2):\n    # advantages 来自 gae_advantage(...)，此处只消费\n    ratio = exp(new_logp - old_logp)\n    surr1 = ratio * advantages\n    surr2 = clip(ratio, 1.0 - eps, 1.0 + eps) * advantages\n    token_loss = -min(surr1, surr2)\n    return (token_loss * mask).sum() / mask.sum()",
+          "note": "参考模型对数概率不出现在这几行。比值不冻结——这和 CISPO 相反。"
+        }
+      ],
+      "pitfalls": [
+        "比值不 detach。",
+        "A 为负且 r 很小的对称死区同样存在。"
+      ]
+    },
+    "follow_ups": [
+      "为什么多轮复用同批样本时必须有旧对数概率？"
+    ],
+    "related_ids": [
+      "proj-agentic-gov-write-gae",
+      "proj-agentic-gov-write-cispo-loss-v2",
+      "proj-agentic-gov-write-reinforce"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-write-cispo-loss-v2",
+    "question": "白板手写 CISPO：裁的是谁、梯度走哪条路径？本项目的 A 从哪喂进来？和近端策略优化差哪几行？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "白板手写",
+      "CISPO",
+      "GRPO",
+      "agentic-gov"
+    ],
+    "priority": "must",
+    "hint": "先声明 A 是外部输入，再写冻结后的裁剪权重乘对数概率。分母地板是本项目补丁。",
+    "answer": {
+      "key_points": [
+        "CISPO 是 Clipped Importance Sampling Policy Optimization，裁剪重要性采样策略优化。损失只消费 A，不规定 A 必须来自组内分数。",
+        "本项目配方：先算组相对优势（分母 1e-6），再送进 ART 的 CISPO。这是配方，不是 CISPO 定义。",
+        "比值先冻结再裁到 [0, 5]，当权重乘 A 再乘新对数概率。梯度只走新对数概率，被裁词片仍有方向。近端策略优化裁整个目标且比值留在图里，越界正优势梯度为 0。",
+        "本项目补丁：分母取 max(助手词片数, 2560)，短拒办样本不再把梯度放大成尖峰。监控暂停阈值 4 不是裁剪上限 5。"
+      ],
+      "code": [
+        {
+          "label": "CISPO 消费外部 A；2560 是项目补丁",
+          "language": "python",
+          "code": "def cispo_loss(new_logp, old_logp, advantages, mask, eps_low=1.0, eps_high=4.0, n_norm=2560):\n    ratio = exp(new_logp - old_logp)\n    w = stop_gradient(clip(ratio, 1 - eps_low, 1 + eps_high))  # [0, 5]\n    token_loss = -w * advantages * new_logp\n    denom = max(float(mask.sum()), float(n_norm))              # 项目分母地板\n    return (token_loss * mask).sum() / denom\n\n# 本项目调用点：\nadv = group_relative_advantage(rewards, group_id)              # 1e-6\nloss = cispo_loss(new_logp, old_logp, adv, mask)",
+          "note": "ART 默认 CISPO 可以只除 mask.sum()；2560 是本项目补丁，不要说成 CISPO 论文原式。"
+        }
+      ],
+      "pitfalls": [
+        "写成 min(rA, clip(r)A) 就画成近端策略优化了。",
+        "不要说 CISPO 没有优势——它吃 A，只是不自己产 A。"
+      ]
+    },
+    "follow_ups": [
+      "为什么多轮对话更怕近端策略优化的梯度死区？"
+    ],
+    "related_ids": [
+      "proj-agentic-gov-write-ppo-loss",
+      "proj-agentic-gov-write-group-advantage",
+      "proj-agentic-gov-code-map-art-grpo",
+      "proj-agentic-gov-deep-handwrite-cispo-loss"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-write-dapo-loss",
+    "question": "白板手写 DAPO 损失：A 用谁的？非对称裁剪和词片级分母改哪两行？动态采样为什么不能写进损失？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "白板手写",
+      "DAPO",
+      "GRPO",
+      "agentic-gov"
+    ],
+    "priority": "common",
+    "hint": "第一句：本项目没跑 DAPO。损失只留非对称裁剪和全局词片均值。",
+    "answer": {
+      "key_points": [
+        "本项目没跑 DAPO（Decoupled Clip and Dynamic Sampling Policy Optimization）。上场是为了对照：它改裁剪和分母，不重新定义优势。",
+        "原论文组内配方的 A 仍是组相对优势。损失仍是 min(rA, clip(r)A)，比值不冻结，所以仍有近端策略优化式死区，只是上界更宽（0.2 / 0.28）。",
+        "词片级分母：全批次有效词片数做唯一分母，不再先按句子取均值。",
+        "动态采样在采样层丢掉全 0/全 1 组并补采，不能写进可微损失。本项目用可学性池和 filter_zero_variance_groups，理念相近，不是 DAPO 实现。"
+      ],
+      "code": [
+        {
+          "label": "DAPO 损失（论文公式；本项目未实现）",
+          "language": "python",
+          "code": "def dapo_loss(new_logp, old_logp, advantages, mask, eps_low=0.2, eps_high=0.28):\n    # 本项目没跑 DAPO。advantages 在论文配方里仍是组相对优势\n    ratio = exp(new_logp - old_logp)\n    surr = min(ratio * advantages,\n               clip(ratio, 1 - eps_low, 1 + eps_high) * advantages)\n    return -(surr * mask).sum() / mask.sum()     # 全局词片分母\n\n# 动态采样是采样调度，不是 loss：\n# 论文：丢掉全 0/全 1 组并补采\n# 本项目：可学性池 + filter_zero_variance_groups(epsilon=1e-12)\n# 不要把项目滤组函数写进 dapo_loss",
+          "note": "和 CISPO 的差别是仍裁目标而不是冻结权重。"
+        }
+      ],
+      "pitfalls": [
+        "把项目的滤组函数写进 DAPO 损失，会被听成「我们实现了 DAPO」。",
+        "不要说 DAPO 废除了组相对优势。"
+      ]
+    },
+    "follow_ups": [
+      "词片级分母对长思维链意味着什么？"
+    ],
+    "related_ids": [
+      "proj-agentic-gov-write-group-advantage",
+      "proj-agentic-gov-write-ppo-loss",
+      "proj-agentic-gov-write-gspo-loss"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-write-gspo-loss",
+    "question": "白板手写 GSPO：句子级几何平均比值怎么算？整句统一裁剪和逐词片裁剪差在哪？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "白板手写",
+      "GSPO",
+      "GRPO",
+      "agentic-gov"
+    ],
+    "priority": "common",
+    "hint": "本项目不用。A 仍是组相对。改的是比值粒度：一个句子一个 s。",
+    "answer": {
+      "key_points": [
+        "本项目不用 GSPO（Group Sequence Policy Optimization，组序列策略优化）。上场是为了和组相对策略优化对照：改比值粒度，不换优势。",
+        "s_i = exp( (1/长度) Σ (新对数概率 − 旧对数概率) )，即句子概率比的几何平均，整句共享一个标量。",
+        "目标 min(s A, clip(s) A) 在句子级。一句里不会出现有的词片被裁、有的没被裁。",
+        "组相对策略优化逐词片算比值，长链上方差会累积。论文用句子级比值压这种撕裂；文中提到的混合专家路由抖动是论文动机，不是本项目 40 亿稠密模型上的观察。"
+      ],
+      "code": [
+        {
+          "label": "句子几何比 + 句级裁剪",
+          "language": "python",
+          "code": "def sequence_geometric_ratio(new_logp, old_logp, mask):\n    length = mask.sum(dim=-1).clamp(min=1)\n    mean_log_diff = ((new_logp - old_logp) * mask).sum(dim=-1) / length\n    return exp(mean_log_diff)                    # 一句一个 s\n\ndef gspo_loss(new_logp, old_logp, advantages, mask, eps=0.2):\n    # 本项目不用。advantages 仍是组相对优势\n    s = sequence_geometric_ratio(new_logp, old_logp, mask)\n    obj = min(s * advantages, clip(s, 1 - eps, 1 + eps) * advantages)\n    return -obj.mean()",
+          "note": "几何平均是 exp(mean(log))，不要写成算术平均。"
+        }
+      ],
+      "pitfalls": [
+        "不要把几何平均写成算术平均。",
+        "不要说 GSPO 换了一套优势估计，也不要说成本项目观察。"
+      ]
+    },
+    "follow_ups": [
+      "为什么几何平均能把句内比值拉回 1 附近？"
+    ],
+    "related_ids": [
+      "proj-agentic-gov-write-group-advantage",
+      "proj-agentic-gov-write-dapo-loss",
+      "proj-agentic-gov-write-ppo-loss"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-write-dpo-loss",
+    "question": "白板手写直接偏好优化：为什么没有优势、也没有新旧概率比？隐式奖励和 log-sigmoid 怎么接？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "白板手写",
+      "DPO",
+      "agentic-gov"
+    ],
+    "priority": "must",
+    "hint": "离线成对偏好。先写隐式奖励差，再送 log σ。不要画在线采样。",
+    "answer": {
+      "key_points": [
+        "DPO 是 Direct Preference Optimization，直接偏好优化。不是策略梯度：没有在线采样，没有显式奖励，没有优势，没有新旧概率比。",
+        "数据是离线对（提示、更好的回答、更差的回答）。隐式奖励 = β × (当前策略对数概率 − 参考策略对数概率)。",
+        "损失 −log σ( 更好回答的隐式奖励 − 更差回答的隐式奖励 )。",
+        "本项目的在线训练走组相对优势 + CISPO，不用直接偏好优化。写它是为了划清边界，避免把偏好对硬套进组内采样。"
+      ],
+      "code": [
+        {
+          "label": "直接偏好优化成对损失",
+          "language": "python",
+          "code": "def dpo_loss(pi_w, ref_w, mask_w, pi_l, ref_l, mask_l, beta=0.1):\n    # 全序列对数似然，没有旧对数概率，没有 A\n    logp_w = (pi_w * mask_w).sum(-1) - (ref_w * mask_w).sum(-1)\n    logp_l = (pi_l * mask_l).sum(-1) - (ref_l * mask_l).sum(-1)\n    logits = beta * (logp_w - logp_l)\n    return -log_sigmoid(logits).mean()",
+          "note": "参考策略全程冻结。胜负对来自离线偏好，不是沙箱打分。"
+        }
+      ],
+      "pitfalls": [
+        "把直接偏好优化写成比值裁剪或组内优势，边界就画错了。",
+        "对数似然必须乘掩码再求和，不能把提示词片算进去。"
+      ]
+    },
+    "follow_ups": [
+      "这里的 β 和近端策略优化的 KL 系数是不是一回事？"
+    ],
+    "related_ids": [
+      "proj-agentic-gov-write-reinforce",
+      "proj-agentic-gov-write-group-advantage",
+      "proj-agentic-gov-write-cispo-loss-v2"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-deep-task-policy-instance-v2",
+    "question": "task_type、PolicyCard、CanonicalTask 三层各管什么？为什么政策不能写死在事项代码里？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "深问防守",
+      "任务工厂"
+    ],
+    "priority": "must",
+    "hint": "先说三层各在哪一层，再讲版本校验和 query_only 裁剪。",
+    "answer": {
+      "key_points": [
+        "现在代码里分三层：task_type 是技术主键，挂工具包和处理函数；PolicyCard 是法定合同，写必填槽、硬规则、转人工条件、必告知、允许的工具；CanonicalTask 是一次办件实例，带画像、真实资料、初始库、黄金终态。",
+        "公积金四事项和四张卡 1:1：余额 HF-BAL-QUERY、租房 HF-WD-RENT、购房 HF-WD-PURCHASE、贷款 HF-LOAN-REPAY，都是 v1.0，由 TaskTypeRegistry.register 注册。",
+        "task_loader.build_sandbox 会 _assert_policy_match：任务声明的 policy_id/version 对不上注册卡就直接崩，防止训练环境和工单各用各的规则。",
+        "运行时还会再裁一刀：loan_repayment_query 且 flow_variant=query_only 时，effective_bundle_for_task 从白名单抠掉 submit_prepayment_request，不是 Handler 里临时 if。",
+        "独立 PolicyCard 的设计目标是限额改数字只换卡版本、沙箱 8 步管线零改；社保医保个税是文档外挂示例，本仓库没实现，不能说已经接过。"
+      ],
+      "pitfalls": [
+        "别把 CanonicalTask 说成政策卡，也别说四个事项共用一张 PolicyCard。",
+        "query_only 裁剪发生在 Step 2 白名单，不是 Handler 内部判断。"
+      ]
+    },
+    "follow_ups": [
+      "PolicyCard 改版本，已经合成好的旧任务怎么办？"
+    ],
+    "related_ids": [
+      "proj-agentic-gov-deep-three-authorities",
+      "proj-agentic-gov-recap-b02-task-design",
+      "proj-agentic-gov-code-map-task-design",
+      "proj-agentic-gov-architecture",
+      "proj-agentic-gov-deep-rule-layering"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-deep-dc-vs-intent-v2",
+    "question": "按四个 task_type 各堆一千条看起来均衡，为什么其实是假均衡？决策概念和意图差在哪？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "深问防守",
+      "决策概念"
+    ],
+    "priority": "must",
+    "hint": "意图是用户想办哪件事；决策概念是分叉点上必须做对的那一步。",
+    "answer": {
+      "key_points": [
+        "意图或 task_type 只回答「用户想办哪件事」：租房提取、查余额。决策概念 DC 是分叉点上最小可验证行为：同一次租房，超额自愈是 DC-17，账户冻结转人工是 DC-19，未核身写库是 DC-30。",
+        "现在字典是 31 个决策概念、八个能力族，主干配额网格 4800；早期曾是 30 个、4600，后来加了「用户记错系统真值」这一档配额 200。",
+        "假均衡机制：按事项采样时，顺畅办结会淹没长尾。文档论证冻结、组合贷、逾期、用户记错参数在自然日志里不到 3%，但安全权重是 100%——这个 3% 是论证数字，没有实验分母，面试不能说成测出来的。",
+        "反例：购房任务里只要看见「合同」就默认通过，根本不核买受人身份证是否对得上，那是 DC-22 / 边界 BD-C2，按事项计数完全看不见这个洞。",
+        "DC-01 到 DC-06 才是意图识别族，不能把整张 31 张表都叫「意图分类」。DC 正交是建模目标，没有证明它们两两独立。"
+      ],
+      "pitfalls": [
+        "别说「四类事项均衡等于决策能力均衡」。",
+        "别把 DC 说成 task_type 的细分类。"
+      ]
+    },
+    "related_ids": [
+      "proj-agentic-gov-deep-primary-vs-multilabel-v2",
+      "proj-agentic-gov-recap-b02-task-design",
+      "proj-agentic-gov-data-pipeline",
+      "proj-agentic-gov-deep-contrast-pair-construction"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-deep-primary-vs-multilabel-v2",
+    "question": "一条任务能打多个 decision_concept_ids，配额为什么必须用 concept_primary？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "深问防守",
+      "决策概念"
+    ],
+    "priority": "common",
+    "hint": "一个字段管计数，一个字段管覆盖监控，别拿来交叉用。",
+    "answer": {
+      "key_points": [
+        "现在字段约定：concept_primary 是独占归属，4800 密度网格只按它计数；decision_concept_ids 是全景多标签，给覆盖监控和评测切片用。",
+        "硬断言：concept_primary 必须落在 decision_concept_ids 里；所有 id 必须在 DECISION_CONCEPT_DENSITY 字典内。缺额用 Counter(concept_primary) 对配额，不是对多标签求和。",
+        "对比对 A/B 共享 seed、persona、开场白，但 primary 通常不同。BD-C3：账户正常一侧记 DC-13，冻结一侧记 DC-19，各占一格，避免「一对样本只算一次」或「两侧算进同一个桶」。",
+        "DC-31 是叠加层不是新事项：用户记错系统真值时 primary 改成 DC-31，原业务 DC 写进 behavior_concept_primary，Golden Chain 仍按原业务走。",
+        "若用多标签计数，一千条顺畅购房就能让「每个经过的 DC 表面达标」——这是论证，没有实测幅度。"
+      ],
+      "pitfalls": [
+        "别用 decision_concept_ids 做配额。",
+        "别说对比对两侧必须同一个 primary。",
+        "别把 DC-31 说成第五个公积金事项。"
+      ]
+    },
+    "related_ids": [
+      "proj-agentic-gov-deep-dc-vs-intent-v2",
+      "proj-agentic-gov-write-contrast-pair",
+      "proj-agentic-gov-deep-contrast-pair-construction"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-deep-expected-action-not-trace",
+    "question": "Golden Chain 里的 ExpectedAction 是不是标准动作轨迹？在线 rollout 会按剧本播报错吗？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "深问防守",
+      "Golden Chain"
+    ],
+    "priority": "must",
+    "hint": "离线推终态，在线不读脚本；评测比的是库和终局动作。",
+    "answer": {
+      "key_points": [
+        "现在代码里：Golden Chain 是离线真值生成器。select_golden_chain 选出 ExpectedAction 序列，在干净沙箱里逐步 execute，推出 golden_final_state；无写任务还要 self_verify_golden_state，终态必须等于初态。",
+        "在线 MultiTurnEpisodeRunner 完全不读这条脚本，只把 Agent 的 Call_API 丢给 sandbox.execute。沙箱是反应式状态机，不是剧本播放器。",
+        "SFT 的 L1、RL 的 R_complete 都不比动作次序。L1 查工具观察一致、终局动作、数据库字段；Reward 只比 compare_spec 子集。乱序、多查、重试都合法，多出来的轮次只吃效率罚。",
+        "可恢复故障的脚本是两步：先 expect TEMPORARY_UNAVAILABLE，再同参 retry 成功，这样才能推出带写库结果的终态。链上断言失败是合成缺陷，不是 Agent 答错。",
+        "不能把 ExpectedAction 叫 Golden Trace。面试官一旦以为逐步比对对话，就会觉得模型没有自由探索。"
+      ],
+      "pitfalls": [
+        "别说 rollout 按剧本抛错。",
+        "Ask_User 是 Agent 动作，不是沙箱调用，Golden 里的确认步会跳过。"
+      ]
+    },
+    "related_ids": [
+      "proj-agentic-gov-deep-fault-free-exploration",
+      "proj-agentic-gov-write-golden-state",
+      "proj-agentic-gov-golden-state",
+      "proj-agentic-gov-recap-b02-task-design"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-deep-fault-free-exploration",
+    "question": "预设第一次写接口报 TEMPORARY_UNAVAILABLE，Agent 乱序多查、没核身就写，报错时机会不会打偏？超额提取也是注入的吗？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "深问防守",
+      "故障注入"
+    ],
+    "priority": "must",
+    "hint": "计数器按工具、挂在前置通过之后；业务错误不是注入。",
+    "answer": {
+      "key_points": [
+        "两类错误分开，现在代码就是这样。瞬态故障写在 CanonicalTask.sandbox_overrides.inject_errors。生产 schema 字段是 tool_name、on_call、error_code；教学伪代码写成了 tool / on_call_index，白板不要混。超额、未核身、无贷款由数据库和 Handler 自然抛，不写注入表。",
+        "Sandbox.execute 里前置失败返回 PRECONDITION_NOT_MET，不累加 _call_counter。过了前置才按工具名加一，再 _pop_injection。计数是工具局部的，查十次余额不影响写工具的第一次合法调用。",
+        "所以乱序、闲聊、没核身就写，都打不偏注入时机：没过前置就不消耗次数；第一次合法写才会命中 TEMPORARY_UNAVAILABLE，再带着同样参数重试才放行。",
+        "可恢复任务期望收尾是 Finish。遇错直接转人工，看起来像学会了其实没有：终局动作对不上，完成度也拿不满。",
+        "「绝对不会错位」只是这条计数规则的推论，没有大规模乱序统计，不能说成已证明的覆盖率。"
+      ],
+      "pitfalls": [
+        "别把 AMOUNT_EXCEEDS_LIMIT、PRECONDITION_NOT_MET 叫注入故障。",
+        "别说计数器跟全局对话轮次绑定。"
+      ]
+    },
+    "follow_ups": [
+      "Golden Chain 怎么写出带重试的终态？"
+    ],
+    "related_ids": [
+      "proj-agentic-gov-deep-expected-action-not-trace",
+      "proj-agentic-gov-write-sandbox-execute",
+      "proj-agentic-gov-code-map-sandbox",
+      "proj-agentic-gov-deep-error-taxonomy",
+      "proj-agentic-gov-safety-enforcement"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-deep-subject-runtime-ledger",
+    "question": "为什么全局 identity_verified=True 会张冠李戴？现在 RuntimeFlags 怎么绑主体？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "深问防守",
+      "沙箱"
+    ],
+    "priority": "must",
+    "hint": "讲旧事故用全局开关，讲现在用「旗标绑在某个人身上」。",
+    "answer": {
+      "key_points": [
+        "历史事故：早期 RuntimeFlags 是全局布尔。核了张三 110101…，下一轮拿李四 320102… 调 submit_rent_withdrawal 也会放行。",
+        "现在旗标键是 (名字, 主体)。说明书从入参或返回值拼主体。核身绑身份证；合同核验绑 (身份证, 合同号)，防「合同 A 核过拿去提合同 B」。",
+        "查贷后置 loan_info_retrieved 绑 (args.id_number, result.loan_id)；后续测算必须同一元组。Agent 幻觉一个贷款号会 PRECONDITION_NOT_MET。",
+        "硬规则：一场对话里 flag 只增不撤；只有 Handler 返回 ok 才写后置。同一 flag 有的绑主体、有的当全局，启动时直接崩。",
+        "recap-code/02_sandbox.py 把 runtime_flags 写成 dict[str, bool]，那是教学简化，不是生产形态。也没有线上被打穿的次数，只能讲设计反例。"
+      ],
+      "pitfalls": [
+        "别把现行系统讲成全局布尔。",
+        "别说 Handler 自己记核身状态。"
+      ]
+    },
+    "related_ids": [
+      "proj-agentic-gov-deep-three-authorities",
+      "proj-agentic-gov-write-sandbox-execute",
+      "proj-agentic-gov-safety-enforcement",
+      "proj-agentic-gov-recap-b03-sandbox"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-deep-three-authorities",
+    "question": "有了 PolicyCard.allowed_tools，为什么还要 ApiSpec 和 Handler？这三层各拦什么错误？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "深问防守",
+      "沙箱"
+    ],
+    "priority": "must",
+    "hint": "用一次租房提交走三层：跨事项、没核身、余额不够。",
+    "answer": {
+      "key_points": [
+        "三层各拦一类错，现在代码就是这样。白名单拦「这个事项允不允许这个工具」；ApiSpec 拦入参、格式、前置主体；Handler 拦扣款、限额、写表。引擎对前两层不写公积金知识。",
+        "错误分档不要混。未知工具和 TOOL_NOT_ALLOWED 是硬违规，整条轨迹零分。缺参、格式错、前置不满足是效率错，可重试。Handler 返回 AMOUNT_EXCEEDS_LIMIT 这类业务拒绝不罚，正确拒办仍可完成度满分。",
+        "走查：在余额查询任务里调 submit_rent_withdrawal，Step 2 直接 TOOL_NOT_ALLOWED。租房任务里没核身就提交，Step 5 PRECONDITION_NOT_MET，计数器不加。核过身但余额 15000 要取 20000，Handler 拒，Step 8 不写后置 flag。",
+        "query_only 从白名单抠写工具，强调这件事发生在 Step 2，不是 Handler 里藏一个 if。构造期 api_specs 里有名字、tool_handlers 没有，Sandbox 初始化直接 ValueError。"
+      ],
+      "pitfalls": [
+        "别说三层在重复校验同一件事。",
+        "别把 TOOL_NOT_ALLOWED 当可恢复错误，也别把限额判断放进 ApiSpec。"
+      ]
+    },
+    "related_ids": [
+      "proj-agentic-gov-deep-task-policy-instance-v2",
+      "proj-agentic-gov-deep-subject-runtime-ledger",
+      "proj-agentic-gov-deep-error-taxonomy",
+      "proj-agentic-gov-code-map-sandbox"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-deep-task-playback-diagnosis",
+    "question": "困难集全零的时候，你们怎么证明不是 4B 或组相对策略优化废了，而是题死了？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "深问防守",
+      "死题诊断"
+    ],
+    "priority": "must",
+    "hint": "假死面板、五维回放、两类反例。细数字留给统计卡。",
+    "answer": {
+      "key_points": [
+        "组相对策略优化（同一题采多条，用组内相对好坏当优势，不另训价值网络）在全对或全错时没有更新信号。当时面板像死了：新造难题 47 条 0/373；另外 24 条桥接题按当时口径全零。有人怀疑 4B 容量不够。",
+        "回放证伪：把可见上下文、沙箱返回、政策卡、黄金终态、打分五维对齐。不是把 47 条拆成 38+36——后来另在 390 测试池上才拆出死题和真难。同一 4B，同一套更新。",
+        "两类反例：贷款查询账户冻结该转人工，但工具和政策都读不到冻结，群众也不会主动说——完美助手必得零分。冒充标记只写在备注里，从未注入开场白。"
+      ],
+      "elaboration": "回放抽了 188 对轨迹。390 池上：38 条死题监督微调和第 15 步双 0/304；36 条真难 14/288 升到 25/288。21 项跨字段检查当时注册了，校验入口却不跑完整表；后来改成失败即拒绝入库，按哈希退役 247 行。Range-80 从 53.9% 到 61.7% 的分母和「未证明」口径见统计卡，这里不报。",
+      "pitfalls": [
+        "别把 47 条 0/373 当 4B 学不会的证据。",
+        "别说检查规则一开始就全开。47 条难题面板和后来 390 池的 38/36 不是同一集合。"
+      ]
+    },
+    "related_ids": [
+      "proj-agentic-gov-deep-verdict-statistics",
+      "proj-agentic-gov-biggest-mistake",
+      "proj-agentic-gov-deep-task-validity-contract",
+      "proj-agentic-gov-recap-b13-verdict"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-deep-four-prompt-boundaries-v2",
+    "question": "Agent Teacher、User Teacher、Agent SFT、Simulator SFT 四套输入，各自能看见什么、必须看不见什么？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "深问防守",
+      "信息边界"
+    ],
+    "priority": "must",
+    "hint": "四套不是同一模板换角色名。先合成两套，再训练两套。",
+    "answer": {
+      "key_points": [
+        "四套不是同一模板换角色。先合成两套：坐席老师看不见用户真值和披露规则，必须靠对话和工具把身份证问出来；群众老师看不见政策、工具和沙箱库，对白里也看不到思考和工具返回。",
+        "再训练两套：办事模型看见工具定义和全轨迹，仍看不见真值；群众模型的系统提示里有画像、真值和披露规则，历史只有自然语言。",
+        "失败机制：群众老师若读到工具返回或隐藏真值里的 latent，会未卜先知，后面的隐私泄漏评测全是假的。"
+      ],
+      "elaboration": "坐席老师模板 agent_teacher/v1.1，看得见政策卡、工具、含 analysis 和 ToolTurn 的历史。群众老师 user_teacher/v1.1 看得见画像、去掉 latent 的真值、披露规则；_serialize_turns_for_user_view 丢掉思考、参数和工具 JSON。办事模型吃 tools JSON 加 user/assistant/observation。群众模型角色反转：agent 当 user_tag，simulator 当 assistant_tag。推理用中文标题系统提示、训练用 JSON，那是环境设计，不是必须修的渲染错误；要逐标记对齐的是对话包装，不是系统提示正文。",
+      "pitfalls": [
+        "别说四套是同一提示词换角色。",
+        "别说坐席老师开场就看见身份证真值。"
+      ]
+    },
+    "related_ids": [
+      "proj-agentic-gov-deep-agent-sim-mask",
+      "proj-agentic-gov-code-map-synthesis",
+      "proj-agentic-gov-deep-simulator-info-boundary",
+      "proj-agentic-gov-recap-b04-sft-synthesis"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-deep-current-turn-repair",
+    "question": "合成编排器的当前轮修复修什么、不修什么？和语义守卫怎么分层？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "深问防守",
+      "SFT 合成"
+    ],
+    "priority": "common",
+    "hint": "格式当场修、语义拦截重试、整条任务才重建沙箱。",
+    "answer": {
+      "key_points": [
+        "当前轮修的是格式。parse_analysis_action 失败不丢前面已经跑完的轮次。漏 analysis 走 is_action_only：补思维块，但 action_type、tool_name、args、body 必须和原动作一致，防止趁机改业务。漏闭合标签就注入中文 parse_feedback，turn_parse_max_retries=2。",
+        "语义守卫不改 XML，拦状态机错误：同类写工具已经成功再提交，或办结后又用 Ask_User 索身份证。预算 semantic_max_retries=2，耗尽整条标 semantic_failed。",
+        "任务级 parse_max_retries=3 才会 sandbox_builder() 重建沙箱，防止中间写库残留。写工具集合是三个 submit_*。",
+        "recap 写单轮修复成功率 92% 以上，材料里没有分母和实验笔记，只能当叙述，不能当已测指标。"
+      ],
+      "code": [
+        {
+          "label": "补 analysis 时动作必须一致",
+          "language": "python",
+          "code": "if (repaired.action_type == original.action_type\n    and repaired.tool_name == original.tool_name\n    and repaired.tool_args == original.tool_args\n    and repaired.body == original.body):\n    # 只接受补上 <analysis>、业务动作没被改写的修复\n    accept(repaired)"
+        }
+      ],
+      "pitfalls": [
+        "别说修复会改业务动作。",
+        "别把在线语义守卫说成离线 Verifier Funnel。"
+      ]
+    },
+    "related_ids": [
+      "proj-agentic-gov-deep-three-quality-systems-v2",
+      "proj-agentic-gov-write-synthesis-loop",
+      "proj-agentic-gov-deep-envelope-template",
+      "proj-agentic-gov-code-map-synthesis"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-deep-three-quality-systems-v2",
+    "question": "L3 Tagger、L0 到 L5 漏斗、L6 审计是不是同一套质量系统？谁会丢掉样本？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "深问防守",
+      "质量漏斗"
+    ],
+    "priority": "must",
+    "hint": "护栏让轨迹跑完，漏斗决定去留，Tagger 只打标不丢。",
+    "answer": {
+      "key_points": [
+        "三套分开，现在代码就是这样。在线编排器修格式、拦重复写，让对话能跑完。离线漏斗一层不过就丢掉。行为打标器不是门禁，只输出六个标签。",
+        "L6 不是第七个自动层，是分层人工抽检框：_build_l6_frame 按 RARE_L3_KEYS 等比例抽样，防止常见样本占满质检名额。",
+        "Tagger 六维：轮数桶、信息释放、话题漂移、纠错、情绪弧、句长。rules_v1 保 CI 确定性；生产还有模型后端。后端模型名 recap 写 MiniLM，五级漏斗写 bge，材料内部不一致，面试按「双后端、规则侧可复现」说，不要死报一个模型当唯一事实。",
+        "用 Tagger 做 RL 课程分层是设计目标，这些材料没有执行日志。漏斗短路省 55% 的 L5 调用是专题估算，不是实测账单。"
+      ],
+      "pitfalls": [
+        "别说 L3 Tagger 是漏斗第四关、用来剔坏数据。",
+        "别把 L5 LLM Judge 和 Tagger 混成同一个打分器。"
+      ]
+    },
+    "related_ids": [
+      "proj-agentic-gov-deep-l3-name-collision-v2",
+      "proj-agentic-gov-write-verifier-funnel",
+      "proj-agentic-gov-code-map-filtering",
+      "proj-agentic-gov-deep-synthetic-data-trust",
+      "proj-agentic-gov-recap-b05-sft-filtering"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-deep-l3-name-collision-v2",
+    "question": "项目里两个完全不同的 L3，说错会怎样？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "深问防守",
+      "质量漏斗"
+    ],
+    "priority": "must",
+    "hint": "一个是改写样本的实体门禁，一个是全量轨迹的行为打标。",
+    "answer": {
+      "key_points": [
+        "漏斗第四层叫 L3_entity，模块 funnel._compute_l3，只打经过口语化改写的样本，查金额、身份证有没有被改写篡改。失败只丢改写版、保留 canonical。",
+        "没改写的标准样本输出 skipped：passed=False 但不短路，后面 L4 L5 照跑。",
+        "l3_tagger 是独立后验打标器，对全量合格轨迹抽六维特征，不丢样本。下游是 L6 抽检、分层采样，以及设计中的 RL 课程。",
+        "轮数桶口径冲突：recap-code 是 short≤5、medium 6–10；五级漏斗是 ≤3 / 4–6。面试按 recap-code 和 follow-up，并主动说文档没对齐。",
+        "说错的代价：面试官会以为你们用行为画像当过滤，或者以为改写失败会把整家族都扔掉。"
+      ],
+      "pitfalls": [
+        "开口第一句不要说「漏斗第四层叫 L3 Tagger」。"
+      ]
+    },
+    "related_ids": [
+      "proj-agentic-gov-deep-three-quality-systems-v2",
+      "proj-agentic-gov-write-verifier-funnel",
+      "proj-agentic-gov-recap-b05-sft-filtering"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-deep-nli-hybrid-routing",
+    "question": "「说到位」为什么不能整段对话丢给自然语言推断？正向告知和反向红线路由为什么不对称？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "深问防守",
+      "NLI"
+    ],
+    "priority": "must",
+    "hint": "先讲 512 截断把末轮告知截掉，再讲 P 挽救、N1 双检。",
+    "answer": {
+      "key_points": [
+        "自然语言推断（NLI）判断一句话是否蕴含某条法定告知。小模型最长 512 个标记，政务告知常在最后一两轮，整段对话当前提会把尾巴截掉。所以按助手每一句分别打分、取最高分。只取最后一轮会漏中途告知。",
+        "正向告知和反向红线路由不对称。法定告知必须全中，本地推断、关键词、大模型仲裁任一路命中即过。对抗红线是一票否决：本地命中只是嫌疑，必须再排除「我不能跳过核验」这种否定句假阳性。",
+        "监督微调漏斗和强化学习里「话说到位没有」锁同一份假设配置，防训练标准和打分标准割裂。"
+      ],
+      "elaboration": "一条「必须说办理时效」的样本：全文 1385 字整段得分 0.0032，按句取最高分后 0.9971。这是单条证据，不是全库假阴性率。P-08 时效性会被「公积金」字面触发假阳性，强制交给大模型复核。发版第二道检查修过三项查准：P-02 0.821→0.978、P-07 0.887→0.980、P-08 0.794→1.000，那是判定器校准，不是过滤漏斗的另一次实验。配置文件是 nli_hypotheses.frozen_v2.yaml。",
+      "pitfalls": [
+        "别把 0.0032/0.9971 说成全库指标。",
+        "别把正向告知和对抗红线都说成过阈值就过——对抗过阈值是危险信号。"
+      ]
+    },
+    "related_ids": [
+      "proj-agentic-gov-deep-bootstrap-frozen-rescan",
+      "proj-agentic-gov-deep-hybrid-nli-judge",
+      "proj-agentic-gov-recap-b05-sft-filtering"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-deep-bootstrap-frozen-rescan",
+    "question": "L2 阈值为什么先统一 0.75，冻结之后还要回扫被丢掉的样本？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "深问防守",
+      "NLI"
+    ],
+    "priority": "common",
+    "hint": "先打破循环依赖，宁严勿脏，再把误杀捞回来。",
+    "answer": {
+      "key_points": [
+        "循环依赖：主合成需要阈值过滤，分假设精调又需要主合成的 premise 池。规格是 dry-run 约 100 条、每条假设约 50 条，先统一保守阈值 0.75 启动。100/50 写在五级漏斗规格里，不是带实验笔记的实测。",
+        "0.75 不是最终线上阈值。小样本分假设调参容易过拟合；统一偏严是宁肯阶段性多杀，也不让脏数据进下游。",
+        "Frozen 之后 rescan_L2_nli_with_frozen_thresholds 两条回扫：已收录样本覆盖元数据；dropped_at_bootstrap 索引里当时被 0.75 误杀、Frozen 能过的，物理移回主目录，打 bootstrap_to_frozen_recovered。",
+        "data-lifecycle 另有 frozen_v2 回扫剔除 114 条、Stream① 落到 3996，那是治理丢弃，和 bootstrap 捞回方向相反，不要说成一步。Phase 5 G2 收紧后 ADR 明确不回扫 Phase 2 重训 SFT。",
+        "捞回条数材料没给，不能说「零召回损失已经测过」。"
+      ],
+      "pitfalls": [
+        "别把 0.75 说成线上最终阈值。",
+        "别把 G2 判定器变严和 L2 Frozen 回扫混成一次操作。"
+      ]
+    },
+    "related_ids": [
+      "proj-agentic-gov-deep-nli-hybrid-routing",
+      "proj-agentic-gov-recap-b09-release-gate"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-deep-agent-sim-mask",
+    "question": "为什么 Agent SFT 的 mask_history 是 false，Simulator 必须是 true？那 4028 条丢掉是 mask 造成的吗？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "深问防守",
+      "SFT 训练"
+    ],
+    "priority": "must",
+    "hint": "一个是整段轨迹，一个是按用户轮切片；4028 是角色顺序事故。",
+    "answer": {
+      "key_points": [
+        "Agent Stream① 是整段对话一条样本。LLaMA-Factory 已经把 user 和 observation 标成 -100，对所有 assistant 轮算交叉熵；每一步每个 epoch 只学一次，所以 agent_sft yaml 里 mask_history: false。",
+        "Simulator Stream② 按用户发言切片：三轮对话拆成三条，目标分别是 U1、U2、U3。若 mask_history 为 false，U1 会被学三次、U3 只学一次，开场白梯度被放大。必须 true，只对每条样本最后一句 simulator 算 loss。",
+        "4028 条静默丢弃是另一件事：剥掉工具轮次后留下连续坐席话，破坏「一问一答必须交替」。日志写丢掉 4028、有效样本落到约 7200，约三成五；11030 减 4028 对不上 7200，面试用原文，不自己重算。根因是角色顺序，不是 mask。",
+        "修复：_merge_consecutive_roles 合并同角色，有效样本回到 11030。群众映射成 simulator（计入 loss），坐席映射成 agent（被 mask）。"
+      ],
+      "pitfalls": [
+        "别说两个开关是随便配的。",
+        "别把 4028 归因于 mask_history。"
+      ]
+    },
+    "related_ids": [
+      "proj-agentic-gov-deep-four-prompt-boundaries-v2",
+      "proj-agentic-gov-write-simulator-slicing",
+      "proj-agentic-gov-code-map-simulator",
+      "proj-agentic-gov-user-simulator",
+      "proj-agentic-gov-recap-b08-simulator"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-deep-token-skew-causality",
+    "question": "Hard Violation 冲到 68.75%，是模型过拟合了吗？enable_thinking=False 为什么更糟？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "深问防守",
+      "训推一致性"
+    ],
+    "priority": "must",
+    "hint": "两套 renderer、控制 token 前缀错位；8/8 对齐后违规率归零。",
+    "answer": {
+      "key_points": [
+        "训练走 LLaMA-Factory 的 Python 模板 template: qwen；推理走基座 chat_template.jinja。名字都叫 qwen 不等于渲染一致，导出默认 replace_jinja_template=False。",
+        "token_diff 8/8 行在 index 3 就分叉：训练注入 default_system，推理没有；基座 Jinja 还给末轮包一层空 think。",
+        "误修复传入 enable_thinking=False：Jinja 不是关掉思考，而是硬插入 token [151667, 271, 151668, 271]，也就是 <think>\\n\\n</think>\\n\\n。720 步 SFT 在 assistant\\n 后面学的是立刻生成 <analysis>，从没见过这段前缀。",
+        "后果：Hard Violation 从 0 到 68.75%，Strict Success 从 0.47 掉到 0.219。手写等价 Jinja 后 8/8 IDENTICAL，违规率立刻归零。这是控制 token 前缀分布偏移，不是语义过拟合。",
+        "验收 n=8，证明的是这条渲染链修好了；不能外推成全量线上分布已对齐。Hard Violation 指不可挽回的格式或越权，Reward 整条清零。"
+      ],
+      "pitfalls": [
+        "别说 68.75% 说明微调过拟合。",
+        "别说训练推理都配了 qwen 所以一定一致。"
+      ]
+    },
+    "related_ids": [
+      "proj-agentic-gov-deep-format-collapse-reject",
+      "proj-agentic-gov-code-map-sft-training",
+      "proj-agentic-gov-recap-b06-sft-training",
+      "proj-agentic-gov-inline-thinking"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-deep-frequency-vs-variance",
+    "question": "为什么不能「越难越该多采」？组内方差为什么在成功率大约一半时最大？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "深问防守",
+      "采样"
+    ],
+    "priority": "must",
+    "hint": "组相对更新吃的是组内相对差，不是难度本身。",
+    "answer": {
+      "key_points": [
+        "组相对策略优化没有单独的价值网络：同一题采多条，用组内相对好坏当优势。优势是 (这条分−组均值)/组标准差。组内全对或全错，标准差为零，整组被丢掉。",
+        "对错可以看成成功率 p 的抛硬币，组内差别在 p 大约一半时最大。同一题采 8 条时，至少一成一败大约 99%。这不是「最难的题」，是「有时对有时错」的题。",
+        "按难度倒数加权会把预算推进 pass@8 为 0/8 的死区：Rollout 和判定已经花了，反向没有任何方向。",
+        "可学习性池 v2 当时这样分档：8 次里对 2 到 6 次的吃大约 80% 更新预算，对 7 到 8 次的只监控不更新，对 0 到 1 次的进诊断队列。第 0 步到第 15 步后来改走 Range-80 固定清单，不是一直按这档在线抽。",
+        "过滤发生在 reward 结算之后，省的是无效更新，省不了已经打完的分。SFT 把 pass@1 刷到 0.95 再开 RL，K=8 更容易整组全对，信号反而没了。"
+      ],
+      "pitfalls": [
+        "别把「难」当成「该多采」。",
+        "饱和组被丢是预期，不是采样器坏了。",
+        "别把可学习性池 v2 的 80/10/10 分档，说成第 0 步到第 15 步还在按这个在线抽。"
+      ]
+    },
+    "related_ids": [
+      "proj-agentic-gov-deep-frontloading-mechanism",
+      "proj-agentic-gov-deep-pool-evolution",
+      "proj-agentic-gov-deep-zero-variance-sampling",
+      "proj-agentic-gov-deep-passk",
+      "proj-agentic-gov-recap-b10-rl-data"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-deep-frontloading-mechanism",
+    "question": "早期 Frontloading 怎么把前几十步锁死的？94% 组丢弃是怎么来的？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "深问防守",
+      "采样"
+    ],
+    "priority": "must",
+    "hint": "配额被写进了队列头部，步进又是顺序取模。",
+    "answer": {
+      "key_points": [
+        "机制：为了保证「贷款转人工」出现得够多，把已经会做的这类题直接拼在队列最前面；取题又按步数顺序往下走。位置被锁死，不是「这一批里有没有」。",
+        "关键数字：原文写前 36 步提交 1681 个组，只有 24 个进梯度，丢弃率 94.1%。36 步是实测阻塞；「前约 40 步锁死」是按 320 个场景推的，别并成一个数。1681 和 36×8 对不上，面试用原文，不自己换算。",
+        "修复：打乱顺序，让「有没有这类题」和「排在第几」分开；再按「有时对有时错」加权。第 0 步到第 15 步后来改走 Range-80 清单，不是一直在线抽。"
+      ],
+      "elaboration": "诊断期加权曾用贷款办结约 0.74、购房办结约 0.26，不要拿来概括正式长程表面。修复后组丢弃落到大约 13% 到 43%。验证集最严成功率当时平躺在 0.81–0.83，是信号饿了，不是模型突然变强。",
+      "pitfalls": [
+        "别用 24/1681 自己算出 98.6% 去否定原文 94.1%。",
+        "别拿诊断期那组权重概括正式长程训练。"
+      ]
+    },
+    "related_ids": [
+      "proj-agentic-gov-deep-frequency-vs-variance",
+      "proj-agentic-gov-deep-pool-evolution",
+      "proj-agentic-gov-deep-zero-variance-sampling"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-deep-pool-evolution",
+    "question": "可学习性池从 v1 到 v2 改了什么？和后来的阶梯课程是什么关系？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "深问防守",
+      "课程学习"
+    ],
+    "priority": "must",
+    "hint": "v1 按比例切，v2 按 pass@8 切；课程是在池子之上加阶梯，不是另起炉灶。",
+    "answer": {
+      "key_points": [
+        "v1 按 80/10/10 切可学、易题监控、桥接。v2 按 K=8 成功次数重构：core 2–6/8，easy_canary 7–8/8，r3_queue 恰好 1 条成功，diagnostic_queue 全败。对比对按 unit_key 同进同退。",
+        "演化是事故驱动：先把已会的题堆到最前面，再改成按组内差别加权，再按「8 次里对几次」分池，死题审计之后才写成由易到难的阶梯。不要说一开始就有完整课程。",
+        "两段测量，不要说「47 拆成 38+36」。先是新造难题 47 条在第 15 步重测上 0/373，面板像死了；后来对 390 测试池做动作-证据扫描，才得到 38 条无效（监督微调和第 15 步双 0/304）和 36 条真难（14/288 到 25/288）。Range-80 训练清单 80/80 有效。",
+        "加难必须加得看得见的线索，禁止「拿掉工具可见信息」当难度。退役 247 条不可观察历史任务。L1 到 L3 那张 5/8、2/8、0/8 表是长程课程的设计示意，第 0 步到第 15 步没按这张表换包，不要当成 Range-80 实测。"
+      ],
+      "pitfalls": [
+        "47 条 0/373 和后来 390 池的 38/36 不是同一集合，分母 373、304、288 不要放进同一句因果。",
+        "别说课程会按单步抖动改池。"
+      ]
+    },
+    "related_ids": [
+      "proj-agentic-gov-deep-provenance-route",
+      "proj-agentic-gov-deep-frontloading-mechanism",
+      "proj-agentic-gov-deep-curriculum-ladder",
+      "proj-agentic-gov-recap-b10-rl-data"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-deep-provenance-route",
+    "question": "数据血缘为什么必须不可变？运行时路由又怎么晋级？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "深问防守",
+      "课程学习"
+    ],
+    "priority": "common",
+    "hint": "来源记账永远不变，角色可以在探针点换。",
+    "answer": {
+      "key_points": [
+        "这是长程课程的设计约定，第 0 步到第 15 步没按这张表换包。实测那一段走的是 Range-80 清单，总体从 53.9% 到 61.7%。",
+        "血缘是来源标签，写进样本就不再改：即使以后拿来当普通训练题，统计上仍记课程来源，防止「现在好用了就改写成核心集」。",
+        "计划里每步 8 组：1 组只监控不更新，7 组训练。训练组来源计划是核心集约一半、其余按历史批次和已接受课程拆，具体 50/25/15/10 是冻结包设计，不是已经执行过的换包记录。",
+        "路由是运行时角色。设计上：目标题在探针里进入「8 次里对 2 到 6 次」才晋级进核心训练区；最易档打满 8/8 就退出梯度、改当监控。换包只允许预先定好的探针点，禁止按单步抖动改池。",
+        "设计里唯一允许上监督微调局部补丁的条件：最易档在起始探针和采 32 次的探针都是全错。采 32 次只产证据、不更新模型。5/8、2/8 那张表是示意，不是 Range-80 实测。"
+      ],
+      "pitfalls": [
+        "别把这张状态机说成第 15 步已经晋级过。",
+        "别把路由晋级说成改写了数据血缘。"
+      ]
+    },
+    "related_ids": [
+      "proj-agentic-gov-deep-pool-evolution",
+      "proj-agentic-gov-deep-canary-boundary-v2",
+      "proj-agentic-gov-deep-curriculum-ladder",
+      "proj-agentic-gov-deep-t4-schedule"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-deep-canary-boundary-v2",
+    "question": "所谓 10% 非梯度监控，Canary 还跑不跑 rollout？Budget、Monitor、Eval、Holdout 怎么划死？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "深问防守",
+      "监控边界"
+    ],
+    "priority": "must",
+    "hint": "前向全跑，反向前剥离；四条数据路径不要并成「验证集」。",
+    "answer": {
+      "key_points": [
+        "现在每步大约 8 组里 1 组是监控组，占比约 10% 到 12.5%，不必咬死 10.0%。这 8 组都做完整采样和打分。",
+        "反向前 _batch_canary_flags 剥掉，再 filter_zero_variance_groups，再 backend.train。梯度贡献严格 0%。Canary 不进丢弃率分母、不进 skip 统计、不进 Grad Guard。",
+        "配额是采样器怎么分槽；监控是每步前向、零梯度；探针是预先定好的检查点上离线评、用来决定换不换包（这是设计，第 0 步到第 15 步没按课程表换包）；隔离集血缘永久隔离，禁止进入训练、课程、监控池。",
+        "目的是强化难任务时盯简单基线有没有忘。Holdout 绝不能拿来当 Canary。"
+      ],
+      "pitfalls": [
+        "别说 Canary 以小权重更新。",
+        "别把四条边界说成同一个验证集。"
+      ]
+    },
+    "related_ids": [
+      "proj-agentic-gov-deep-monitor-after-reward",
+      "proj-agentic-gov-deep-provenance-route",
+      "proj-agentic-gov-code-map-art-grpo",
+      "proj-agentic-gov-deep-zero-variance-sampling"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-deep-reward-version-counterexamples",
+    "question": "Reward 从 v1 改到 v3，每一版是被哪一个反例逼出来的？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "深问防守",
+      "Reward"
+    ],
+    "priority": "must",
+    "hint": "每版只记它修的那个反例，别背成调参史。",
+    "answer": {
+      "key_points": [
+        "v1 的病：扣分项占得分预算。完美轨迹上限大约 Finish 0.75、Escalate 0.80，「满分」语义不干净。",
+        "第二版修天花板：质量项归一，完美轨迹可以到 1.0。728 条历史对话重算，组内标准差均值加 30%，零方差组数不变。线性缩放到 0 到 1 对组相对更新是空操作，第二版不是那种缩放。",
+        "v2 没修的反例：不写库任务上状态对、终局动作错也会打平。错误 Finish 和正确拒办都能 R_state=1，组内优势为零，稀有动作没梯度。",
+        "第三版现在在用：完成分 = 库对不对 × 收尾动作对不对，收尾错则完成度清零。转人工是否正确移出训练总分，只留报表。有一段探针曾错接永不命中的空检查器，那段读数不代表第三版。",
+        "第 0 步到第 15 步在第三版上：转人工 +20.6 个百分点，带拒绝办结（FinishWithRefusal）+12.5 个百分点，Range-80 +7.8 个百分点、p=0.023。这是训练分布内的证据，不是没参与训练的测试集已经过门。"
+      ],
+      "pitfalls": [
+        "别说成越调越好。",
+        "别把事故期空检查器读数和现在的第三版混在一起。"
+      ]
+    },
+    "related_ids": [
+      "proj-agentic-gov-deep-reward-evolution",
+      "proj-agentic-gov-deep-terminal-gating",
+      "proj-agentic-gov-write-reward-v3",
+      "proj-agentic-gov-recap-b11-rollout-reward",
+      "proj-agentic-gov-reward-design"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-deep-monitor-after-reward",
+    "question": "为什么泄露监控必须在 Reward 固化之后跑？开场泄露和中途泄露为什么处理不同？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "深问防守",
+      "泄露隔离"
+    ],
+    "priority": "must",
+    "hint": "环境故障不能伪装成策略缺陷；中途泄露不改分、不丢组。",
+    "answer": {
+      "key_points": [
+        "现在时序：对话结束，先把打分写死进轨迹，再挂监控材料，最后做只读检查。检查跑的是 RPCR（Reveal Policy Compliance Rules，按披露规则查有没有不该说的字段），在 CPU 上做字符串扫描，不改分。",
+        "开场泄露 leak_opening_events>0：首轮本该来自静态 opening_message，模拟器自己说漏了，抛 RuntimeError 停训。有轨迹却没 payload 同样 Fail-Closed，防止监控被绕过。",
+        "中途泄露只记 W&B 的 simulator/leak_rate，不改 Reward、不惩罚 Agent、不丢轨迹、不重采样。Simulator 是环境，环境早泄不能伪装成策略缺陷。",
+        "不能无条件保证的边界：中途早泄可能让 Agent 少追问，吃到更好的轮数效率分。靠遥测和离线 hard_val_v1_prime 复核，不是改训练信号。warn_threshold=0.05 是告警线，不是中途停训线。"
+      ],
+      "pitfalls": [
+        "别说泄露了就丢组或扣分。",
+        "别把开场熔断和中途遥测说成同一档处理。"
+      ]
+    },
+    "related_ids": [
+      "proj-agentic-gov-deep-canary-boundary-v2",
+      "proj-agentic-gov-deep-simulator-leak-governance",
+      "proj-agentic-gov-code-map-rollout-reward",
+      "proj-agentic-gov-user-simulator"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-deep-jra-vs-semantic-audit-v2",
+    "question": "判定器运行时自证能证明跑的是声明的那套打分器，还是能证明判定语义正确？为什么还要预注册盲化语义审计？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "深问防守",
+      "评测治理"
+    ],
+    "priority": "must",
+    "hint": "配置哈希对得上，不等于内存里跑的是声明的那个类。",
+    "answer": {
+      "key_points": [
+        "JRA（Judge Runtime Attestation，判定器运行时自证）核对的是：内存里跑的判定器类、阈值包、仲裁开关、提示词、端点，是不是收据上写的那些。对不上就按确定性污染直接停训。",
+        "历史事故：配置哈希只绑定配置文件身份，绑不住运行时类。收据声称混合判定链，执行时却接了一个永不命中的空检查器，还关掉了本地推断和仲裁。",
+        "掩盖细节：租房办结靠关键词兜底蒙对 82/96，面板看起来还行。同一批 384 条办结接回真链，最严口径从 89/384（23%）重算到 294/384（77%）。",
+        "它证明不了判定语义本身正确，也防不了模型学会裁判爱听的措辞合法骗分。",
+        "所以还要第三层盲化差分语义审计：独立评判者重判一批样本。已预注册为后续长程必做，尚未执行，不能说做过。"
+      ],
+      "pitfalls": [
+        "语义审计是预注册待办，说成已跑会穿帮。",
+        "配置哈希一致不等于跑的是声明的 judge。"
+      ]
+    },
+    "related_ids": [
+      "proj-agentic-gov-deep-jra-semantic-audit",
+      "proj-agentic-gov-reward-hacking",
+      "proj-agentic-gov-deep-verifiable-vs-rm",
+      "proj-agentic-gov-recap-b09-release-gate"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-deep-gather-group-semantics",
+    "question": "gather_trajectory_groups 和普通 asyncio.gather 差在哪？它怎么「等组」而不是摊平所有轨迹？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "深问防守",
+      "ART"
+    ],
+    "priority": "common",
+    "hint": "输入是按组包好的生成器；优势的统计单元就是这个组。",
+    "answer": {
+      "key_points": [
+        "现在调用是：collect_train_groups 传入按组包好的生成器，不是把所有对话摊成独立任务再事后分组。",
+        "组是组相对策略优化的统计单元。同一题的 8 条必须作为一组完成，才能算均值和标准差。每步通常 8 个场景、64 条轨迹。",
+        "单条网络抖动进组内异常列表，不立刻打崩整步；异常率超过上限才整步失败。项目默认上限是 0，表示更苛刻，不要脑补成无限容忍。",
+        "框架提供组完成回调 after_each，一组收齐就可以做后续动作、释内存。本项目打分在每条 rollout 里完成，没有把打分挂在这个回调上。"
+      ],
+      "pitfalls": [
+        "别说成就是 asyncio.gather。"
+      ]
+    },
+    "related_ids": [
+      "proj-agentic-gov-deep-packed-attention-isolation",
+      "proj-agentic-gov-code-map-art-grpo",
+      "proj-agentic-gov-write-rollout-loop",
+      "proj-agentic-gov-recap-b12-art-grpo",
+      "proj-agentic-gov-deep-zero-variance-sampling"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-deep-packed-attention-isolation",
+    "question": "多条轨迹拼进同一行 PackedTensors 时，注意力怎么保证互相看不见？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "深问防守",
+      "ART"
+    ],
+    "priority": "common",
+    "hint": "哨兵保证 token 一致，双 ID mask 保证邻居不可见。",
+    "answer": {
+      "key_points": [
+        "为什么要拼包：多条长短不一的对话塞进同一行张量，才能把计算打满。邻居轨迹如果互相看得见，梯度就脏了。",
+        "哨兵替换：助手轮先换成唯一占位符再套对话模板，再把推理时生成的真实标记和当时的对数概率原位填回，避免重新切开对不齐。",
+        "贪心打包进固定长度，伪代码默认 4096。每段有 group_ids 和 parent_ids。Mask[i,j] = (j≤i) 且 (同组 或 query 的 parent 等于 key 的 group)。",
+        "语义：同一轨迹后一轮看得到前一轮和自己的 prompt；绝对看不到邻居那条轨迹。4096 是 pack 宽度，不是 N_norm=2560。",
+        "只有助手自己生成的标记计损失。组优势标量广播到这些标记上。隔离靠双 ID，不靠换行本身。"
+      ],
+      "code": [
+        {
+          "label": "双 ID 因果隔离",
+          "language": "python",
+          "code": "mask[q, k] = (k <= q) & (\n    (group_ids[q] == group_ids[k]) | (parent_ids[q] == group_ids[k])\n)\n# A2 看得到 A1 和 Prompt P；看不到邻居 Prompt Q"
+        }
+      ],
+      "pitfalls": [
+        "别把 4096 pad 和 2560 分母地板说成同一个数。"
+      ]
+    },
+    "related_ids": [
+      "proj-agentic-gov-deep-gather-group-semantics",
+      "proj-agentic-gov-deep-choice-logprob-loss",
+      "proj-agentic-gov-deep-loss-mask",
+      "proj-agentic-gov-write-group-advantage"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-deep-choice-logprob-loss",
+    "question": "这种按词加权的策略损失里，重要性比值为什么要切断回传？梯度到底走哪条张量？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "深问防守",
+      "CISPO"
+    ],
+    "priority": "must",
+    "hint": "权重冻结，梯度只走被选中 token 的 new_logprobs。",
+    "answer": {
+      "key_points": [
+        "CISPO（裁剪的是重要性权重，不是整段目标）是训练框架默认的按标记加权。新旧策略概率比算出来以后先切断回传，再裁到 0 到 5 之间，只当权重。",
+        "真正更新的是实际抽到的那个标记的对数概率。损失形态是 −权重 × 优势 × 新对数概率。采样时记下的旧对数概率必须原样挂进轨迹，转成纯文本框架会把它当上下文、不算损失。",
+        "常见裁剪目标在比值过大且优势为正时，相关标记的梯度会停住。这里越界仍有方向，只限幅度，适合多轮里稀疏的关键工具标记。",
+        "口径：组优势来自组相对策略优化，标记损失是这种加权。加权本身不强制某种优势，本项目喂的是组内相对分数。监控里比值最大值超过 4 是暂停线，不是裁剪上界 5。"
+      ],
+      "code": [
+        {
+          "label": "CISPO：权重 detach，梯度走 logπ",
+          "language": "python",
+          "code": "r = exp(new_logp - old_logp)\nw = clip(r.detach(), 0.0, 5.0)   # 不回传到 θ\nloss = -(w * advantage * new_logp * mask).sum() / denom"
+        }
+      ],
+      "pitfalls": [
+        "别把这种加权说成教科书里的组相对损失。",
+        "别把监控暂停线 4 和裁剪上界 5 说成同一个数。"
+      ]
+    },
+    "related_ids": [
+      "proj-agentic-gov-deep-advantage-loss-two-layers",
+      "proj-agentic-gov-deep-cispo-loss",
+      "proj-agentic-gov-write-cispo-loss-v2",
+      "proj-agentic-gov-deep-handwrite-cispo-loss"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-deep-advantage-loss-two-layers",
+    "question": "Advantage 是哪一层算出来的、哪一层拿去乘 logprob？你们的 KL 改的是 A 还是在 loss 上加一项？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "深问防守",
+      "Advantage"
+    ],
+    "priority": "must",
+    "hint": "先生产 A，再消费 A；ART 的 KL 加在优势上。",
+    "answer": {
+      "key_points": [
+        "层 A 生产优势：同一 prompt 的 K 条奖励做 z-score，标量广播到该轨迹所有 assistant token。零方差组在进 loss 之前丢掉。Loss 不负责重新定义 A。",
+        "第二层消费优势：这种切断回传的加权用冻结后的概率比当权重，乘优势，再乘新对数概率。常见裁剪目标往往搭配逐步优势估计，但不等于必须那样；这种加权可以吃任意优势。",
+        "ART 落地把相对 KL 加在 Advantage 上，不是 TRL 那种 L+βKL：kl_per_token 全部 detach，偏离超过批次均值的 token 被压 A，低于均值的相对加分，保留平均偏离预算内的探索。",
+        "本项目是 episode 终局标量奖励，没有逐步 Critic。信用分配仍是整段广播，子项分解只改善可诊断性，没解决哪一轮立功。",
+        "相对熵系数配置默认 0.04，长程方案冻结 0.08，分阶段说，不要并成一个现在永远用的数。"
+      ],
+      "pitfalls": [
+        "别把「怎么算 A」和「loss 怎么用 A」写成一个公式。",
+        "别把 ART 的相对 KL 说成标量 loss 上再加一项。"
+      ]
+    },
+    "related_ids": [
+      "proj-agentic-gov-deep-choice-logprob-loss",
+      "proj-agentic-gov-deep-reference-disable-adapter",
+      "proj-agentic-gov-write-group-advantage",
+      "proj-agentic-gov-write-gae",
+      "proj-agentic-gov-deep-kl-anchor"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-deep-reduction-length-bias",
+    "question": "N_norm=2560 是按 token 长度中位数定的吗？为什么只压 Policy Loss、不压熵和 KL？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "深问防守",
+      "损失归一化"
+    ],
+    "priority": "must",
+    "hint": "它是 A/B 实验选出来的分母地板，不是 P50，也不是 pad 宽。",
+    "answer": {
+      "key_points": [
+        "现在策略损失除以「助手标记数」和 2560 里较大的那个。极短的拒绝对话会让分母变得很小、梯度爆掉。对照实验里目标任务最大梯度从 18.4 压到 1.59。",
+        "2560 不是短批次 assistant token 的 P50（大约 160），也不是 pack 宽度 4096。候选 512 仍有 8.46 尖峰，2048 仍 2.22 破门，4096 把三个对照中位数压到 0.32–0.42，过杀正常信号。",
+        "2560 是唯一同时满足尖峰<2.0、对照留存 0.53–0.68 落在 [0.5, 2.0] 的点。mask 160 时梯度大约缩到 1/16；≥2560 时缩放为 1。",
+        "Entropy 和 KL 保持原生分母。若熵也除 2560，探索项会被压十倍量级，容易过早确定化。这是 Qwen-4B 多轮长度上的标定，不是跨模型常数。",
+        "局部梯度 batch 全绿不等于整轮过门。"
+      ],
+      "pitfalls": [
+        "别说按长度中位数或填充宽度设定。",
+        "对照实验的门是目标尖峰小于 2.0、正常题留存在 0.5 到 2.0；不要和训练循环里梯度守卫的跳步阈值混成一个数。"
+      ]
+    },
+    "related_ids": [
+      "proj-agentic-gov-deep-choice-logprob-loss",
+      "proj-agentic-gov-training-stability",
+      "proj-agentic-gov-deep-loss-mask",
+      "proj-agentic-gov-code-map-art-grpo"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-deep-reference-disable-adapter",
+    "question": "参考策略的 KL 怎么做到几乎不占额外显存？disable_adapter 和 c_kl 怎么用？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "深问防守",
+      "KL"
+    ],
+    "priority": "must",
+    "hint": "前向时关掉 LoRA，不算第二份模型；KL 加在优势上。",
+    "answer": {
+      "key_points": [
+        "现在算参考概率时临时关掉低秩增量，无梯度前向。不常驻第二份一样大的模型，材料称几乎不占额外显存，代价大约多 5% 墙钟。",
+        "KL 进入优势：A ← A + c_kl×(批次均值 KL − 该 token KL)。只打压离群 token，不是把整步拉死。",
+        "配置默认 c_kl=0.04；运维健康区间 0.04–0.08；长程 T4 方案冻结 0.08。监控 loss/kl_policy_ref，材料写健康大约 0.01–0.30；≈0 要怀疑探索不足。C0→C15 表上的 |KL|≤0.0022 是另一口径，不要和 W&B 诊断图混读。",
+        "相对熵锚的是语气分布，防一次性倾倒告知。往组相对更新的池子里混已经会做的旧数据会被零方差过滤，当不成复习。"
+      ],
+      "code": [
+        {
+          "label": "零额外显存参考前向",
+          "language": "python",
+          "code": "if reference_logprobs:\n    with model.disable_adapter():\n        with torch.no_grad():\n            logits = model(input_ids).logits\n# 再 log_softmax + gather 出 ref_logprobs"
+        }
+      ],
+      "pitfalls": [
+        "别说另开一份 ref 模型。",
+        "问「现在长程用哪个 c_kl」时要分默认 0.04 和冻结方案 0.08。"
+      ]
+    },
+    "related_ids": [
+      "proj-agentic-gov-deep-advantage-loss-two-layers",
+      "proj-agentic-gov-deep-kl-anchor",
+      "proj-agentic-gov-deep-ce-vs-kl"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-deep-serving-async-lifecycle",
+    "question": "低秩增量加载为什么会慢六倍？融合成全量权重之后，再和异步错开一步，生命周期上怎么冲突？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "深问防守",
+      "Serving"
+    ],
+    "priority": "must",
+    "hint": "先排除前缀缓存，再讲一份全量权重和采到一半旧模型消失。",
+    "answer": {
+      "key_points": [
+        "机制：训练仍用低秩增量，推理加载非零增量后大约慢六倍。有人猜是前缀缓存被冲掉，日志命中率一直约 94%，排除了。便宜开关最多快一成，判定没有便宜修复。",
+        "关键数字：零增量大约 1511 标记每秒，非零掉到约 247；改成把增量加回底模再加载，回到大约 1500。数字在两张 A6000 上测的，不能平移到 4090。",
+        "不能证明「异步已经跑通」。低秩模式可以同时留两个版本；融合后同一时刻只有一份全量权重。采到一半旧名字会找不到。没有排空屏障就不要把融合加载和异步错开叠在一起。现在走的是先采完再更新、推融合权重。"
+      ],
+      "elaboration": "异步错开一步实测更慢约两倍，丢弃大约 44%。k 只决定采完的数据还认不认，管不了八轮对话采到一半旧模型消失。公式上这种加权能忍一步偏离，不代表工程上异步已经成功。",
+      "pitfalls": [
+        "别把「公式能扛一步偏离」说成「我们跑通了异步」。",
+        "别把 4B 换 8B 那次评测和这次六倍变慢说成同一个实验。"
+      ]
+    },
+    "related_ids": [
+      "proj-agentic-gov-deep-lora-serving-regression",
+      "proj-agentic-gov-deep-async-k1-failure",
+      "proj-agentic-gov-art-tradeoffs",
+      "proj-agentic-gov-recap-b12-art-grpo"
+    ]
+  },
+  {
+    "id": "proj-agentic-gov-deep-verdict-statistics",
+    "question": "预先登记的验收记成未证明，判的是什么？38 条死任务和多 7.8 个百分点、提高约 78%，怎么同时成立？",
+    "category": "project",
+    "tags": [
+      "agentic-gov-recap-v2",
+      "深问防守",
+      "RL 结论"
+    ],
+    "priority": "must",
+    "hint": "机械门没过，不等于算法无效；数字要带分母和集合名。",
+    "answer": {
+      "key_points": [
+        "门没过不等于算法无效。预先写下的验收门槛没跨过，记成「未证明」——不是「组相对策略优化被证伪」。",
+        "两段测量不要串成一句因果。先是新造难题 47 条 0/373，面板像死了；后来在 390 测试池上才拆出 38 条无效（双 0/304）和 36 条真难（14/288 到 25/288，相对约 +78%）。分母 373、304、288 不是把 47 拆开。",
+        "Range-80 这份干净训练面：约 53.9% 到 61.7%，多 7.8 个百分点，p≈0.023。已证明的是同一 4B 在这份面上有正信号；未证明全任务面、没参与训练的测试集过门、以及更长训练。"
+      ],
+      "elaboration": "80/80 说的是训练清单有效；通过率分母是 74 条成对完整任务、共 592 次尝试（319/592→365/592），不是 80×8。同一实验的分桶：转人工 +20.6 个百分点，带拒绝办结 +12.5 个百分点。项目侧另有干净保留集转人工 +9.2 个百分点，不要和 +20.6 混报。安全不降级也未在这组数字里证明。长程第一波评测尚未做，不能把第 0 步到第 15 步说成已经证明长程成功。",
+      "pitfalls": [
+        "别把「未证明」说成算法失败。",
+        "别把 Range-80 分布内提升说成没参与训练的测试集已经过门。",
+        "47 条 0/373 和后来 390 池的 38/36 不是同一集合。",
+        "别用 80×8=640 反推通过率。80/80 是清单有效，成功率分母是 74 条成对完整任务共 592 次。"
+      ]
+    },
+    "related_ids": [
+      "proj-agentic-gov-deep-task-playback-diagnosis",
+      "proj-agentic-gov-rl-results",
+      "proj-agentic-gov-current-status",
+      "proj-agentic-gov-recap-b13-verdict",
+      "proj-agentic-gov-limitations"
+    ]
   }
 ]
