@@ -7,6 +7,8 @@ import styles from './EmptyState.module.css';
 
 interface EmptyStateProps {
   onReviewWeakest: () => void;
+  /** 返回模式选择器：让用户从空状态回到 ModePicker 选其他模式（如按标签、按难度）。 */
+  onBackToPicker: () => void;
   learningSoon?: number;
   nextLearningDueAt?: number | null;
   /**
@@ -25,7 +27,7 @@ function formatMinutesUntil(ts: number): string {
   return `${hrs} 小时后`;
 }
 
-export function EmptyState({ onReviewWeakest, learningSoon = 0, nextLearningDueAt, browsePath }: EmptyStateProps) {
+export function EmptyState({ onReviewWeakest, onBackToPicker, learningSoon = 0, nextLearningDueAt, browsePath }: EmptyStateProps) {
   const hasLearning = learningSoon > 0 && nextLearningDueAt;
   return (
     <div className={styles.container}>
@@ -63,8 +65,15 @@ export function EmptyState({ onReviewWeakest, learningSoon = 0, nextLearningDueA
           >
             复习最薄弱的题目
           </motion.button>
+          <motion.button
+            className={styles.secondaryButton}
+            onClick={onBackToPicker}
+            whileTap={{ scale: 0.97 }}
+          >
+            选择其他模式
+          </motion.button>
           {browsePath && (
-            <Link href={browsePath} className={styles.secondaryButton}>
+            <Link href={browsePath} className={styles.tertiaryButton}>
               浏览全部题目
             </Link>
           )}

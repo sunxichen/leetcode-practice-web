@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { useState, useMemo, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import type {
   UserProgressData,
   SessionMode,
@@ -63,9 +63,15 @@ export function useStudyQueue<C extends SessionCard>(
   // session cursor is NOT used to restore a stale queue because due/learning
   // state may have shifted since the cursor was saved (e.g. resuming the next
   // day). A dynamic smart queue must reflect the actual SM-2 schedule.
-  useEffect(() => {
-    if (!progressData || progressData.lastUpdatedAt === 0) return;
-
+  //
+  // 用 useLayoutEffect 而非 useEffect：切换模式时队列在浏览器绘制前更新，
+  // 避免第一帧渲染旧队列（闪屏一道 smart 卡或 EmptyState，再切到 tag 卡）。
+  // 不再用 lastUpdatedAt===0 做守卫——加载态已由外壳的 isLoading 分支处理，
+  // 全新用户的空进度（progress={}）本身就是合法输入：smart 队列会包含全部
+  // 新卡，tag/difficulty 队列会包含全部匹配卡。之前用 lastUpdatedAt===0 守卫
+  // 会导致全新用户（或清过 localStorage 的用户）任何模式都生成不了队列，
+  // 选了模式直接落到 EmptyState。
+  useLayoutEffect(() => {
     // sequential 是固定队列 + 断点续刷：队列始终是全量题库顺序，断点只决定
     // 起始下标（上次自评卡的下一位；无断点/卡已不在 = 从头开始）。
     const freshQueue = generateQueue(mode, cards, progressData.progress, deck.schedulingParams, undefined, queueOptions());

@@ -106,6 +106,7 @@ export function StudySessionShell<C extends SessionCard>(props: StudySessionOpti
       <div className={styles.container}>
         <EmptyState
           onReviewWeakest={() => session.selectMode({ kind: 'weakest' })}
+          onBackToPicker={session.backToModePicker}
           learningSoon={session.counters.learningSoon}
           nextLearningDueAt={session.counters.nextLearningDueAt}
           browsePath={deck.browsePath}
