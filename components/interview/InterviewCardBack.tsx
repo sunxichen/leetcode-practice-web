@@ -5,8 +5,7 @@ import Link from 'next/link';
 import { AnimatePresence, motion } from 'framer-motion';
 import type { InterviewCard } from '@/lib/interview-types';
 import type { CardState } from '@/lib/types';
-import { getInterviewBackSections, interviewStudyHref } from '@/lib/interview-back';
-import { getInterviewCardById } from '@/lib/interview';
+import { getInterviewBackSections } from '@/lib/interview-back';
 import { InterviewCodeCarousel } from './InterviewCodeCarousel';
 import { SPRING_CONFIG } from '@/lib/constants';
 import styles from './InterviewCardBack.module.css';
@@ -19,6 +18,10 @@ interface InterviewCardBackProps {
   cardState?: CardState;
   learningStep?: number;
   intervalDays?: number;
+  /** 互链入口的去向：按当前题集的学习路由构建，由会话外壳/题库页传入 */
+  studyHref: (cardId: string) => string;
+  /** 互链解析：当前题集的卡片读取接口——组件不直接引用任何题集的数据模块 */
+  getCardById: (id: string) => InterviewCard | undefined;
 }
 
 const STATE_LABEL: Record<CardState, string> = {
@@ -43,9 +46,11 @@ export function InterviewCardBack({
   cardState,
   learningStep,
   intervalDays,
+  studyHref,
+  getCardById,
 }: InterviewCardBackProps) {
   const [elaborationOpen, setElaborationOpen] = useState(false);
-  const sections = getInterviewBackSections(card, getInterviewCardById);
+  const sections = getInterviewBackSections(card, getCardById);
 
   let stateDetail = '';
   if (cardState === 'learning' || cardState === 'relearning') {
@@ -170,7 +175,7 @@ export function InterviewCardBack({
             {sections.related.map((entry) => (
               <Link
                 key={entry.id}
-                href={interviewStudyHref(entry.id)}
+                href={studyHref(entry.id)}
                 className={styles.relatedLink}
               >
                 <span className={styles.relatedQuestion}>{entry.question}</span>

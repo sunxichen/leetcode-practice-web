@@ -18,10 +18,13 @@ describe('deckIdFromPathname', () => {
     expect(deckIdFromPathname('/browse/foo/bar')).toBe('hot100');
   });
 
-  it('/interview 及其子路径映射为 interview', () => {
+  it('/interview 与 /resume 及其子路径映射为各自的题集', () => {
     expect(deckIdFromPathname('/interview/study')).toBe('interview');
     expect(deckIdFromPathname('/interview/browse')).toBe('interview');
     expect(deckIdFromPathname('/interview')).toBe('interview');
+    expect(deckIdFromPathname('/resume/study')).toBe('resume');
+    expect(deckIdFromPathname('/resume/browse')).toBe('resume');
+    expect(deckIdFromPathname('/resume')).toBe('resume');
   });
 
   it('未知路径映射为 null', () => {
@@ -49,6 +52,13 @@ describe('navItemsForDeck (底部导航项推导)', () => {
     expect(navItemsForDeck('interview')).toEqual([
       { label: '学习', href: '/interview/study' },
       { label: '题库', href: '/interview/browse' },
+    ]);
+  });
+
+  it('resume → 学习 + 题库，指向简历题集自己的路由', () => {
+    expect(navItemsForDeck('resume')).toEqual([
+      { label: '学习', href: '/resume/study' },
+      { label: '题库', href: '/resume/browse' },
     ]);
   });
 

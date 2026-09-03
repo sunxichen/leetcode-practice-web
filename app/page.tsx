@@ -23,6 +23,7 @@ export default function Home() {
   const decks = {
     hot100: useDeckProgress('hot100'),
     interview: useDeckProgress('interview'),
+    resume: useDeckProgress('resume'),
   };
 
   const entries = useMemo(() => {

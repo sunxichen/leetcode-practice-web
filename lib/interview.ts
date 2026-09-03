@@ -1,7 +1,13 @@
-import type { InterviewCard, Priority } from '@/lib/interview-types';
+import type { InterviewCard } from '@/lib/interview-types';
 import dlBasicsData from '@/data/interview/dl-basics.json';
 import projectData from '@/data/interview/project.json';
 import techStackData from '@/data/interview/tech-stack.json';
+
+// 新卡引入顺序与扫题分类 chips 收进与题集无关的模块——resume 题集的配置
+// 也要注入同一份能力，绝不能为了几个纯函数把本题库数据一起打进它的路由包。
+// 现有消费者（题集配置与测试）经这里的 re-export 保持不变。
+export { sortInterviewNewCards } from '@/lib/interview-sorting';
+export { buildCategoryChips as getInterviewModePickerData } from '@/lib/interview-facets';
 
 /** 题库按分类分文件（LLM 一次只产出一个分类、diff 可读），在这里合并成一份。
  * 全部静态 import 以保证 PWA 离线可用；只被面试题集自己的路由引入，
@@ -27,20 +33,4 @@ export function getAllInterviewTags(): string[] {
   const tagSet = new Set<string>();
   cards.forEach(c => c.tags.forEach(t => tagSet.add(t)));
   return Array.from(tagSet).sort();
-}
-
-/** 重要度的引入顺序：高频必答 → 常见 → 加分项（ADR-0004）。 */
-const PRIORITY_RANK: Record<Priority, number> = { must: 0, common: 1, bonus: 2 };
-
-/**
- * smart 队列 brand-new 段的引入顺序（题集配置的 sortNewCards）：按重要度，
- * 同级按 id 的码元顺序——稳定、确定，与运行环境 locale 无关。排序只在
- * 这份副本上进行，不改动入参（题库数组顺序对其他消费者保持原样）。
- */
-export function sortInterviewNewCards(cards: InterviewCard[]): InterviewCard[] {
-  return [...cards].sort((a, b) => {
-    const rank = PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority];
-    if (rank !== 0) return rank;
-    return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
-  });
 }

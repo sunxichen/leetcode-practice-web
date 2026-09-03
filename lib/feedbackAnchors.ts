@@ -1,4 +1,5 @@
 import type { FeedbackType } from '@/lib/types';
+import type { InterviewCard } from '@/lib/interview-types';
 
 /**
  * 要点锚 (key-point anchors) — 面试卡自评条四档的命中区间标注。
@@ -30,3 +31,11 @@ function formatRange(lo: number, hi: number): string {
   if (lo === hi) return `命中 ${lo} 条`;
   return `命中 ${lo}-${hi} 条`;
 }
+
+/**
+ * 面试卡片自评锚的注入函数。两个面试型题集（面试题集、简历题集）共用同一
+ * schema——锚函数因此是 schema 级的，提为命名共享函数：题集配置注入的是
+ * 同一引用，共享性可断言。
+ */
+export const interviewFeedbackAnchors = (card: Pick<InterviewCard, 'answer'>): Record<FeedbackType, string> =>
+  keyPointAnchors(card.answer.key_points.length);

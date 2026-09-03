@@ -1,5 +1,6 @@
 import { hot100Deck } from '@/lib/decks/hot100';
 import { interviewDeck } from '@/lib/decks/interview';
+import { resumeDeck } from '@/lib/decks/resume';
 import type { DeckId } from '@/lib/decks/ids';
 
 /**
@@ -12,6 +13,7 @@ import type { DeckId } from '@/lib/decks/ids';
 const DECKS = {
   hot100: hot100Deck,
   interview: interviewDeck,
+  resume: resumeDeck,
 } satisfies Record<DeckId, unknown>;
 
 /** 按题集标识取出配置。标识是编译期受检的联合类型，非法标识在类型层即被拒绝；

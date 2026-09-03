@@ -12,12 +12,11 @@ import { readFile, writeFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { DECK_FILES, CATEGORIES, PRIORITIES } from '../lib/interview-schema.mjs';
+import { DATA_DECKS, CATEGORIES, PRIORITIES } from '../lib/interview-schema.mjs';
 import { validateInterviewDeck, formatValidationErrors } from '../lib/interview-validate.mjs';
 import { buildDeckSummary, serializeDeckSummary, summaryStaleReason } from '../lib/deck-summary.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const INTERVIEW_DIR = 'data/interview';
 const SUMMARY_FILE = 'data/deck-summary.json';
 const QUESTIONS_FILE = 'data/questions.json';
 
@@ -43,27 +42,27 @@ function die(title, details) {
   process.exit(1);
 }
 
-/** 目录里的 .json 必须与 DECK_FILES 登记的一一对应：多出来的文件不会被
- * lib/interview.ts 静态 import，静默地不进题库；少了则 import 直接构建失败。 */
-async function collectDeckFiles() {
-  const onDisk = (await readdir(path.join(ROOT, INTERVIEW_DIR)))
+/** 每个 registered 目录里的 .json 必须与其登记的 files 一一对应：多出来的不会被
+ * 静态 import，静默地不进题库；少了则 import 直接构建失败。 */
+async function collectDeckGroups({ deckId, dir, files }) {
+  const onDisk = (await readdir(path.join(ROOT, dir)))
     .filter((name) => name.endsWith('.json'));
-  const declared = DECK_FILES.map((d) => d.file);
+  const declared = files.map((d) => d.file);
 
   const undeclared = onDisk.filter((name) => !declared.includes(name));
   const missing = declared.filter((name) => !onDisk.includes(name));
   const problems = [
-    ...undeclared.map((name) => `  ${INTERVIEW_DIR}/${name} → 未在 lib/interview-schema.mjs 的 DECK_FILES 登记`),
-    ...missing.map((name) => `  ${INTERVIEW_DIR}/${name} → DECK_FILES 登记了但文件不存在`),
+    ...undeclared.map((name) => `  ${dir}/${name} → 未在 lib/interview-schema.mjs 的 DATA_DECKS.${deckId} 登记`),
+    ...missing.map((name) => `  ${dir}/${name} → 登记了但文件不存在`),
   ];
   if (problems.length > 0) {
-    die('题库文件清单与 DECK_FILES 不一致', problems.join('\n'));
+    die(`题库文件清单与登记不一致（${deckId}）`, problems.join('\n'));
   }
 
   const groups = [];
   const parseErrors = [];
-  for (const { category, file } of DECK_FILES) {
-    const relPath = `${INTERVIEW_DIR}/${file}`;
+  for (const { category, file } of files) {
+    const relPath = `${dir}/${file}`;
     try {
       groups.push({ file: relPath, category, cards: JSON.parse(await readText(relPath)) });
     } catch (err) {
@@ -71,31 +70,33 @@ async function collectDeckFiles() {
     }
   }
   if (parseErrors.length > 0) {
-    die('题库 JSON 解析失败', parseErrors.join('\n'));
+    die(`题库 JSON 解析失败（${deckId}）`, parseErrors.join('\n'));
   }
   return groups;
 }
 
-function reportDeck(interviewCards) {
+function reportDeck(deckId, cards) {
   const count = (keys, pick) =>
-    keys.map((k) => `${k} ${interviewCards.filter((c) => pick(c) === k).length}`).join(' / ');
-  console.log(`  面试题集 ${interviewCards.length} 张卡`);
-  console.log(`  分类：${count(CATEGORIES, (c) => c.category)}`);
-  console.log(`  重要度：${count(PRIORITIES, (c) => c.priority)}`);
-  console.log(`  带代码：${interviewCards.filter((c) => c.answer?.code?.length > 0).length} 张`);
+    keys.map((k) => `${k} ${cards.filter((c) => pick(c) === k).length}`).join(' / ');
+  console.log(`  ${deckId}: ${cards.length} 张卡`);
+  console.log(`    分类：${count(CATEGORIES, (c) => c.category)}`);
+  console.log(`    重要度：${count(PRIORITIES, (c) => c.priority)}`);
+  console.log(`    带代码：${cards.filter((c) => c.answer?.code?.length > 0).length} 张`);
 }
 
 async function main() {
-  const groups = await collectDeckFiles();
-
-  const errors = validateInterviewDeck(groups);
-  if (errors.length > 0) {
-    die(`题库校验失败，${errors.length} 处问题`, formatValidationErrors(errors));
+  const byDeck = {};
+  for (const deck of DATA_DECKS) {
+    const groups = await collectDeckGroups(deck);
+    const errors = validateInterviewDeck(groups);
+    if (errors.length > 0) {
+      die(`题库校验失败（${deck.deckId}），${errors.length} 处问题`, formatValidationErrors(errors));
+    }
+    byDeck[deck.deckId] = groups.flatMap((g) => g.cards);
   }
 
-  const interviewCards = groups.flatMap((g) => g.cards);
   const hot100 = JSON.parse(await readText(QUESTIONS_FILE));
-  const expected = serializeDeckSummary(buildDeckSummary({ hot100, interview: interviewCards }));
+  const expected = serializeDeckSummary(buildDeckSummary({ hot100, ...byDeck }));
   const onDisk = await readTextOrNull(SUMMARY_FILE);
 
   if (CHECK_ONLY) {
@@ -110,7 +111,9 @@ async function main() {
     console.log(`\n✓ 题库校验通过，${SUMMARY_FILE} ${verb}`);
   }
 
-  reportDeck(interviewCards);
+  for (const [deckId, cards] of Object.entries(byDeck)) {
+    reportDeck(deckId, cards);
+  }
   console.log('');
 }
 

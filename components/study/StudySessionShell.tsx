@@ -9,6 +9,7 @@ import { EmptyState } from '@/components/study/EmptyState';
 import { ModePicker } from '@/components/study/ModePicker';
 import { SessionSummary } from '@/components/study/SessionSummary';
 import { resolveSessionView } from '@/components/study/sessionView';
+import { deckStudyHref } from '@/lib/decks/meta';
 import { UndoToast } from '@/components/ui/UndoToast';
 import { SPRING_CONFIG, EXIT_ANIMATIONS, ENTER_ANIMATION } from '@/lib/constants';
 import { sequentialStartIndex, type SessionCard } from '@/lib/studyQueue';
@@ -160,6 +161,8 @@ export function StudySessionShell<C extends SessionCard>(props: StudySessionOpti
                   cardState={cardState}
                   learningStep={currentProg?.learningStep}
                   intervalDays={currentProg?.intervalDays}
+                  studyHref={(cardId) => deckStudyHref(deck.id, cardId)}
+                  getCardById={deck.dataSource.getCardById}
                 />
               }
             />

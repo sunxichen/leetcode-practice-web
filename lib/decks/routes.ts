@@ -22,6 +22,7 @@ export function deckIdFromPathname(pathname: string): DeckId | null {
   const segments = pathname.split('/').filter(Boolean);
   const first = segments[0];
   if (first === 'interview') return 'interview';
+  if (first === 'resume') return 'resume';
   if (first === 'study' || first === 'browse') return 'hot100';
   return null;
 }

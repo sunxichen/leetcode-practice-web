@@ -240,9 +240,13 @@ describe('查阅不写调度（契约保证）', () => {
 
   it('面试题库页只读进度（useDeckProgress 用于筛选），从不调用 updateProgress', () => {
     const page = src('../app/interview/browse/page.tsx');
-    expect(page).toMatch(/useDeckProgress/);
-    // 契约：页面不调用 updateProgress（只读进度做筛选）。注释里出现该词不算调用。
+    const shared = src('../components/browse/BrowseDeckPage.tsx');
+    // 页面把进度读取委托给共享的 BrowseDeckPage——useDeckProgress 在组件里，
+    // 页面与组件合并断言；只读的契约对两者分别成立。
+    expect(page + shared).toMatch(/useDeckProgress/);
+    // 契约：页面与组件都不调用 updateProgress（只读进度做筛选）。注释里出现该词不算调用。
     expect(page).not.toMatch(/updateProgress\s*\(/);
+    expect(shared).not.toMatch(/updateProgress\s*\(/);
   });
 
   it('展开渲染只依赖卡片与本地状态：不变式——过滤谓词是只读纯函数', () => {

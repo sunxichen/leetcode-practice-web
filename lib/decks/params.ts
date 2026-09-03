@@ -14,4 +14,6 @@ import type { DeckId } from './ids';
 export const DECK_SCHEDULING_PARAMS: Record<DeckId, SchedulingParams> = {
   hot100: HOT100_SCHEDULING_PARAMS,
   interview: INTERVIEW_SCHEDULING_PARAMS,
+  // 简历题集与面试题集共用同一套标定值——调度参数照方案对照表取值的同一份对象
+  resume: INTERVIEW_SCHEDULING_PARAMS,
 };

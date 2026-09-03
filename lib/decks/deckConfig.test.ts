@@ -3,6 +3,7 @@ import { getDeckConfig, DECK_IDS } from '@/lib/decks';
 import { generateQueue } from '@/lib/studyQueue';
 import { getAllQuestions } from '@/lib/questions';
 import { getAllInterviewCards } from '@/lib/interview';
+import { getAllResumeCards } from '@/lib/resume';
 import { HOT100_SCHEDULING_PARAMS, INTERVIEW_SCHEDULING_PARAMS } from '@/lib/schedulingParams';
 import { keyPointAnchors } from '@/lib/feedbackAnchors';
 
@@ -38,7 +39,7 @@ describe('题集注册表 (deck registry)', () => {
   });
 
   it('DECK_IDS 列出全部已注册题集', () => {
-    expect(DECK_IDS).toEqual(['hot100', 'interview']);
+    expect(DECK_IDS).toEqual(['hot100', 'interview', 'resume']);
   });
 });
 
@@ -138,6 +139,50 @@ describe('题集注册表：面试题集（票 8）', () => {
     expect(byValue.size).toBe(tally.size);
     // 中文标签在题集侧定义。
     expect(byValue.get('dl-basics')?.label).toBe('深度学习基础');
+  });
+});
+
+describe('题集注册表：简历题集', () => {
+  const deck = getDeckConfig('resume');
+  const cards = getAllResumeCards();
+
+  it('按题集标识取出简历题集的完整配置', () => {
+    expect(deck.id).toBe('resume');
+    expect(deck.name).toBe('简历题集');
+    expect(deck.studyPath).toBe('/resume/study');
+    expect(deck.browsePath).toBe('/resume/browse');
+    expect(deck.dataSource.getAllCards()).toBe(cards);
+    expect(deck.dataSource.getCardById(cards[0]?.id ?? '')).toBe(cards[0]);
+    // 调度参数、卡面组件、新卡排序与背面分页复用面试题集的同一份
+    expect(deck.schedulingParams).toBe(INTERVIEW_SCHEDULING_PARAMS);
+    expect(deck.sessionModes).toEqual(['smart', 'sequential', 'sweep', 'single']);
+    expect(typeof deck.components.CardFront).toBe('function');
+    expect(typeof deck.components.CardBack).toBe('function');
+    expect(typeof deck.getBackPageCount).toBe('function');
+  });
+
+  it('与面试题集共享同一份卡面组件、调度参数与注入能力', () => {
+    const interview = getDeckConfig('interview');
+    expect(deck.schedulingParams).toBe(interview.schedulingParams);
+    expect(deck.components.CardFront).toBe(interview.components.CardFront);
+    expect(deck.components.CardBack).toBe(interview.components.CardBack);
+    expect(deck.getBackPageCount).toBe(interview.getBackPageCount);
+    expect(deck.getFeedbackAnchors).toBe(interview.getFeedbackAnchors);
+    expect(deck.sortNewCards).toBe(interview.sortNewCards);
+  });
+
+  it('提供全量扫题：分类 chips 从卡片集派生，空题库不编造零值', () => {
+    expect(deck.sessionModes).toContain('sweep');
+    // chips 只列有卡的分类：project 已有卡，tech-stack 题库为空，不编造零值
+    const projectCount = cards.filter((c) => c.category === 'project').length;
+    expect(deck.getModePickerData(cards).categories).toEqual([
+      { value: 'project', label: '项目深挖', count: projectCount },
+    ]);
+    // 空题库同样从卡片集派生：空入参得到空 chips，而不是零值占位
+    const empty = deck.getModePickerData([]);
+    expect(empty.categories).toEqual([]);
+    expect(empty.topTags).toBeUndefined();
+    expect(empty.difficultyCounts).toBeUndefined();
   });
 });
 

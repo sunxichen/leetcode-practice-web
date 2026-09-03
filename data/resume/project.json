@@ -1,0 +1,2393 @@
+[
+  {
+    "id": "proj-c01-reward-terminal-gating",
+    "question": "白板手写：Reward 终态乘法门控与总奖励结算是怎么写的？",
+    "tags": [
+      "强化学习",
+      "Reward 设计"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "状态正确与动作正确互为充要门禁，任何一项不匹配乘积严格为零。",
+        "无写库任务里错误办结与正确拒办的数据库状态同为空写，加法方案会两头套利，乘法门控直接一票否决。",
+        "硬违规触发硬零即时截断，整幕总奖励直接赋 0。",
+        "总分由完成度、合规告知与效率惩罚加权合成，转人工收益由终态门控统一纳管。"
+      ],
+      "code": [
+        {
+          "label": "终态乘法门控",
+          "language": "python",
+          "code": "def compute_reward(actual_state, golden_state, actual_terminal, expected_terminal,\n                  r_disclosure=1.0, p_turns=0.0, p_failed=0.0, hard_violation=False):\n    # 考察点: 终态一致性绑定动作三值比对，缺一即 0；Hard-Zero；转人工不进总目标\n    if hard_violation:\n        return {\"r_total\": 0.0, \"r_complete\": 0.0, \"success_strict\": False}\n    r_state = 1.0 if actual_state == golden_state else 0.0\n    r_terminal = 1.0 if actual_terminal == expected_terminal else 0.0\n    # 乘法门控: 状态正确与动作匹配互为充要，无写库任务动作选错乘数项归零\n    r_complete = r_state * r_terminal\n    r_total = 0.65 * r_complete + 0.35 * r_disclosure - 0.10 * p_turns - 0.10 * p_failed\n    success_strict = (r_complete == 1.0 and r_disclosure == 1.0 and not hard_violation)\n    return {\"r_total\": r_total, \"r_complete\": r_complete, \"success_strict\": success_strict}",
+          "note": "加法方案下错误办结仍躺拿状态分，乘法门控彻底根除 Reward 投机。"
+        }
+      ]
+    },
+    "related_ids": [
+      "proj-p1-23-overview",
+      "proj-p1-24-overview"
+    ],
+    "category": "project"
+  },
+  {
+    "id": "proj-c02-grpo-group-advantage",
+    "question": "白板手写：GRPO 的组内相对优势怎么算？零方差组怎么办？",
+    "tags": [
+      "强化学习",
+      "GRPO"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "无 Critic 价值网络，同组 K 条轨迹共享组内均值与标准差。",
+        "优势是组内 z-score 相对打分，除以标准差再加 eps 保护。",
+        "标准差塌缩为零的全对或全错组显式置零，消除无信号噪声。"
+      ],
+      "code": [
+        {
+          "label": "组相对优势",
+          "language": "python",
+          "code": "def group_relative_advantage(rewards, group_ids, eps: float = 1e-8) -> list[float]:\n    # 考察点: 组内无 Critic 优势估计、零方差组显式置零\n    groups: dict[int, list[float]] = {}\n    for r, g in zip(rewards, group_ids):\n        groups.setdefault(g, []).append(r)\n    stats: dict[int, tuple[float, float]] = {}\n    for g, rs in groups.items():\n        mean = sum(rs) / len(rs)\n        var = sum((x - mean) ** 2 for x in rs) / len(rs)\n        stats[g] = (mean, math.sqrt(var))\n    advantages = []\n    for r, g in zip(rewards, group_ids):\n        mean, std = stats[g]\n        # 零方差组无梯度信号，显式置 0\n        advantages.append(0.0 if std < 1e-7 else (r - mean) / (std + eps))\n    return advantages",
+          "note": "同组轨迹共享统计量，方差为 0 的组不产生任何更新。"
+        }
+      ]
+    },
+    "related_ids": [
+      "proj-p1-26-overview",
+      "proj-p1-33-eval-panel-sampling",
+      "proj-p1-34-metric-decomposition"
+    ],
+    "category": "project"
+  },
+  {
+    "id": "proj-c03-passk-unbiased-estimate",
+    "question": "白板手写：pass@k 无偏估计与组内方差概率怎么算？",
+    "tags": [
+      "强化学习",
+      "评测指标"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "pass@k 等于 1 减 C(n-c, k)/C(n, k)，无偏估计量展开为连乘递推实现。",
+        "连乘项 (n-c-i)/(n-i) 数值稳定，避免大组合数溢出。",
+        "组内非零方差概率是 1 减全错概率减全对概率，p 约等于 0.5 的黄金区最大。",
+        "p 为 0 或 1 时该概率恒为零，整组采样不产生学习信号。"
+      ],
+      "code": [
+        {
+          "label": "pass@k 与方差概率",
+          "language": "python",
+          "code": "def pass_at_k(n: int, c: int, k: int) -> float:\n    # pass@k = 1 - C(n-c,k)/C(n,k)，连乘展开避免大组合数溢出\n    if n - c < k:\n        return 1.0\n    if c == 0:\n        return 0.0\n    prod = 1.0\n    for i in range(k):\n        prod *= (n - c - i) / (n - i)\n    return 1.0 - prod\n\ndef prob_non_zero_variance(p: float, K: int) -> float:\n    # 组内至少一条成功轨迹的概率 1 - (1-p)^K - p^K\n    return 1.0 - (1.0 - p) ** K - p ** K",
+          "note": "递推实现数值稳定；p=0.5、K=8 时组内有方差概率约 0.992。"
+        }
+      ]
+    },
+    "related_ids": [
+      "proj-p1-17-overview",
+      "proj-p1-33-eval-panel-sampling"
+    ],
+    "category": "project"
+  },
+  {
+    "id": "proj-c04-cispo-token-loss",
+    "question": "白板手写：CISPO 的 token 级损失与分母地板怎么实现？",
+    "tags": [
+      "强化学习",
+      "损失函数",
+      "CISPO"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "重要性采样比值裁剪后 detach，只作为梯度加权系数。",
+        "梯度完全经加权似然路径回传，比值越界不截断为死区。",
+        "损失分母取有效 token 数与地板的安全基线的较大者。"
+      ],
+      "code": [
+        {
+          "label": "CISPO loss",
+          "language": "python",
+          "code": "def cispo_token_loss(new_logp, old_logp, advantages, mask,\n                     eps_low: float = 1.0, eps_high: float = 4.0,\n                     n_norm: float = 2560.0) -> float:\n    # ratio 只作权重系数并 detach，梯度始终保留；分母地板抑制短序列尖峰\n    loss_sum, mask_sum = 0.0, 0\n    for b in range(len(new_logp)):\n        adv = advantages[b]\n        for t in range(len(new_logp[0])):\n            if mask[b][t]:\n                ratio = math.exp(new_logp[b][t] - old_logp[b][t])\n                weight = min(max(ratio, 1.0 - eps_low), 1.0 + eps_high)\n                token_loss = -(weight * adv * new_logp[b][t])  # 梯度只走加权 logp 路径\n                loss_sum += token_loss\n                mask_sum += 1\n    # 分母地板 N_norm：短序列异常梯度被压回安全基线\n    return loss_sum / max(mask_sum, n_norm)",
+          "note": "ratio.detach() 后梯度不截断；分母地板按正常交互中位 token 量标定。"
+        }
+      ]
+    },
+    "related_ids": [
+      "proj-p1-26-overview",
+      "proj-p1-27-overview"
+    ],
+    "category": "project"
+  },
+  {
+    "id": "proj-c05-advantage-kl-disable-adapter",
+    "question": "白板手写：优势级相对 KL 惩罚与零显存参考前向怎么实现？",
+    "tags": [
+      "强化学习",
+      "KL 惩罚",
+      "显存优化"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "逐 token 计算与参考模型的对数差，组内平均后得基准漂移。",
+        "惩罚只施加给偏离超过均值的 token，低于均值的探索表达受正向宽容。",
+        "调整后优势等于原优势加上系数乘均值与当前 token 的差值。",
+        "参考概率经上下文管理器临时旁路 LoRA 矩阵做无梯度前向获取。",
+        "零额外常驻显存，省去第二个全量参考模型。"
+      ],
+      "code": [
+        {
+          "label": "优势级 KL 与零显存参考",
+          "language": "python",
+          "code": "def advantage_kl_penalty(advantages, new_logp, ref_logp, mask, kl_coef: float = 0.04):\n    # 相对惩罚只罚偏离均值 token，保留合理探索预算\n    kl_per_token, total_kl, total_tokens = {}, 0.0, 0\n    for b in range(len(new_logp)):\n        for t in range(len(new_logp[0])):\n            if mask[b][t]:\n                kl = new_logp[b][t] - ref_logp[b][t]\n                kl_per_token[b][t] = kl\n                total_kl += kl\n                total_tokens += 1\n    avg_kl = total_kl / max(total_tokens, 1)\n    adjusted = {}\n    for b in range(len(new_logp)):\n        for t in range(len(new_logp[0])):\n            if mask[b][t]:\n                penalty = kl_coef * (avg_kl - kl_per_token[b][t])\n                adjusted[b][t] = advantages[b] + penalty\n            else:\n                adjusted[b][t] = 0.0\n    return adjusted, avg_kl\n\nclass DisableAdapterContext:\n    \"\"\"上下文内临时旁路 LoRA 增量，前向只走冻结基座权重。\"\"\"\n    def __init__(self, model):\n        self.model = model\n        self.prev_state = getattr(model, \"adapter_enabled\", True)\n    def __enter__(self):\n        self.model.adapter_enabled = False\n    def __exit__(self, exc_type, exc_val, exc_tb):\n        self.model.adapter_enabled = self.prev_state\n\ndef get_ref_logprobs_zero_ram(model, input_ids):\n    with DisableAdapterContext(model):\n        return model.forward_logprobs(input_ids)",
+          "note": "disable_adapter 复用当前主干置零旁路，单模型节省一整张参考模型的显存。"
+        }
+      ]
+    },
+    "related_ids": [
+      "proj-p1-28-kl-penalty-ref-model"
+    ],
+    "category": "project"
+  },
+  {
+    "id": "proj-c06-sync-rl-pipeline",
+    "question": "白板手写：完整同步 RL 训练流程闭环怎么写？",
+    "tags": [
+      "强化学习",
+      "训练流程"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "并发采样 K 条交互轨迹并按组组织分组。",
+        "反向传播前动态过滤零方差组，全对全错组直接丢弃。",
+        "组内优势用均值与标准差归一化后装配进有效轨迹。",
+        "token 级 CISPO 更新并施加分母地板，除法分母不低于安全基线。",
+        "每步训练完在后台合并全量权重热推给推理服务，再触发电中评测门禁。"
+      ],
+      "code": [
+        {
+          "label": "同步训练主循环",
+          "language": "python",
+          "code": "def step(self, scenarios):\n    # 1. 并发 Rollout 收集 K 条轨迹；2. 分组；3. 零方差组过滤；4. 组相对优势\n    trajectories = self.model_server.rollout_concurrent(scenarios, self.group_size_k)\n    groups: dict[int, list] = {}\n    for traj in trajectories:\n        groups.setdefault(traj[\"group_id\"], []).append(traj)\n    valid, dropped = [], 0\n    for g_id, trajs in groups.items():\n        rewards = [t[\"reward\"] for t in trajs]\n        mean = sum(rewards) / len(rewards)\n        var = sum((r - mean) ** 2 for r in rewards) / len(rewards)\n        if var > 1e-7:\n            std = math.sqrt(var)\n            for t in trajs:\n                t[\"advantage\"] = (t[\"reward\"] - mean) / (std + 1e-8)\n                valid.append(t)\n        else:\n            dropped += 1\n    # 5. Token 级 CISPO 损失与分母地板，6. 反向更新，7. 权重热推，8. 期中门禁\n    loss, mask_sum = 0.0, 0\n    for t in valid:\n        for lp_new, lp_old, m in zip(t[\"new_logp\"], t[\"old_logp\"], t[\"mask\"]):\n            if m:\n                ratio = math.exp(lp_new - lp_old)\n                clipped_w = min(max(ratio, 0.0), 5.0)  # clip 后 detach 作权重\n                loss += -(clipped_w * t[\"advantage\"] * lp_new)\n                mask_sum += 1\n    final_loss = loss / max(mask_sum, self.n_norm)\n    self.weights_version += 1\n    self.model_server.hot_reload_weights(self.weights_version)\n    self.current_step += 1\n    return {\"step\": self.current_step, \"loss\": final_loss,\n            \"valid\": len(valid), \"dropped_groups\": dropped,\n            \"eval_triggered\": self.current_step % self.eval_interval == 0}",
+          "note": "串行闭环：采样、过滤、更新、热推、门禁严格串行，单份权重原子同步。"
+        }
+      ]
+    },
+    "related_ids": [
+      "proj-p1-01-overview",
+      "proj-p1-31-overview"
+    ],
+    "category": "project"
+  },
+  {
+    "id": "proj-c07-async-lease-staleness",
+    "question": "白板手写：Async RL 的有界陈旧、版本租约与排空屏障怎么实现？",
+    "tags": [
+      "强化学习",
+      "异步训练"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "在途某一轮推理前申请对应版本的租约，交互完成归还引用计数。",
+        "陈旧度是训练版本减采样版本，超过有界上限判定过期直接丢弃。",
+        "版本推进后超期租约进入排空状态，排空屏障等在途请求全部退出再卸载。",
+        "合并服务单权重被热推覆盖后，旧版本在途请求必然模型不存在。"
+      ],
+      "code": [
+        {
+          "label": "租约与有界陈旧",
+          "language": "python",
+          "code": "class AsyncRLCoordinator:\n    # 有界陈旧上限 k=1；Merged 单权重下在途旧版本 404 是机制冲突非陈旧度问题\n    def __init__(self, max_steps_off_policy: int = 1):\n        self.current_policy_version = 0\n        self.max_steps_off_policy = max_steps_off_policy\n        self.leases = {0: AdapterVersionLease(0)}\n\n    def acquire_turn_lease(self, version_id: int) -> bool:\n        lease = self.leases.get(version_id)\n        if lease is None or lease.status == \"released\":\n            return False\n        lease.active_turns += 1\n        return True\n\n    def validate_sample_staleness(self, sample_version: int) -> tuple[bool, str]:\n        staleness = self.current_policy_version - sample_version\n        if staleness > self.max_steps_off_policy:\n            return False, f\"STALE_DISCARD: {staleness} > limit\"\n        return True, \"VALID\"\n\n    def advance_trainer_version(self) -> int:\n        self.current_policy_version += 1\n        new_v = self.current_policy_version\n        self.leases[new_v] = AdapterVersionLease(new_v)\n        for v, lease in self.leases.items():\n            if v < new_v - self.max_steps_off_policy and lease.status == \"active\":\n                lease.status = \"draining\"\n        return new_v\n\n    def drain_barrier(self, version_id: int) -> bool:\n        lease = self.leases.get(version_id)\n        if lease and lease.active_turns == 0:\n            lease.status = \"released\"\n            return True\n        return False\n\n    def simulate_merged_serving_conflict(self) -> str:\n        served = {\"agent-grpo@0\": \"weights_v0\"}\n        in_flight = \"agent-grpo@0\"\n        served.clear()\n        served[\"agent-grpo@1\"] = \"weights_v1\"\n        if in_flight not in served:\n            return f\"HTTP 404: {in_flight} not found\"\n        return \"SUCCESS\"",
+          "note": "排空屏障在租约清零前拒绝卸载；Merged 单名字被覆盖即机制性死锁。"
+        }
+      ]
+    },
+    "related_ids": [
+      "proj-p1-30-overview"
+    ],
+    "category": "project"
+  },
+  {
+    "id": "proj-c08-token-diff-gate",
+    "question": "白板手写：训推一致性 token-diff 校验器怎么写？",
+    "tags": [
+      "训推一致",
+      "工程一致性"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "逐位置比对训练侧与推理侧 token 序列，定位首个分叉下标。",
+        "分叉后截取局部上下文切片用于根因排查，长度不一致补齐尾差。",
+        "批量门禁全绿才放行发布，存在分叉直接阻断。"
+      ],
+      "code": [
+        {
+          "label": "Token-diff 门禁",
+          "language": "python",
+          "code": "def token_diff_validator(train_tokens, infer_tokens, context_window: int = 3):\n    min_len = min(len(train_tokens), len(infer_tokens))\n    divergence_idx = None\n    for idx in range(min_len):\n        if train_tokens[idx] != infer_tokens[idx]:\n            divergence_idx = idx\n            break\n    if divergence_idx is None and len(train_tokens) != len(infer_tokens):\n        divergence_idx = min_len\n    if divergence_idx is None:\n        return {\"identical\": True, \"divergence_index\": None}\n    start = max(0, divergence_idx - context_window)\n    end = min(max(len(train_tokens), len(infer_tokens)), divergence_idx + context_window + 1)\n    return {\n        \"identical\": False,\n        \"divergence_index\": divergence_idx,\n        \"train_slice\": train_tokens[start:end],\n        \"infer_slice\": infer_tokens[start:end],\n    }\n\ndef batch_token_diff_gate(samples, train_encode_fn, infer_render_fn) -> bool:\n    all_passed = True\n    for idx, sample in enumerate(samples):\n        messages = sample[\"messages\"]\n        diff = token_diff_validator(train_encode_fn(messages), infer_render_fn(messages))\n        if not diff[\"identical\"]:\n            all_passed = False\n    return all_passed",
+          "note": "首个分叉定位加局部切片；批量门禁要求逐字节全绿才能过发布。"
+        }
+      ]
+    },
+    "related_ids": [
+      "proj-p1-19-overview"
+    ],
+    "category": "project"
+  },
+  {
+    "id": "proj-c09-sandbox-golden-diff",
+    "question": "白板手写：沙箱执行与 Golden State diff 怎么做严格成功判定？",
+    "tags": [
+      "沙箱",
+      "Reward 设计"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "深拷贝初始状态实现读写隔离，执行工具时追加变更审计日志。",
+        "状态子集比对要求实际库完全包含并吻合期望变更。",
+        "终局动作精确匹配期望动作。",
+        "状态与终局双严格对齐才是严格成功，缺一即失败。",
+        "未知工具返回错误状态而不是抛异常崩溃。"
+      ],
+      "code": [
+        {
+          "label": "沙箱状态比对",
+          "language": "python",
+          "code": "class MockSandbox:\n    def __init__(self, initial_state):\n        self.tables = copy.deepcopy(initial_state)  # 读写隔离，防外部篡改\n        self.change_log = []\n\n    def execute(self, tool_name, args):\n        if tool_name == \"update_db\":\n            table, key, val = args[\"table\"], args[\"key\"], args[\"val\"]\n            self.tables.setdefault(table, {})[key] = val\n            self.change_log.append({\"op\": \"update\", \"table\": table, \"key\": key, \"val\": val})\n            return {\"status\": \"success\", \"rows_affected\": 1}\n        return {\"status\": \"error\", \"message\": f\"Unknown tool: {tool_name}\"}\n\n    def check_strict_success(self, golden_state, expected_terminal, actual_terminal) -> bool:\n        state_matched = all(\n            self.tables.get(t, {}).get(k) == v\n            for t, rows in golden_state.items()\n            for k, v in rows.items()\n        )\n        terminal_matched = actual_terminal == expected_terminal\n        return state_matched and terminal_matched",
+          "note": "子集比对加终局精确匹配，无写库任务空写一致且动作正确才判满分。"
+        }
+      ]
+    },
+    "related_ids": [
+      "proj-p1-04-overview",
+      "proj-p1-05-overview"
+    ],
+    "category": "project"
+  },
+  {
+    "id": "proj-c10-nli-per-message-max",
+    "question": "白板手写：NLI 逐条消息取 max 的告知判定怎么写？",
+    "tags": [
+      "NLI",
+      "评测"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "对每条助手消息独立计算与假设的蕴含得分。",
+        "取各轮得分的最大值作单样本得分。",
+        "超过固定阈值的二值化门禁输出。",
+        "空历史直接零分。",
+        "缺省评估器退化为子串包含匹配。"
+      ],
+      "code": [
+        {
+          "label": "Per-Message NLI",
+          "language": "python",
+          "code": "def nli_max_score(assistant_turns, hypothesis, nli_evaluator_fn=None,\n                  threshold: float = 0.7) -> float:\n    # 逐轮独立打分，规避整段拼接的 512 截断与上下文冲淡\n    if not assistant_turns:\n        return 0.0\n    eval_fn = nli_evaluator_fn or (lambda text, hyp: 1.0 if hyp.lower() in text.lower() else 0.0)\n    scores = [eval_fn(turn, hypothesis) for turn in assistant_turns]\n    return 1.0 if max(scores) >= threshold else 0.0",
+          "note": "单条消息取 max 根治长对话末轮告知被截断的假阴性。"
+        }
+      ]
+    },
+    "related_ids": [
+      "proj-p1-11-overview",
+      "proj-p1-12-overview"
+    ],
+    "category": "project"
+  },
+  {
+    "id": "proj-c25-variance-sampler",
+    "question": "白板手写：方差感知采样与零方差组过滤怎么实现？",
+    "tags": [
+      "强化学习",
+      "采样策略"
+    ],
+    "priority": "bonus",
+    "answer": {
+      "key_points": [
+        "采样权重正比历史通过率乘 1 减通过率，黄金区权重最大。",
+        "饱和任务权重压到下限，饱和桶不再消耗算力。",
+        "冷启动未测任务默认置于黄金区中心。",
+        "按归一化权重随机过采样黄金区任务。",
+        "零方差过滤保留方差显著的组，剔除全对或全错死区。",
+        "组内轨迹不足两条直接判死区丢弃。"
+      ],
+      "code": [
+        {
+          "label": "方差采样与过滤",
+          "language": "python",
+          "code": "def variance_aware_sample(task_pool, sample_size):\n    weights = []\n    for task in task_pool:\n        p = task.get(\"historical_pass_rate\", 0.5)  # 冷启动置于黄金区\n        weights.append(max(p * (1.0 - p), 1e-4))  # 饱和任务权重趋零\n    total = sum(weights)\n    return random.choices(task_pool, weights=[w / total for w in weights], k=sample_size)\n\ndef filter_zero_variance_groups(groups, eps: float = 1e-12):\n    kept, dropped = [], []\n    for g in groups:\n        rewards = g.get(\"rewards\", [])\n        if len(rewards) < 2:\n            dropped.append(g)\n            continue\n        mean = sum(rewards) / len(rewards)\n        var = sum((r - mean) ** 2 for r in rewards) / len(rewards)\n        (kept if var > eps else dropped).append(g)\n    return kept, dropped",
+          "note": "权重 ∝ p(1-p)，全对或全错组无梯度信号，物理剔除。"
+        }
+      ]
+    },
+    "related_ids": [
+      "proj-p1-29-rl-sampling-zero-variance"
+    ],
+    "category": "project"
+  },
+  {
+    "id": "proj-c27-simulator-role-merge",
+    "question": "白板手写：Simulator 数据转换的角色合并约束怎么写？",
+    "tags": [
+      "数据合成",
+      "Simulator"
+    ],
+    "priority": "bonus",
+    "answer": {
+      "key_points": [
+        "剥离工具轮次后历史里会留下连续同角色助手消息。",
+        "合并时相同角色消息用换行拼接内容，信息无损。",
+        "合并后序列严格满足用户与助手交替约束。",
+        "首条消息直接保留。"
+      ],
+      "code": [
+        {
+          "label": "连续角色合并",
+          "language": "python",
+          "code": "def _merge_consecutive_roles(messages):\n    \"\"\"合并历史中因过滤工具轮次留下的连续同角色消息。\n\n    LLaMA-Factory 的 ShareGPT 协议对 user/assistant 严格交替有硬性校验，\n    剥离 tool 轮后留下的连续 assistant 会被静默丢弃 4028 条；\n    合并为单条后信息无损，有效样本恢复 7200 -> 11030 条。\n    \"\"\"\n    if not messages:\n        return messages\n    merged = [messages[0]]\n    for msg in messages[1:]:\n        if msg[\"role\"] == merged[-1][\"role\"]:\n            merged[-1] = {\n                \"role\": msg[\"role\"],\n                \"content\": merged[-1][\"content\"] + \"\\n\" + msg[\"content\"],\n            }\n        else:\n            merged.append(msg)\n    return merged",
+          "note": "满足 ShareGPT 交替约束且信息无损，丢弃归零。"
+        }
+      ]
+    },
+    "related_ids": [
+      "proj-p1-15-overview"
+    ],
+    "category": "project"
+  },
+  {
+    "id": "proj-p1-01-overview",
+    "question": "用一分钟讲清全链路：为什么 SFT 之后必须做 RL？",
+    "tags": [
+      "强化学习",
+      "SFT",
+      "项目概述"
+    ],
+    "priority": "must",
+    "follow_ups": [
+      "为什么不直接在通用大模型上做 Prompt Engineering？",
+      "如果给 SFT 加 10 倍贷款数据，效果能追上 RL 吗？"
+    ],
+    "related_ids": [
+      "proj-c06-sync-rl-pipeline",
+      "proj-p1-01-imitation-blind-spot",
+      "proj-p1-01-rl-causal-chain"
+    ],
+    "answer": {
+      "key_points": [
+        "背景：公积金业务是长程多轮高合规场景，SFT 只能模仿表层语料，状态转移幻觉与同分博弈频发。",
+        "任务：搭建可程序化沙箱与任务工厂，用数据库终态比对替代主观打分。",
+        "做法：SFT 对齐格式后进入长程 GRPO，靠沙箱试错把离散决策边界刻进权重。",
+        "结果：96 题测试集严格成功率从 SFT 基线 54.3% 提升至 84.4%，两轮独立双盲审计全部通过。",
+        "链路：环境构建、双 Teacher 合成、过滤清洗、同步 SFT、训推对齐到 GRPO 探索的完整闭环。"
+      ],
+      "elaboration": "一分钟讲法：公积金业务长程多轮、状态可校验，SFT 的表层模仿在动态分支上失效；引入沙箱终态比对与 GRPO 试错后，错误办结与正确拒办之间的奖励反差把离散决策刻进权重，贷款分支提升最大。"
+    },
+    "category": "project"
+  },
+  {
+    "id": "proj-p1-01-imitation-blind-spot",
+    "question": "为什么给 SFT 加 10 倍贷款数据，效果还是追不上 RL？",
+    "tags": [
+      "强化学习",
+      "SFT"
+    ],
+    "priority": "must",
+    "related_ids": [
+      "proj-p1-01-overview"
+    ],
+    "answer": {
+      "key_points": [
+        "贷款还款涉及逾期违约金与组合贷分流等动态条件槽，需要离散分支跳转。",
+        "训练集贷款样本已达 946 条、位列全业务第二，数据量不是瓶颈。",
+        "SFT 学到的是高频顺畅路径的平滑先验，罕见组合输入仍会直接办结造成合规违规。",
+        "多轮上下文干扰下阶跃边界是模仿学习的盲区，离散分支决策交给 RL 精调。"
+      ]
+    },
+    "category": "project"
+  },
+  {
+    "id": "proj-p1-01-rl-causal-chain",
+    "question": "RL 靠什么把离散决策边界刻进权重？",
+    "tags": [
+      "强化学习",
+      "GRPO"
+    ],
+    "priority": "must",
+    "related_ids": [
+      "proj-p1-01-overview"
+    ],
+    "answer": {
+      "key_points": [
+        "沙箱比对执行前后的数据库终态，误选办结判零分、正确转人工拿满奖励。",
+        "失败轨迹与成功轨迹的奖励反差经组内相对优势变成有效梯度。",
+        "组内多次试错后模型掌握该离散条件跳转分支，贷款分支后来正向提升最大。"
+      ]
+    },
+    "category": "project"
+  },
+  {
+    "id": "proj-p1-02-overview",
+    "question": "为什么选 Qwen3-4B 作 Agent 基座？8B 不是更强吗？",
+    "tags": [
+      "模型选型",
+      "显存预算"
+    ],
+    "priority": "common",
+    "related_ids": [
+      "proj-p1-02-vram-topology",
+      "proj-p1-02-latency-ledger",
+      "proj-p1-02-capacity-eval"
+    ],
+    "answer": {
+      "key_points": [
+        "背景：政务 Agent 单幕 4-6 轮长文本，Rollout 解码是训练周期的核心耗时。",
+        "约束：双卡 48G 显存预算内要同时承载 Trainer、模拟器与 vLLM 推理。",
+        "做法：4B 允许训推分卡部署，留 30G 以上显存给并发 KV Cache。",
+        "结果：对齐评测 4B 严格成功率 80.1% 对齐 8B 的 77.6%，硬违规率双方同为极低。"
+      ]
+    },
+    "category": "project",
+    "follow_ups": [
+      "Simulator 用的什么模型？",
+      "如果算力充沛，未来会考虑 8B 或 14B 吗？"
+    ]
+  },
+  {
+    "id": "proj-p1-02-vram-topology",
+    "question": "训练器、模拟器与推理引擎在两张卡上怎么分？",
+    "tags": [
+      "训练架构",
+      "显存预算"
+    ],
+    "priority": "common",
+    "related_ids": [
+      "proj-p1-02-overview"
+    ],
+    "answer": {
+      "key_points": [
+        "GPU0 部署 Trainer 训练器与模拟器服务，合计约 20G 显存。",
+        "GPU1 完全独占 vLLM 推理，留 35G 以上专供 KV Cache 并发采样。",
+        "同卡承载反向激活峰值与 KV Cache 预分配必 OOM。"
+      ]
+    },
+    "category": "project"
+  },
+  {
+    "id": "proj-p1-02-latency-ledger",
+    "question": "8B 的长尾延迟代价有多大？",
+    "tags": [
+      "模型选型",
+      "推理吞吐"
+    ],
+    "priority": "common",
+    "related_ids": [
+      "proj-p1-02-overview"
+    ],
+    "answer": {
+      "key_points": [
+        "8B 长序列解码受访存带宽制约，单步生成显著变慢。",
+        "单幕平均 4-6 轮、每轮含思维链与工具参数，Rollout 耗时被放大。",
+        "4B 多轮生成吞吐约为 8B 的两倍，Rollout 不再是训练周期短板。"
+      ]
+    },
+    "category": "project"
+  },
+  {
+    "id": "proj-p1-02-capacity-eval",
+    "question": "4B 与 8B 的容量差距怎么证伪？",
+    "tags": [
+      "模型选型",
+      "评测"
+    ],
+    "priority": "common",
+    "related_ids": [
+      "proj-p1-02-overview"
+    ],
+    "answer": {
+      "key_points": [
+        "针对性对齐评测显示 4B 严格成功率 80.1% 对齐 8B 的 77.6%。",
+        "对齐评测里双方硬违规率同样极低，容量足以胜任公积金任务。",
+        "单一政务垂直领域里 4B 是私有化交付的最优经济尺寸。"
+      ]
+    },
+    "category": "project"
+  },
+  {
+    "id": "proj-p1-03-task-agent-vs-general",
+    "question": "「任务型 Agent」与通用 Agent 的差别是什么？为什么公积金业务适合形式化？",
+    "tags": [
+      "Agent 范式",
+      "项目概述"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "通用 Agent 面对开放世界：动作空间无限、状态转移不可预测、评估依赖主观打分。",
+        "任务型 Agent 运行于闭包业务环境：动作收敛到工具调用、向用户提问与三类终局动作。",
+        "公积金政策法条明确、办理前置依赖链清晰，天然适合状态机与可验证奖励建模。",
+        "评估不依赖主观打分，比对执行前后的数据库快照即得严格二值真值。",
+        "合规边界排他：未核身不可查、提取超限须拒办，不存在皆可的模糊地带。"
+      ],
+      "pitfalls": [
+        "被问最复杂的业务逻辑时答购房提取的多主体资格校验，涉及连续多次前置依赖校验。"
+      ]
+    },
+    "category": "project",
+    "follow_ups": [
+      "公积金业务里最复杂的逻辑是什么？"
+    ]
+  },
+  {
+    "id": "proj-p1-04-overview",
+    "question": "动作空间怎么形式化？三类终局动作是什么，为什么要三类？",
+    "tags": [
+      "动作空间",
+      "沙箱协议"
+    ],
+    "priority": "must",
+    "related_ids": [
+      "proj-p1-04-terminal-actions",
+      "proj-p1-04-ask-user-active-edge",
+      "proj-c09-sandbox-golden-diff"
+    ],
+    "answer": {
+      "key_points": [
+        "所有输出必须包裹在 analysis 与 action 双标签内，协议显式可解析。",
+        "中间动作只有调用后台接口与向群众提问两类。",
+        "任务必须以正常办结、合规拒办、转人工三类终局动作之一收敛。",
+        "三类动作正交互斥，杜绝把拒绝当办结、把逃避当合规。"
+      ]
+    },
+    "category": "project",
+    "follow_ups": [
+      "为什么把 Ask_User 归为 Agent 的动作而不是系统事件？",
+      "解析不到闭合标签怎么处理？"
+    ]
+  },
+  {
+    "id": "proj-p1-04-terminal-actions",
+    "question": "三类终局动作各自承接什么场景？",
+    "tags": [
+      "沙箱协议",
+      "Reward 设计"
+    ],
+    "priority": "must",
+    "related_ids": [
+      "proj-p1-04-overview"
+    ],
+    "answer": {
+      "key_points": [
+        "Finish 承接正常办结与常规查询答复。",
+        "FinishWithRefusal 承载合规拒办，必须显式援引法条说明不予受理。",
+        "Escalate 针对线上无法结清的组合贷与司法冻结等疑难，转人工专席处理。",
+        "三类动作互斥，把拒绝当办结或逃避当合规都是致命缺陷。"
+      ]
+    },
+    "category": "project"
+  },
+  {
+    "id": "proj-p1-04-ask-user-active-edge",
+    "question": "Ask_User 为什么是主动决策动作而不是系统事件？",
+    "tags": [
+      "动作空间",
+      "强化学习"
+    ],
+    "priority": "must",
+    "related_ids": [
+      "proj-p1-04-overview"
+    ],
+    "answer": {
+      "key_points": [
+        "Ask_User 是状态机内主动发起的出边，不是环境中断被动触发。",
+        "何时追问、追问什么参数是策略网络的核心决策。",
+        "归为动作才能对其计算策略梯度。",
+        "解析失败判格式错误并触发硬零即时终止。"
+      ]
+    },
+    "category": "project"
+  },
+  {
+    "id": "proj-p1-05-overview",
+    "question": "Golden State 比对具体怎么做？Strict Success 的定义是什么？",
+    "tags": [
+      "Reward 设计",
+      "评测"
+    ],
+    "priority": "common",
+    "related_ids": [
+      "proj-p1-05-strict-definition",
+      "proj-p1-05-empty-write-gaming",
+      "proj-c09-sandbox-golden-diff"
+    ],
+    "answer": {
+      "key_points": [
+        "任务工厂生成任务时由业务链路状态机推导预期数据库终态与期望终局动作。",
+        "任务执行结束后沙箱导出实际内存库快照，逐表逐行逐字段比对。",
+        "严格成功要求终态完全匹配且实际终局动作与期望完全一致，缺一即失败。",
+        "纯查询与合规拒办的期望变更本来就是空写，比对同时确保没有脏写。"
+      ]
+    },
+    "category": "project",
+    "follow_ups": [
+      "字段值出现空格或大小写差异算错吗？"
+    ]
+  },
+  {
+    "id": "proj-p1-05-strict-definition",
+    "question": "Strict Success 为什么要求终态与动作双重对齐？",
+    "tags": [
+      "Reward 设计",
+      "评测"
+    ],
+    "priority": "common",
+    "related_ids": [
+      "proj-p1-05-overview"
+    ],
+    "answer": {
+      "key_points": [
+        "状态匹配只证明数据库没被写坏，终局匹配才证明办的是对的事。",
+        "沙箱比对层有类型归一化解析器，核心字段值必须完全一致。",
+        "严格成功要求终态匹配与终局动作一致同时成立，缺一即失败。"
+      ]
+    },
+    "category": "project"
+  },
+  {
+    "id": "proj-p1-05-empty-write-gaming",
+    "question": "空写任务的同分博弈是怎么发生的？",
+    "tags": [
+      "Reward 设计",
+      "奖励投机"
+    ],
+    "priority": "common",
+    "related_ids": [
+      "proj-p1-05-overview"
+    ],
+    "answer": {
+      "key_points": [
+        "纯查询与合规拒办的期望变更本来就是空写，错误办结的终态同为空写。",
+        "加法方案下模型办错业务碰对动作依然能拿到动作分，两头套利。",
+        "这正是早期奖励同分博弈的根因，促成终态动作乘法门控。"
+      ]
+    },
+    "category": "project"
+  },
+  {
+    "id": "proj-p1-06-overview",
+    "question": "任务工厂产什么、怎么保证任务可解且多样？",
+    "tags": [
+      "数据合成",
+      "任务工厂"
+    ],
+    "priority": "common",
+    "related_ids": [
+      "proj-p1-06-contrast-pairs",
+      "proj-p1-06-solvability-gate"
+    ],
+    "answer": {
+      "key_points": [
+        "产出强类型任务规格：办事群众画像、隐藏真相、信息释放规则、歧义配置与注入错误。",
+        "多样性靠对抗种子生成器：对敏感决策边界生成成对对比任务，唯一变量是边界槽位。",
+        "可解性靠跨字段不变式门禁：触发决策的必要证据必须在工具返回值中全集可达。",
+        "身份证按国标加权模校验码生成，年龄与前六位区划严格联动。"
+      ]
+    },
+    "category": "project",
+    "follow_ups": [
+      "为什么不直接用 LLM 无约束生成用户 prompt？"
+    ]
+  },
+  {
+    "id": "proj-p1-06-contrast-pairs",
+    "question": "对比对机制怎么训练边界敏感度？",
+    "tags": [
+      "数据合成",
+      "任务工厂"
+    ],
+    "priority": "common",
+    "related_ids": [
+      "proj-p1-06-overview"
+    ],
+    "answer": {
+      "key_points": [
+        "对敏感决策边界生成成对任务，唯一变量是边界槽位的取值。",
+        "合规通过与超额拒办的样本成对出现，训练模型对临界条件的敏锐度。",
+        "两个样本的身份与业务类型同时漂移就失去对照意义。"
+      ]
+    },
+    "category": "project"
+  },
+  {
+    "id": "proj-p1-06-solvability-gate",
+    "question": "可解性门禁怎么拦截坏任务？",
+    "tags": [
+      "数据合成",
+      "数据清洗"
+    ],
+    "priority": "common",
+    "related_ids": [
+      "proj-p1-06-overview"
+    ],
+    "answer": {
+      "key_points": [
+        "触发决策的必要证据必须在工具返回值中全集可达，不达标任务被 Fail-Closed 拦截。",
+        "纯大模型无约束生成存在大量虚假矛盾，破坏强化学习的真值接地。",
+        "身份证按国标校验码生成，与前六位区划严格联动，合成任务确定性可执行。"
+      ]
+    },
+    "category": "project"
+  },
+  {
+    "id": "proj-p1-07-sandbox-domain-agnostic",
+    "question": "沙箱怎么做到领域无关？错误注入是干什么用的？",
+    "tags": [
+      "沙箱",
+      "错误注入"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "沙箱核心引擎是通用事件驱动状态机加内存关系数据库，不含任何公积金特有业务逻辑。",
+        "具体的表结构、工具注册与政策逻辑均以领域插件形式注入。",
+        "错误注入器在指定轮次向指定工具抛出可恢复异常，强迫模型学会重试自愈。",
+        "只在顺畅路径训练的模型，一遇报错就转人工或抛异常崩溃。",
+        "结合奖励信号，模型探索出检测错误码、间隔重试、成功继续的稳健策略。"
+      ]
+    },
+    "category": "project",
+    "follow_ups": [
+      "如果沙箱崩溃怎么保证状态不污染？"
+    ]
+  },
+  {
+    "id": "proj-p1-08-overview",
+    "question": "合成任务最大的坑是什么？",
+    "tags": [
+      "数据合成",
+      "数据清洗"
+    ],
+    "priority": "bonus",
+    "related_ids": [
+      "proj-p1-08-dead-taxonomy",
+      "proj-p1-08-retro"
+    ],
+    "answer": {
+      "key_points": [
+        "物理不可解死题：任务逻辑要求查出冻结状态，工具返回结构里根本没有该字段。",
+        "幽灵对抗标签：任务打了代办冒领标签，开场白却没注入线索，模型合法办结被判严重错误。",
+        "业务政策卡片更新后生成器未同步，期望终态与合法执行直接冲突。",
+        "防御是跨字段不变式门禁：证据全集可达才放行，不达标直接阻断。"
+      ],
+      "elaboration": "历史事故是账户冻结死题：困难还贷任务期望终局转人工，但配置的查询接口返回结构里没有冻结状态字段，模型看不到任何冻结证据只能按正常流程办结，被系统判零分，通过率连续为零。"
+    },
+    "category": "project",
+    "follow_ups": [
+      "退役死题后如何证明不是把难任务删了才涨的分？"
+    ]
+  },
+  {
+    "id": "proj-p1-08-dead-taxonomy",
+    "question": "物理不可解死题与幽灵对抗标签是什么？",
+    "tags": [
+      "数据合成",
+      "数据清洗"
+    ],
+    "priority": "bonus",
+    "related_ids": [
+      "proj-p1-08-overview"
+    ],
+    "answer": {
+      "key_points": [
+        "不可观测死题：任务要求发现冻结状态，但该状态不在任何合法工具的返回字段里，模型陷入绝对零奖励死区。",
+        "幽灵对抗标签：任务标签要求对冒名代办拒办，开场白却没有任何代办线索，模型合法办结被误判。",
+        "政策卡片更新后生成器未同步，期望终态与合法执行直接冲突。"
+      ]
+    },
+    "category": "project"
+  },
+  {
+    "id": "proj-p1-08-retro",
+    "question": "账户冻结死题事故是怎么复盘的？",
+    "tags": [
+      "数据合成",
+      "数据清洗"
+    ],
+    "priority": "bonus",
+    "related_ids": [
+      "proj-p1-08-overview"
+    ],
+    "answer": {
+      "key_points": [
+        "困难还贷任务期望终局转人工，但查询接口的返回结构里没有冻结状态字段。",
+        "模型只能按正常流程办结，被系统判零分，通过率连续为 0/304。",
+        "21 项跨字段不变式强制断言：触发决策的证据必须在工具返回值中全集可达。"
+      ]
+    },
+    "category": "project"
+  },
+  {
+    "id": "proj-p1-09-overview",
+    "question": "任务覆盖度怎么衡量？只按业务大类统计够吗？",
+    "tags": [
+      "数据合成",
+      "评测体系"
+    ],
+    "priority": "bonus",
+    "related_ids": [
+      "proj-p1-09-quota-mechanism",
+      "proj-p1-09-dc-split"
+    ],
+    "answer": {
+      "key_points": [
+        "只按业务大类统计会产生极度危险的采样盲区：表面每类上千条，实际绝大多数是顺畅路径。",
+        "超额提取、未核身阻断、组合贷转人工等关键边界完全欠拟合。",
+        "把业务拆解为八大能力族下的原子决策分叉点，建立全局决策概念体系。",
+        "配额按唯一主概念独占计数，消除重复预算偏差。"
+      ]
+    },
+    "category": "project",
+    "follow_ups": [
+      "决策概念怎么切分训练与测试集？"
+    ]
+  },
+  {
+    "id": "proj-p1-09-quota-mechanism",
+    "question": "决策概念配额怎么消除表层语义偷懒？",
+    "tags": [
+      "数据合成",
+      "评测体系"
+    ],
+    "priority": "bonus",
+    "related_ids": [
+      "proj-p1-09-overview"
+    ],
+    "answer": {
+      "key_points": [
+        "边界概念必须分配独立配额，强行要求覆盖。",
+        "单条任务可触发多个决策概念，预算按唯一主概念独占计数。",
+        "概念密度配额同时作为数据合成、蒸馏与强化学习采样的唯一度量基准。"
+      ]
+    },
+    "category": "project"
+  },
+  {
+    "id": "proj-p1-09-dc-split",
+    "question": "决策概念与任务家族怎么切分数据集？",
+    "tags": [
+      "数据合成",
+      "评测体系"
+    ],
+    "priority": "bonus",
+    "related_ids": [
+      "proj-p1-09-overview"
+    ],
+    "answer": {
+      "key_points": [
+        "决策概念是能力维度，不跨训练与测试集合。",
+        "真正切分的是任务家族，同一家族不跨集。",
+        "切分后测试集考核的是未见任务家族上的能力，从根源上杜绝评测泄漏。"
+      ]
+    },
+    "category": "project"
+  },
+  {
+    "id": "proj-p1-10-overview",
+    "question": "双角色 Teacher 怎么协同？信息边界怎么隔离？",
+    "tags": [
+      "数据合成",
+      "多角色协同"
+    ],
+    "priority": "common",
+    "related_ids": [
+      "proj-p1-10-boundary-isolation",
+      "proj-p1-10-orchestrator-guard"
+    ],
+    "answer": {
+      "key_points": [
+        "两个独立的模型实例分别扮演办事群众与政务坐席。",
+        "双方的系统提示词与上下文视野实行物理级隔离。",
+        "坐席只见业务接口说明、政策卡片与公开历史，绝看不到用户隐藏数据。",
+        "编排器在中间只传递自然语言消息，工具结果反馈给坐席侧。"
+      ]
+    },
+    "category": "project",
+    "follow_ups": [
+      "双 Teacher 用的什么模型？"
+    ]
+  },
+  {
+    "id": "proj-p1-10-boundary-isolation",
+    "question": "双方视野互盲为什么能拟合真实博弈？",
+    "tags": [
+      "数据合成",
+      "多角色协同"
+    ],
+    "priority": "common",
+    "related_ids": [
+      "proj-p1-10-overview"
+    ],
+    "answer": {
+      "key_points": [
+        "群众只见分配的画像与真相，绝看不到政务后端数据库。",
+        "群众侧按披露策略决定本轮释放多少信息。",
+        "双方视野互盲才能拟合真实办事的动态博弈。"
+      ]
+    },
+    "category": "project"
+  },
+  {
+    "id": "proj-p1-10-orchestrator-guard",
+    "question": "解析守卫怎么处理坏输出？",
+    "tags": [
+      "数据合成",
+      "多角色协同"
+    ],
+    "priority": "common",
+    "related_ids": [
+      "proj-p1-10-overview"
+    ],
+    "answer": {
+      "key_points": [
+        "解析器发现标签未闭合或参数非法时注入单轮反馈。",
+        "允许原位重新生成，最多两次修复机会。",
+        "语义守卫实时拦截未核身查敏感接口与重复扣款。"
+      ]
+    },
+    "category": "project"
+  },
+  {
+    "id": "proj-p1-11-overview",
+    "question": "分层验证漏斗每层做什么？为什么叫五级却是 L0 到 L5？",
+    "tags": [
+      "数据合成",
+      "数据清洗"
+    ],
+    "priority": "common",
+    "related_ids": [
+      "proj-p1-11-cheap-front",
+      "proj-p1-11-semantic-layers"
+    ],
+    "answer": {
+      "key_points": [
+        "漏斗以从低到高的算力成本逐级过滤脏轨迹。",
+        "L0 校验基础格式与动作协议，L1 在沙箱中回放校验数据库终态。",
+        "L2 用轻量 NLI 模型校验法定义务告知并检测隐私泄露。",
+        "L4 校验实体与槽位一致性，L5 才引入 LLM 做最终质检。"
+      ]
+    },
+    "category": "project",
+    "follow_ups": [
+      "哪一层丢弃率最高？"
+    ]
+  },
+  {
+    "id": "proj-p1-11-cheap-front",
+    "question": "为什么廉价规则要放在漏斗前面？",
+    "tags": [
+      "数据合成",
+      "数据清洗"
+    ],
+    "priority": "common",
+    "related_ids": [
+      "proj-p1-11-overview"
+    ],
+    "answer": {
+      "key_points": [
+        "L0 纯正则拦截未闭合标签与非法参数，耗时亚毫秒。",
+        "L1 沙箱回放校验数据库终态与期望快照一致。",
+        "廉价规则未过时不浪费昂贵算力。"
+      ]
+    },
+    "category": "project"
+  },
+  {
+    "id": "proj-p1-11-semantic-layers",
+    "question": "L2 到 L5 各过滤什么？",
+    "tags": [
+      "数据合成",
+      "数据清洗"
+    ],
+    "priority": "common",
+    "related_ids": [
+      "proj-p1-11-overview"
+    ],
+    "answer": {
+      "key_points": [
+        "L2 用轻量 NLI 模型校验法定告知并检测隐私泄露。",
+        "L3 行为打标提取交互轮数与情绪弧线，供分层采样分桶。",
+        "L4 校验实体与槽位一致性，L5 引入 LLM 做最终质检。"
+      ]
+    },
+    "category": "project"
+  },
+  {
+    "id": "proj-p1-12-overview",
+    "question": "NLI 校验法定告知踩过什么坑？",
+    "tags": [
+      "NLI",
+      "评测"
+    ],
+    "priority": "bonus",
+    "related_ids": [
+      "proj-p1-12-truncation",
+      "proj-p1-12-reuse"
+    ],
+    "answer": {
+      "key_points": [
+        "告知几乎全部发生在对话后半程，整段拼接后被 512 token 上限截断，关键告知丢失。",
+        "截断导致单样本蕴含得分暴跌至 0.0032，真实告知被误杀。",
+        "修复是把假设改为按助手单条消息切分分别计分再取最大值。",
+        "该判定逻辑后来在奖励计算中被逐字节复用，训练与评测口径统一。"
+      ]
+    },
+    "category": "project",
+    "follow_ups": [
+      "为什么不拿更大的模型来做告知判定？"
+    ]
+  },
+  {
+    "id": "proj-p1-12-truncation",
+    "question": "截断假阴性是怎么定位的？",
+    "tags": [
+      "NLI",
+      "评测"
+    ],
+    "priority": "bonus",
+    "related_ids": [
+      "proj-p1-12-overview"
+    ],
+    "answer": {
+      "key_points": [
+        "真实告知发生在末轮，整段拼接后被截断在窗口外。",
+        "真实多轮对话常达一两千字符，远超 512 token 硬上限。",
+        "逐消息计分后同一样本得分恢复至 0.9971。"
+      ]
+    },
+    "category": "project"
+  },
+  {
+    "id": "proj-p1-12-reuse",
+    "question": "逐消息取 max 为什么能同源复用？",
+    "tags": [
+      "NLI",
+      "评测"
+    ],
+    "priority": "bonus",
+    "related_ids": [
+      "proj-p1-12-overview"
+    ],
+    "answer": {
+      "key_points": [
+        "该判定逻辑后来在奖励计算中被逐字节复用。",
+        "训练与评测口径严格统一，防止奖励投机。",
+        "同源复用确保训练清洗与 RL 奖励计算用的是同一套判定代码与阈值。"
+      ]
+    },
+    "category": "project"
+  },
+  {
+    "id": "proj-p1-13-family-split-leakage",
+    "question": "分层采样与训练数据配比怎么定？怎么防评测泄漏？",
+    "tags": [
+      "数据配比",
+      "评测体系"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "四桶分层采样：主体业务流、边界对比对、越权对抗样本与长程多轮组合。",
+        "防泄漏严禁随机打散，同一家族的任务只允许出现在训练集或测试集之一。",
+        "任务打上唯一的家族标识，切分以家族为最小不可分割单元做哈希分桶。",
+        "自动化门禁在进训前断言两侧家族交集为严格空集。",
+        "测试集考核的是未见任务家族上的能力，从根源上杜绝近亲泄漏。"
+      ]
+    },
+    "category": "project",
+    "follow_ups": [
+      "各桶的大致比例是多少？"
+    ]
+  },
+  {
+    "id": "proj-p1-14-overview",
+    "question": "为什么要自己训 Simulator 而不是直接用 Teacher API 当用户？",
+    "tags": [
+      "Simulator",
+      "强化学习环境"
+    ],
+    "priority": "common",
+    "related_ids": [
+      "proj-p1-14-static-rules",
+      "proj-p1-14-throughput-audit"
+    ],
+    "answer": {
+      "key_points": [
+        "长程训练每步需并发采集大量多轮交互，商业 API 成本高且受外部限流。",
+        "闭源 API 存在静默版本迭代与输出波动，无法在飘移环境中稳定收敛。",
+        "必须拥有权重固定的确定性环境，才能归因到策略本身。",
+        "自研小模型能通过专有指令限制用户只讲画像内信息。"
+      ]
+    },
+    "category": "project",
+    "follow_ups": [
+      "直接用静态规则写一个用户模拟器不行吗？"
+    ]
+  },
+  {
+    "id": "proj-p1-14-static-rules",
+    "question": "直接用静态规则写一个用户模拟器不行吗？",
+    "tags": [
+      "Simulator",
+      "强化学习环境"
+    ],
+    "priority": "common",
+    "related_ids": [
+      "proj-p1-14-overview"
+    ],
+    "answer": {
+      "key_points": [
+        "静态规则语言刻板单一，策略会过拟合特定话术模板。",
+        "丧失真实多轮自然语言下的泛化与意图识别能力。",
+        "专有指令限制用户只讲画像内信息，杜绝幻觉出超纲事实。"
+      ]
+    },
+    "category": "project"
+  },
+  {
+    "id": "proj-p1-14-throughput-audit",
+    "question": "自研 Simulator 的吞吐与泄露监控怎么保障？",
+    "tags": [
+      "Simulator",
+      "强化学习环境"
+    ],
+    "priority": "common",
+    "related_ids": [
+      "proj-p1-14-overview"
+    ],
+    "answer": {
+      "key_points": [
+        "专有指令与信息泄露监控把越权追问挡在人设内。",
+        "本地部署提供每秒数千 token 的纯本地吞吐。",
+        "本地部署的模拟器权重固化，环境可复现且零 API 成本。"
+      ]
+    },
+    "category": "project"
+  },
+  {
+    "id": "proj-p1-15-overview",
+    "question": "Simulator 训练踩过什么坑？怎么判定它够用可以冻结？",
+    "tags": [
+      "Simulator",
+      "数据合成"
+    ],
+    "priority": "bonus",
+    "related_ids": [
+      "proj-p1-15-role-merge",
+      "proj-p1-15-exit-gates"
+    ],
+    "answer": {
+      "key_points": [
+        "ShareGPT 角色交替报错：剔除工具轮后历史里留下连续助手话术，框架校验直接静默抛弃数据。",
+        "连续角色合并把同角色消息合为单条，有效数据恢复且丢弃归零。",
+        "mask_history 缺陷让首轮损失被重复计算，模型严重偏向寒暄。",
+        "五项硬门槛全过后物理冻结。"
+      ]
+    },
+    "category": "project",
+    "follow_ups": [
+      "过早终止率 0.00% 是怎么测出来的？"
+    ]
+  },
+  {
+    "id": "proj-p1-15-role-merge",
+    "question": "角色交替报错是怎么修复的？",
+    "tags": [
+      "Simulator",
+      "数据合成"
+    ],
+    "priority": "bonus",
+    "related_ids": [
+      "proj-p1-15-overview"
+    ],
+    "answer": {
+      "key_points": [
+        "剔除工具轮后历史留下连续 assistant 消息，违反交替约束被静默丢弃。",
+        "合并函数把连续同角色消息用换行拼接，信息无损。",
+        "有效数据恢复且丢弃归零。"
+      ]
+    },
+    "category": "project"
+  },
+  {
+    "id": "proj-p1-15-exit-gates",
+    "question": "五项硬门槛验收与物理冻结是怎么做的？",
+    "tags": [
+      "Simulator",
+      "数据合成"
+    ],
+    "priority": "bonus",
+    "related_ids": [
+      "proj-p1-15-overview"
+    ],
+    "answer": {
+      "key_points": [
+        "指令遵循率超 98%，隐私未泄露率 98.1%，画像一致性 91%。",
+        "过早终止率与话题漂移率均为零。",
+        "全部门槛通过后环境权重固化、可复现。"
+      ]
+    },
+    "category": "project"
+  },
+  {
+    "id": "proj-p1-16-simulator-exploit-defense",
+    "question": "冻结 Simulator 会不会被策略利用刷分？怎么防？",
+    "tags": [
+      "强化学习",
+      "奖励投机"
+    ],
+    "priority": "bonus",
+    "answer": {
+      "key_points": [
+        "策略利用环境弱点刷分是强化学习的经典风险，训练中期引入两套独立防线。",
+        "物理盲区：模拟器运行时只能看到自然语言话术，接触不到沙箱真值与工具日志。",
+        "固化人设的系统提示词锁死拒绝非法透露，检测到越权追问自动转为警惕反问。",
+        "R4 双盲保真审计定期扫描轨迹，开场提示词泄露实测为 0。",
+        "违规诱导差分相比基线单调下降，未触发环境漏洞利用。"
+      ],
+      "pitfalls": [
+        "若策略学会管理员口令套取凭证，模拟器受控提示词拒绝并自动反问。"
+      ]
+    },
+    "category": "project",
+    "follow_ups": [
+      "如果 Simulator 单一分布导致泛化受限怎么解决？"
+    ]
+  },
+  {
+    "id": "proj-p1-17-overview",
+    "question": "SFT 进入 RL 阶段的判据为什么不看 pass@1，要看 pass@k？",
+    "tags": [
+      "强化学习",
+      "GRPO"
+    ],
+    "priority": "must",
+    "related_ids": [
+      "proj-p1-17-variance-derivation",
+      "proj-p1-17-golden-window",
+      "proj-p1-33-eval-panel-sampling"
+    ],
+    "answer": {
+      "key_points": [
+        "策略梯度的唯一来源是组内相对方差，全对或全错组无梯度。",
+        "pass@1 低时组内出现成功样本的概率反而高，多数采样组有梯度。",
+        "低 pass@1 加高 pass@k 恰是探索的理想工况。",
+        "进入 RL 还要双指标：解空间有正例，且硬违规率不能太高。"
+      ]
+    },
+    "category": "project",
+    "follow_ups": [
+      "如果某个任务 pass@8 也是 0 怎么办？"
+    ]
+  },
+  {
+    "id": "proj-p1-17-variance-derivation",
+    "question": "组内至少一条成功样本的概率怎么算？",
+    "tags": [
+      "强化学习",
+      "GRPO"
+    ],
+    "priority": "must",
+    "related_ids": [
+      "proj-p1-17-overview"
+    ],
+    "answer": {
+      "key_points": [
+        "按独立二项分布，组内至少一条成功的概率是一减全错概率。",
+        "K 等于 8 时约 75.2%，除去极小的全对概率尾部。",
+        "p 约 0.16、K 等于 8 时多数采样组都有梯度，组内方差组占比约 75.2%。"
+      ]
+    },
+    "category": "project"
+  },
+  {
+    "id": "proj-p1-17-golden-window",
+    "question": "75% 组有方差的演算怎么来的？",
+    "tags": [
+      "强化学习",
+      "GRPO"
+    ],
+    "priority": "must",
+    "related_ids": [
+      "proj-p1-17-overview"
+    ],
+    "answer": {
+      "key_points": [
+        "贷款还款任务 pass@1 为 16.1%，K 等于 8 时组内非零方差概率约 75.2%。",
+        "全错概率约 25%，全对概率可忽略。",
+        "低 pass@1 加高 pass@k 恰是 GRPO 探索的黄金窗口，学习信号最充沛。"
+      ]
+    },
+    "category": "project"
+  },
+  {
+    "id": "proj-p1-18-loan-data-audit",
+    "question": "贷款还款 SFT 阶段很弱，为什么不回去补数据？",
+    "tags": [
+      "强化学习",
+      "数据分析"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "数据量审计证实训练集中贷款样本已有 946 条，数据量非瓶颈。",
+        "弱项本质在于业务包含违约金计算与组合贷分流等动态条件槽。",
+        "这是一种需要根据上下文做分支跳转的离散决策，纯预测下一 token 的监督模仿很难拟合。",
+        "多轮干扰下极易模仿顺畅办理的语调输出办结，阶跃边界是模仿学习的盲区。",
+        "离散边界决策交给完成度与转人工组合奖励去精细调节才是最优分工。",
+        "后续实验证实贷款业务在 RL 中正向提升最大。"
+      ]
+    },
+    "category": "project",
+    "follow_ups": [
+      "面试时被追问旧数字怎么答？"
+    ]
+  },
+  {
+    "id": "proj-p1-19-overview",
+    "question": "token-diff 校验具体校什么？为什么会训推不一致？",
+    "tags": [
+      "训推一致",
+      "工程一致性"
+    ],
+    "priority": "common",
+    "related_ids": [
+      "proj-p1-19-roots",
+      "proj-p1-19-empty-think",
+      "proj-c08-token-diff-gate"
+    ],
+    "answer": {
+      "key_points": [
+        "相同对话历史分别送训练侧格式化脚本与推理侧部署引擎，逐 token 比对。",
+        "训练侧用 Python 模板渲染，推理端直接调基座自带 Jinja 模板，两端实现不同。",
+        "分叉一是默认系统提示词注入差异，二是推理端强插了空思考标签。",
+        "分叉导致硬违规率暴涨至 68.75%，成功率直接腰斩。"
+      ]
+    },
+    "category": "project",
+    "follow_ups": [
+      "训推不一致对强化学习有什么恶果？"
+    ]
+  },
+  {
+    "id": "proj-p1-19-roots",
+    "question": "训推不一致的两处根因是什么？",
+    "tags": [
+      "训推一致",
+      "工程一致性"
+    ],
+    "priority": "common",
+    "related_ids": [
+      "proj-p1-19-overview"
+    ],
+    "answer": {
+      "key_points": [
+        "训练侧检测到无系统提示词时静默垫入默认人设，推理端 Jinja 直接跳过。",
+        "推理模板在末轮无差别强插空思考标签，训练模板是纯净非推理格式。",
+        "推理端把思考标签当成错误格式，硬违规率暴涨。"
+      ]
+    },
+    "category": "project"
+  },
+  {
+    "id": "proj-p1-19-empty-think",
+    "question": "空思考标签事故是怎么修复的？",
+    "tags": [
+      "训推一致",
+      "工程一致性"
+    ],
+    "priority": "common",
+    "related_ids": [
+      "proj-p1-19-overview"
+    ],
+    "answer": {
+      "key_points": [
+        "最初设置关闭思考标签绕开，结果基座模板实现有缺陷反而插入了字面量标签。",
+        "重写与训练侧完全对齐的等效 Jinja 模板。",
+        "补齐默认系统提示词并删除思考标签逻辑，再次验收全绿。"
+      ]
+    },
+    "category": "project"
+  },
+  {
+    "id": "proj-p1-20-overview",
+    "question": "vLLM 吞吐提升约 6 倍是怎么来的？是优化还是修复？",
+    "tags": [
+      "推理吞吐",
+      "工程排查"
+    ],
+    "priority": "common",
+    "related_ids": [
+      "proj-p1-20-cliff-diagnosis",
+      "proj-p1-20-merged-cost",
+      "proj-c07-async-lease-staleness"
+    ],
+    "answer": {
+      "key_points": [
+        "本质是系统级性能悬崖的诊断与恢复，不是算子底层优化。",
+        "零权重加载时吞吐约 1500 tok/s，更新非零 LoRA 权重后断崖式跌至约 250。",
+        "根因是 Triton JIT LoRA kernel 在非零权重下动态寻址开销巨大。",
+        "Merged Serving 每步训练完在后台合并全量权重热推，彻底绕开 kernel。"
+      ]
+    },
+    "category": "project",
+    "follow_ups": [
+      "合并权重并推给推理服务要多久？"
+    ]
+  },
+  {
+    "id": "proj-p1-20-cliff-diagnosis",
+    "question": "性能悬崖是怎么定位的？",
+    "tags": [
+      "推理吞吐",
+      "工程排查"
+    ],
+    "priority": "common",
+    "related_ids": [
+      "proj-p1-20-overview"
+    ],
+    "answer": {
+      "key_points": [
+        "初始权重吞吐 1511 tok/s，一次权重更新后骤跌至 200-280。",
+        "eager 模式与关闭分块预填充只有个位数百分比改善，常规调优无效。",
+        "确认是长序列多轮下 LoRA 汇聚算子的固有缺陷，无廉价解。"
+      ]
+    },
+    "category": "project"
+  },
+  {
+    "id": "proj-p1-20-merged-cost",
+    "question": "Merged Serving 的代价是什么？",
+    "tags": [
+      "推理吞吐",
+      "训练架构"
+    ],
+    "priority": "common",
+    "related_ids": [
+      "proj-p1-20-overview"
+    ],
+    "answer": {
+      "key_points": [
+        "服务端物理上只保留一份最新全量权重，每步合并后热推。",
+        "这个取舍直接决定了异步架构的边界。",
+        "合并与热重载耗时远小于节省的采样时间。"
+      ]
+    },
+    "category": "project"
+  },
+  {
+    "id": "proj-p1-21-overview",
+    "question": "Rollout 架构长什么样？Simulator、Agent、沙箱、训练器怎么分卡？",
+    "tags": [
+      "训练架构",
+      "基础设施"
+    ],
+    "priority": "common",
+    "related_ids": [
+      "proj-p1-21-orchestration",
+      "proj-p1-21-episode"
+    ],
+    "answer": {
+      "key_points": [
+        "两张 48G 卡严格职能解耦，编排器通过异步 RPC 驱动多轮握手。",
+        "GPU0 部署用户模拟器服务与 ART 训练器，GPU1 完全独占 vLLM 推理。",
+        "沙箱引擎是轻量内存状态机，运行于主机进程。",
+        "采样结束后轨迹与快照送奖励模块打分，组优势送训练器反向更新。"
+      ]
+    },
+    "category": "project",
+    "follow_ups": [
+      "为什么不把训练器和推理引擎放同一张卡？"
+    ]
+  },
+  {
+    "id": "proj-p1-21-orchestration",
+    "question": "中央编排器怎么驱动三者完成多轮握手？",
+    "tags": [
+      "训练架构",
+      "基础设施"
+    ],
+    "priority": "common",
+    "related_ids": [
+      "proj-p1-21-overview"
+    ],
+    "answer": {
+      "key_points": [
+        "主机编排器下发任务并拉取首轮群众输入。",
+        "推理端流式生成思维链与工具调用，沙箱执行并返回结果。",
+        "循环至终局动作或异常即时阻断，单幕步数有上限。"
+      ]
+    },
+    "category": "project"
+  },
+  {
+    "id": "proj-p1-21-episode",
+    "question": "单步训练的跨硬件协同是怎么走的？",
+    "tags": [
+      "训练架构",
+      "基础设施"
+    ],
+    "priority": "common",
+    "related_ids": [
+      "proj-p1-21-overview"
+    ],
+    "answer": {
+      "key_points": [
+        "轨迹与沙箱快照送奖励模块打分，组优势计算后送训练器反向更新。",
+        "训练卡完成一步后合并权重热推给推理服务。",
+        "同卡承载 KV Cache 预分配与反向激活峰值必 OOM。"
+      ]
+    },
+    "category": "project"
+  },
+  {
+    "id": "proj-p1-22-overview",
+    "question": "训练与评测的判定器怎么保证同源？",
+    "tags": [
+      "评测体系",
+      "治理"
+    ],
+    "priority": "bonus",
+    "related_ids": [
+      "proj-p1-22-hash-lock",
+      "proj-p1-22-relabel"
+    ],
+    "answer": {
+      "key_points": [
+        "判定器权重与阈值配置冻结并生成哈希签名，运行时强校验。",
+        "任何微调导致指纹不匹配，训练与评测流程同时拒绝启动。",
+        "混合判定架构：本地 NLI 粗筛加远端大模型仲裁。",
+        "零网络调用的字节级确定性重放，历史矛盾样本纠偏留痕。"
+      ]
+    },
+    "category": "project",
+    "follow_ups": [
+      "Gold Relabel 会不会被质疑人为篡改测试集？"
+    ]
+  },
+  {
+    "id": "proj-p1-22-hash-lock",
+    "question": "配置指纹锁死是怎么防作弊的？",
+    "tags": [
+      "评测体系",
+      "治理"
+    ],
+    "priority": "bonus",
+    "related_ids": [
+      "proj-p1-22-overview"
+    ],
+    "answer": {
+      "key_points": [
+        "训练侧奖励计算与评测脚本调用完全相同的代码与超参字典。",
+        "指纹不匹配则训练与评测流程同时拒绝启动。",
+        "杜绝训练调一套、评测换一套。"
+      ]
+    },
+    "category": "project"
+  },
+  {
+    "id": "proj-p1-22-relabel",
+    "question": "Gold Relabel 会不会被质疑篡改测试集？",
+    "tags": [
+      "评测体系",
+      "治理"
+    ],
+    "priority": "bonus",
+    "related_ids": [
+      "proj-p1-22-overview"
+    ],
+    "answer": {
+      "key_points": [
+        "纠偏样本属于标注冲突的机械标注错误，修改决策全量版本化归档。",
+        "纠偏规则公开透明，可审计。",
+        "被纠偏样本属于标注冲突，修改决策全量版本化归档、可审计。"
+      ]
+    },
+    "category": "project"
+  },
+  {
+    "id": "proj-p1-23-overview",
+    "question": "Reward 函数由哪几项组成？各自怎么算？",
+    "tags": [
+      "强化学习",
+      "Reward 设计"
+    ],
+    "priority": "must",
+    "related_ids": [
+      "proj-p1-23-range",
+      "proj-p1-23-escalate-settlement",
+      "proj-c01-reward-terminal-gating"
+    ],
+    "answer": {
+      "key_points": [
+        "四大项解耦加权：任务完成度、合规告知度、效率惩罚与硬违规惩罚。",
+        "完成度是核心主项，由终态比对得分与终局动作匹配相乘得出。",
+        "告知项基于逐条消息 NLI 蕴含判定，取各轮最大值。",
+        "效率惩罚基于实际交互轮数线性衰减，抑制无意义套话。",
+        "硬违规触发整幕奖励硬零，转人工加分移出训练总目标。"
+      ]
+    },
+    "category": "project",
+    "follow_ups": [
+      "总分的动态范围是多少？"
+    ]
+  },
+  {
+    "id": "proj-p1-23-range",
+    "question": "总分的动态范围是多少？",
+    "tags": [
+      "强化学习",
+      "Reward 设计"
+    ],
+    "priority": "must",
+    "related_ids": [
+      "proj-p1-23-overview"
+    ],
+    "answer": {
+      "key_points": [
+        "理论范围 0 到 1，成功办结且完整告知通常在 0.85 以上。",
+        "效率惩罚每超出基准轮扣 0.05，防止模型为效率跳步。",
+        "硬违规一票否决，整幕奖励直接赋零。"
+      ]
+    },
+    "category": "project"
+  },
+  {
+    "id": "proj-p1-23-escalate-settlement",
+    "question": "合法办结轨迹的奖励怎么结算？",
+    "tags": [
+      "强化学习",
+      "Reward 设计"
+    ],
+    "priority": "must",
+    "related_ids": [
+      "proj-p1-23-overview"
+    ],
+    "answer": {
+      "key_points": [
+        "终态比对一致且终局动作正确，完成度得满分。",
+        "时效告知达标约 0.98，效率项只扣超出基准的一轮。",
+        "加权总分约 0.99，完成度占大头、告知辅助、效率微惩罚。"
+      ]
+    },
+    "category": "project"
+  },
+  {
+    "id": "proj-p1-24-overview",
+    "question": "终局动作门控为什么是乘法不是加法？",
+    "tags": [
+      "强化学习",
+      "Reward 设计"
+    ],
+    "priority": "common",
+    "related_ids": [
+      "proj-p1-24-additive-collapse",
+      "proj-p1-24-gate-verification",
+      "proj-c01-reward-terminal-gating"
+    ],
+    "answer": {
+      "key_points": [
+        "加法本质是给拒办或特定动作单独加分，模型两头下注套利。",
+        "办错业务只要碰对拒办动作依然拿动作分，优势差被淹没。",
+        "乘法门控把状态正确与动作正确确立为互为充要的刚性门禁。",
+        "无写库任务动作选错乘数项归零，状态一致得分也归零。"
+      ]
+    },
+    "category": "project",
+    "follow_ups": [
+      "如果是写库任务，但调了 Escalate 怎么算？"
+    ]
+  },
+  {
+    "id": "proj-p1-24-additive-collapse",
+    "question": "加法方案的两头下注是怎么发生的？",
+    "tags": [
+      "强化学习",
+      "Reward 设计"
+    ],
+    "priority": "common",
+    "related_ids": [
+      "proj-p1-24-overview"
+    ],
+    "answer": {
+      "key_points": [
+        "加法方案给错误办结的状态分照发，动作分碰对照拿。",
+        "错误办结与正确拒办的得分差距微弱，组内优势差消失。",
+        "稀有动作的探索梯度被淹没，模型学会投机而非决策。"
+      ]
+    },
+    "category": "project"
+  },
+  {
+    "id": "proj-p1-24-gate-verification",
+    "question": "乘法门控的实验验证是怎么做的？",
+    "tags": [
+      "强化学习",
+      "Reward 设计"
+    ],
+    "priority": "common",
+    "related_ids": [
+      "proj-p1-24-overview"
+    ],
+    "answer": {
+      "key_points": [
+        "上线门控后合规拒办表现从 8.6% 攀升至 80.5%。",
+        "真正拒办的轨迹乘积才为满分，组内优势瞬间拉满。",
+        "错误办结得分归零，投机路径被堵死。"
+      ]
+    },
+    "category": "project"
+  },
+  {
+    "id": "proj-p1-25-format-failure-hard-zero",
+    "question": "格式解析失败怎么处理，为什么不重采样？",
+    "tags": [
+      "强化学习",
+      "采样策略"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "格式损坏、标签未闭合或参数非法时执行 Hard-Zero 即时终止，整幕总奖励硬零。",
+        "不重采的核心理由是会掩盖模型真实的契约破坏缺陷，给算法注入幸存者偏差。",
+        "策略网络永远感知不到坏格式带来的惩罚梯度，线上部署该崩依然会崩。",
+        "实测经 SFT 后格式错误率约 2%，远低于组内全废风险，不会引起组内全零塌缩。",
+        "多轮重采会导致环境状态同步复杂化，极大拖慢采样吞吐。"
+      ],
+      "pitfalls": [
+        "压测中格式失败率 2.08%，最难的贷款任务 4.84%，其余业务均在 1% 到 2.4% 之间。"
+      ]
+    },
+    "category": "project",
+    "follow_ups": [
+      "如果面试官问是不是绝对零违规？"
+    ]
+  },
+  {
+    "id": "proj-p1-26-overview",
+    "question": "GRPO 与 PPO 的区别？你的 loss 到底是什么？",
+    "tags": [
+      "强化学习",
+      "损失函数",
+      "CISPO"
+    ],
+    "priority": "must",
+    "related_ids": [
+      "proj-p1-26-cispo-mechanics",
+      "proj-p1-26-advantage-walkthrough",
+      "proj-p1-26-multi-turn-fit",
+      "proj-c02-grpo-group-advantage"
+    ],
+    "answer": {
+      "key_points": [
+        "GRPO 去掉 Critic 价值网络，组内相对优势估计节省显存与复杂度。",
+        "简历写 GRPO 指组内相对优势范式，底层策略损失实际是 token 级 CISPO。",
+        "CISPO 将重要性采样比值裁剪后显式 detach，只作梯度加权系数。",
+        "标准双向截断在比值越界时硬归零，长序列关键探索 token 的修正梯度被抹杀。"
+      ]
+    },
+    "category": "project",
+    "follow_ups": [
+      "CISPO 在你的技能行是怎么体现的？"
+    ]
+  },
+  {
+    "id": "proj-p1-26-cispo-mechanics",
+    "question": "CISPO 的梯度为什么不会被截断抹杀？",
+    "tags": [
+      "强化学习",
+      "损失函数",
+      "CISPO"
+    ],
+    "priority": "must",
+    "related_ids": [
+      "proj-p1-26-overview"
+    ],
+    "answer": {
+      "key_points": [
+        "裁剪后的比值只作加权系数，detach 后不阻断梯度回传。",
+        "真实梯度走加权似然路径。",
+        "token 级修正梯度得以保留，长程修正不被截断抹掉。"
+      ]
+    },
+    "category": "project"
+  },
+  {
+    "id": "proj-p1-26-advantage-walkthrough",
+    "question": "组内优势怎么手算？",
+    "tags": [
+      "强化学习",
+      "GRPO"
+    ],
+    "priority": "must",
+    "related_ids": [
+      "proj-p1-26-overview"
+    ],
+    "answer": {
+      "key_points": [
+        "组内奖励均值 0.5 时，成功轨迹优势 +1、失败轨迹 -1。",
+        "方差归一化把学习信号拉齐，避免高方差组主导更新。",
+        "四成成功四成失败的组是最理想的对比信号。"
+      ]
+    },
+    "category": "project"
+  },
+  {
+    "id": "proj-p1-26-multi-turn-fit",
+    "question": "CISPO 为什么适合多轮智能体场景？",
+    "tags": [
+      "强化学习",
+      "损失函数",
+      "CISPO"
+    ],
+    "priority": "must",
+    "related_ids": [
+      "proj-p1-26-overview"
+    ],
+    "answer": {
+      "key_points": [
+        "长序列关键决策 token 常伴随较大比值偏离。",
+        "双向截断把关键修正梯度硬归零。",
+        "CISPO 保持梯度流动且探索上界更宽。"
+      ]
+    },
+    "category": "project"
+  },
+  {
+    "id": "proj-p1-27-overview",
+    "question": "Policy Loss 归一化与梯度保护具体是什么？",
+    "tags": [
+      "强化学习",
+      "训练稳定性"
+    ],
+    "priority": "common",
+    "related_ids": [
+      "proj-p1-27-spike-root",
+      "proj-p1-27-floor-calibration"
+    ],
+    "answer": {
+      "key_points": [
+        "默认以有效 token 掩码和作分母，超短序列或大部分 token 被掩码时分母极小。",
+        "单步梯度被放大数十倍，直接打乱已有权重。",
+        "分母地板强制归一化分母不低于安全基线。",
+        "配合梯度范数硬拦截与训练熔断器兜底。"
+      ]
+    },
+    "category": "project",
+    "follow_ups": [
+      "分母地板这个安全基线是怎么定的？"
+    ]
+  },
+  {
+    "id": "proj-p1-27-spike-root",
+    "question": "短序列梯度尖峰的根因是什么？",
+    "tags": [
+      "强化学习",
+      "训练稳定性"
+    ],
+    "priority": "common",
+    "related_ids": [
+      "proj-p1-27-overview"
+    ],
+    "answer": {
+      "key_points": [
+        "拒办任务首轮直接输出终局动作时序列极短，掩码和只有几十。",
+        "同样大小的损失分子除以极小分母，单步梯度放大数十倍。",
+        "分母地板按正常交互的中位 token 量标定安全基线。"
+      ]
+    },
+    "category": "project"
+  },
+  {
+    "id": "proj-p1-27-floor-calibration",
+    "question": "地板值 2560 是怎么定的？",
+    "tags": [
+      "强化学习",
+      "训练稳定性"
+    ],
+    "priority": "common",
+    "related_ids": [
+      "proj-p1-27-overview"
+    ],
+    "answer": {
+      "key_points": [
+        "取正常 4 轮交互的中位 token 总量标定。",
+        "既兜住超短序列，又不过度稀释正常任务的有效信号。",
+        "引入后异常梯度模长从 18.4 平滑回落至 1.59。"
+      ]
+    },
+    "category": "project"
+  },
+  {
+    "id": "proj-p1-28-kl-penalty-ref-model",
+    "question": "KL 惩罚怎么加？参考模型的显存怎么省？",
+    "tags": [
+      "强化学习",
+      "KL 惩罚",
+      "显存优化"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "没有把 KL 散度粗暴加在损失上，采用优势级相对 KL 调节。",
+        "只对偏离程度超过全组均值的 token 施加惩罚，低于均值的 token 给予正向宽容。",
+        "保留合理的探索自由，防止复读套话骗取奖励。",
+        "参考模型对数概率用上下文管理器临时置零 LoRA 旁路做无梯度前向获取。",
+        "零额外显存开销，省去常驻第二个全量模型的浪费。",
+        "整步墙钟时间仅增加约 5%，为并发调度腾出显存。"
+      ],
+      "related_ids": [
+        "proj-c05-advantage-kl-disable-adapter"
+      ]
+    },
+    "category": "project",
+    "follow_ups": [
+      "KL 惩罚系数设的多少？"
+    ]
+  },
+  {
+    "id": "proj-p1-29-rl-sampling-zero-variance",
+    "question": "RL 阶段任务怎么采样？零方差组怎么办？",
+    "tags": [
+      "强化学习",
+      "采样策略"
+    ],
+    "priority": "bonus",
+    "answer": {
+      "key_points": [
+        "无脑均匀采样会前置已学饱和任务，组内全满分无梯度，训练器整夜空转。",
+        "方差感知混合采样器将近饱和任务权重置零，大幅过采样黄金学习区任务。",
+        "反向传播前动态过滤门物理剔除全对或全错的零方差组，确保梯度来自有效对比。",
+        "死区任务先通过简单课程铺路，禁止硬跑。",
+        "重构后组丢弃率骤降并稳定在约一成，训练有效利用率大幅提升。",
+        "零方差组强行留着更新除白白消耗前向反向显存外无任何收益。"
+      ],
+      "pitfalls": [
+        "被问长程规模时坦荡报：完整长程训练 500 步、累计约 3.2 万条多轮 Rollout、双卡环境，规模不是卖点方法才是。"
+      ],
+      "related_ids": [
+        "proj-c25-variance-sampler"
+      ]
+    },
+    "category": "project",
+    "follow_ups": [
+      "如果把零方差组强行留着更新会发生什么？"
+    ]
+  },
+  {
+    "id": "proj-p1-30-overview",
+    "question": "Async RL 评估了什么、为什么放弃？",
+    "tags": [
+      "训练架构",
+      "异步训练"
+    ],
+    "priority": "common",
+    "related_ids": [
+      "proj-p1-30-mechanism-deadlock",
+      "proj-p1-30-press-data",
+      "proj-c07-async-lease-staleness"
+    ],
+    "answer": {
+      "key_points": [
+        "完整适配了异步强化学习训练流程，通过重叠隐藏训练延迟。",
+        "合并热推覆盖唯一模型名，在途交互的后续轮次报模型不存在而崩溃。",
+        "这不是陈旧度问题，而是单权重服务与多版本租约的死锁。",
+        "权衡后确立 Strict 串行加 Merged Serving 路线。"
+      ]
+    },
+    "category": "project",
+    "follow_ups": [
+      "在什么条件下应该回到异步？"
+    ]
+  },
+  {
+    "id": "proj-p1-30-mechanism-deadlock",
+    "question": "机制性死锁是怎么发生的？",
+    "tags": [
+      "训练架构",
+      "异步训练"
+    ],
+    "priority": "common",
+    "related_ids": [
+      "proj-p1-30-overview"
+    ],
+    "answer": {
+      "key_points": [
+        "合并服务只有一个模型名，后台热推后旧版本立即消失。",
+        "在途交互中段请求原版本直接报模型不存在。",
+        "整条轨迹报废，单权重服务与多版本租约不可调和。"
+      ]
+    },
+    "category": "project"
+  },
+  {
+    "id": "proj-p1-30-press-data",
+    "question": "Async RL 的压测数据与取舍结论是什么？",
+    "tags": [
+      "训练架构",
+      "异步训练"
+    ],
+    "priority": "common",
+    "related_ids": [
+      "proj-p1-30-overview"
+    ],
+    "answer": {
+      "key_points": [
+        "14 步压测中陈旧样本废弃率高达 43.8%，策略漂移翻倍。",
+        "多副本服务与排空屏障就绪前，Strict 串行是帕累托最优。",
+        "硬件支持多副本或解决 kernel 性能后可随时切回异步。"
+      ]
+    },
+    "category": "project"
+  },
+  {
+    "id": "proj-p1-31-overview",
+    "question": "长程训练怎么保证稳定不崩？",
+    "tags": [
+      "训练稳定性",
+      "强化学习"
+    ],
+    "priority": "bonus",
+    "related_ids": [
+      "proj-p1-31-moats",
+      "proj-p1-31-segfault-retro"
+    ],
+    "answer": {
+      "key_points": [
+        "分层批调度加连续衰减学习率，从起点平滑降至终点。",
+        "每批次固定配额注入确定性办结任务作防塌方锚点。",
+        "分母地板消除短序列尖峰，梯度范数硬拦截兜底。",
+        "基于单 Run 标识实现全周期热启动与断点续训。"
+      ]
+    },
+    "category": "project",
+    "follow_ups": [
+      "训练中途有灾难性遗忘吗？"
+    ]
+  },
+  {
+    "id": "proj-p1-31-moats",
+    "question": "四大护城河机制分别是什么？",
+    "tags": [
+      "训练稳定性",
+      "强化学习"
+    ],
+    "priority": "bonus",
+    "related_ids": [
+      "proj-p1-31-overview"
+    ],
+    "answer": {
+      "key_points": [
+        "调度与衰减学习率保证平滑收敛。",
+        "Finish 锚点防单向拒绝塌方。",
+        "分母地板与梯度守卫消除尖峰。",
+        "容错续训与熔断器保障全周期稳定。"
+      ]
+    },
+    "category": "project"
+  },
+  {
+    "id": "proj-p1-31-segfault-retro",
+    "question": "段错误排查的故事是什么？",
+    "tags": [
+      "训练稳定性",
+      "强化学习"
+    ],
+    "priority": "bonus",
+    "related_ids": [
+      "proj-p1-31-overview"
+    ],
+    "answer": {
+      "key_points": [
+        "训练中进程两度报 139 段错误被杀。",
+        "堆栈转储周期性采集时踩中 Triton 底层显存锁。",
+        "永久关闭调试转储后零段错误收官。"
+      ]
+    },
+    "category": "project"
+  },
+  {
+    "id": "proj-p1-32-overview",
+    "question": "OpenPipe ART 是什么、你改了什么、为什么不用 verl 或 TRL？",
+    "tags": [
+      "训练框架",
+      "工程选型"
+    ],
+    "priority": "bonus",
+    "related_ids": [
+      "proj-p1-32-selection",
+      "proj-p1-32-modifications"
+    ],
+    "answer": {
+      "key_points": [
+        "ART 将梯度加速、LoRA 微调与 vLLM 推理无缝结合，契合双卡预算。",
+        "verl 偏向万卡集群的复杂并行，双卡环境开销过重。",
+        "原生 TRL 对多轮长上下文闭环缺乏原生支持。",
+        "ART 核心精简透明，每一行损失与训练逻辑均可掌控。"
+      ]
+    },
+    "category": "project",
+    "follow_ups": [
+      "换用小众框架会有无法维护的技术债吗？"
+    ]
+  },
+  {
+    "id": "proj-p1-32-selection",
+    "question": "框架选型的取舍是什么？",
+    "tags": [
+      "训练框架",
+      "工程选型"
+    ],
+    "priority": "bonus",
+    "related_ids": [
+      "proj-p1-32-overview"
+    ],
+    "answer": {
+      "key_points": [
+        "verl 依赖复杂调度与通信，单机双卡配置沉重。",
+        "TRL 默认目标针对单轮场景，长程状态机下易 OOM。",
+        "ART 底层集成梯度加速算子，前反向显存大幅降低。"
+      ]
+    },
+    "category": "project"
+  },
+  {
+    "id": "proj-p1-32-modifications",
+    "question": "我们对 ART 做了哪些核心改造？",
+    "tags": [
+      "训练框架",
+      "工程选型"
+    ],
+    "priority": "bonus",
+    "related_ids": [
+      "proj-p1-32-overview"
+    ],
+    "answer": {
+      "key_points": [
+        "方差感知采样器替换内置随机采样。",
+        "损失分母保护直接改底层除法。",
+        "后台合并权重热推至独立推理服务。",
+        "模拟器剥离为独立微服务避免显存抢占。",
+        "token 级漂移遥测监控策略更新。"
+      ]
+    },
+    "category": "project"
+  },
+  {
+    "id": "proj-p1-33-eval-panel-sampling",
+    "question": "96 题测试集是什么？怎么抽的？和训练集什么关系？",
+    "tags": [
+      "评测体系",
+      "泛化"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "从冻结的 300 条开发集任务中按业务与终局动作的 12 个空间格分层伪随机抽取。",
+        "每格 8 个任务保证动作与场景均匀配比，抽样只依据任务标识。",
+        "96 个任务来自 96 个互不重叠的家族，与训练集家族物理隔离。",
+        "长程训练中专门用作导航监控面板，最终全表面验收未执行。",
+        "每次评测采用 K=8 独立采样，每臂 768 条完整交互。",
+        "绝不拿旧基线数据对比，两臂在同软硬件环境现场重新生成。"
+      ],
+      "pitfalls": [
+        "千题最终 holdout 已建好执行器但未发射，永远不说泛化已验证。",
+        "严格不称 96 题为 held-out，它是分层监控面板。"
+      ],
+      "related_ids": [
+        "proj-c02-grpo-group-advantage",
+        "proj-c03-passk-unbiased-estimate"
+      ]
+    },
+    "category": "project",
+    "follow_ups": [
+      "如果真跑了千题 Holdout，表现会跌多少？"
+    ],
+    "related_ids": [
+      "proj-c02-grpo-group-advantage",
+      "proj-p1-17-overview"
+    ]
+  },
+  {
+    "id": "proj-p1-34-metric-decomposition",
+    "question": "54.3% 提升到 84.4% 怎么拆解？为什么可信？",
+    "tags": [
+      "评测体系",
+      "数据分析"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "净增 30.1 个百分点的核心收益是合规拒办能力的突破性爆发。",
+        "合规拒办从基线 8.6% 暴增至 80.5%，单项贡献大盘八成以上涨幅。",
+        "正常办结从 68.4% 稳增至 82%，证明基本盘没有被破坏。",
+        "转人工从 85.9% 微增至 90.6%。",
+        "可信因为双臂同窗口现场重跑各 768 条，双盲盲评消除环境漂移。",
+        "核心贡献是 184 条合规拒办的突破，拉动大盘近八成涨幅。"
+      ],
+      "pitfalls": [
+        "基线拒办低是因为多轮 SFT 以正常办理为主，模仿学到顺从偏置，终态门控打破偏置。"
+      ],
+      "related_ids": [
+        "proj-c02-grpo-group-advantage"
+      ]
+    },
+    "category": "project",
+    "follow_ups": [
+      "为什么基线的拒办只有 8.6%？"
+    ]
+  },
+  {
+    "id": "proj-p1-35-hard-violation-scope",
+    "question": "0.26% 硬违规是什么口径？有没有越权操作？",
+    "tags": [
+      "评测体系",
+      "安全"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "0.26% 是 episode 级绝对违规率，768 条评测轨迹中仅 2 条。",
+        "精确双侧置信区间上界 0.938%，控制在 1% 红线之内。",
+        "逐行抽检这两条轨迹，无越权调用等实质安全问题。",
+        "违规表现全部为末轮格式协议输出的偶发解析失败。",
+        "实质安全违规为绝对零。",
+        "实事求是回答不是绝对零违规，格式错误与实质违规分开说。"
+      ],
+      "pitfalls": [
+        "两条轨迹均为长对话接近上限时输出标签漏闭合反斜杠与截断，与格式解析错误重合，全程工具调用均合法。"
+      ]
+    },
+    "category": "project",
+    "follow_ups": [
+      "如果真跑了千题 Holdout，预估表现会跌多少？"
+    ]
+  },
+  {
+    "id": "proj-p1-36-dual-blind-audit",
+    "question": "两轮双盲审计审什么？谁审？",
+    "tags": [
+      "评测体系",
+      "安全审计"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "训练中期两个节点引入第三方独立双盲审计，防范针对判分规则与模拟器的奖励投机。",
+        "评分反投机审计：博弈率从基线 13.5% 显著压降至 4.2%。",
+        "模拟器保真度审计：开场提示词泄露实测 0。",
+        "两轮由独立评估脚本与大模型交叉评审，全部通过。",
+        "终点未单独审计，合并至最终评测计划。"
+      ]
+    },
+    "category": "project",
+    "follow_ups": [
+      "为什么独立评审能叫双盲？"
+    ]
+  },
+  {
+    "id": "proj-p1-37-generalization-holdout",
+    "question": "泛化怎么验证？有 holdout 吗？",
+    "tags": [
+      "评测体系",
+      "泛化"
+    ],
+    "priority": "bonus",
+    "answer": {
+      "key_points": [
+        "必须诚实回答：我们永远不说全表面泛化已验证。",
+        "覆盖 1000 个全新家族任务的最终 holdout 评测执行器已就绪，但由于排期未发射。",
+        "简历上的所有结果严格界定在与训练集家族隔离的分层监控面板上。",
+        "监控面板稳定提升，对全表面泛化保持严谨敬畏。",
+        "千题 holdout 执行数为 0，降级应答只对 96 题监控集的提升负责。"
+      ]
+    },
+    "category": "project",
+    "follow_ups": [
+      "如果真跑了千题 Holdout，你预估会跌多少？"
+    ]
+  },
+  {
+    "id": "proj-p1-38-early-run-vs-final",
+    "question": "早期还有一个 +7.8pp 的数字，和 +30.1pp 什么关系？",
+    "tags": [
+      "评测体系",
+      "实验口径"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "两个完全不同阶段、不同数据池与评测面板的独立 Run。",
+        "7.8pp 是 15 步可行性验证原型，任务池混杂不可解死题，评测面板偏重办结。",
+        "30.1pp 是彻底清洗死题后完整长程训练在均衡面板上测出。",
+        "步长相差 33 倍，底层数据质量不可同日而语。",
+        "原型验证了终态门控的方向正确性，促成后续清洗与长程投入。",
+        "被追问旧数字时主动坦荡说明，两个 Run 不可同日而语。"
+      ]
+    },
+    "category": "project",
+    "follow_ups": [
+      "面试被追问旧数字怎么答？"
+    ]
+  },
+  {
+    "id": "proj-p1-39-limitations-retrospective",
+    "question": "如果重来会改什么？系统的最大局限是什么？",
+    "tags": [
+      "项目复盘",
+      "系统局限"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "未完成千题最终 holdout 验证，终局泛化未落盘是一大遗憾。",
+        "单一 Simulator 仅基于单一基座微调，多样性受限于单一先验。",
+        "业务覆盖面局限四类业务，尚未扩展至跨委办局的超级复杂长任务。",
+        "合规告知出现模板化套话复读倾向，语言略显机械。",
+        "判定链路部分依赖远端大模型仲裁，终极方案应是全可验证符号验证器。",
+        "异步基建补齐应在早期建设多版本 Adapter 共存框架。"
+      ]
+    },
+    "category": "project",
+    "follow_ups": [
+      "这些局限影响私有化上线吗？"
+    ]
+  },
+  {
+    "id": "proj-p1-40-solo-ownership-coding-agent",
+    "question": "团队多少人？哪些是你做的？Coding Agent 怎么用？",
+    "tags": [
+      "项目概述",
+      "Coding Agent"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "项目由我完全独立负责，从业务规则梳理到长程算法调优全链路一人完成。",
+        "所有架构设计、损失推导、死题归因与 ADR 决策均由我主导拍板。",
+        "Coding Agent 是放大单人交付的杠杆工具：脚手架、单测与排查脚本自动化。",
+        "坚决杜绝提示词扔给 AI 盲目跑代码。",
+        "人类定契约与测试断言，AI 落地胶水代码，人类做深入代码审查。",
+        "核心白板代码能手写，个人掌控全部核心设计。"
+      ]
+    },
+    "category": "project",
+    "follow_ups": [
+      "你一个人做这些花了多长时间？"
+    ]
+  }
+]

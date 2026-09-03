@@ -36,9 +36,20 @@ export const DECK_META: Record<DeckId, DeckMeta> = {
     // 面试题库页（票 13）：独立路由，底部导航「题库」tab 与"浏览题库"按钮据此出现。
     browsePath: '/interview/browse',
   },
+  resume: {
+    id: 'resume',
+    name: '简历题集',
+    studyPath: '/resume/study',
+    browsePath: '/resume/browse',
+  },
 };
 
 /** 按题集标识取出路由/展示元数据。标识是编译期受检的联合类型。 */
 export function getDeckMeta(id: DeckId): DeckMeta {
   return DECK_META[id];
+}
+
+/** 单卡深链与「去复习」的去向：`<studyPath>?q=<cardId>`，id 经编码。 */
+export function deckStudyHref(deckId: DeckId, cardId: string): string {
+  return `${getDeckMeta(deckId).studyPath}?q=${encodeURIComponent(cardId)}`;
 }

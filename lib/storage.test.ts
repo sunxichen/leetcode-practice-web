@@ -107,7 +107,7 @@ describe('进度键名派生 (progressKeyFor)', () => {
     expect(isDeckId('')).toBe(false);
     expect(isDeckId(null)).toBe(false);
     expect(isDeckId(42)).toBe(false);
-    expect(DECK_IDS).toEqual(['hot100', 'interview']);
+    expect(DECK_IDS).toEqual(['hot100', 'interview', 'resume']);
   });
 
   it('interview 派生出自己那份文档的键名', () => {

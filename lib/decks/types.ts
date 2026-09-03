@@ -45,6 +45,10 @@ export interface DeckCardBackProps<C extends SessionCard> {
   cardState?: CardState;
   learningStep?: number;
   intervalDays?: number;
+  /** 互链与「去复习」的去向：按当前题集的学习路由构建，由会话外壳/题库页传入 */
+  studyHref: (cardId: string) => string;
+  /** 互链解析：当前题集的卡片读取接口，由数据源注入——组件不直接引用任何题集的数据模块 */
+  getCardById: (id: string) => C | undefined;
 }
 
 /** 卡片正反面渲染组件。翻卡容器（FlashCard）是所有题集共享的外壳，不在配置里。 */
