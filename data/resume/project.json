@@ -5436,6 +5436,14 @@
         "状态放在循环外层的图状态里累积，不散落在局部变量，便于 Checkpoint 与恢复。",
         "设最大轮数与终止条件双保险，防止模型陷入工具调用死循环。"
       ],
+      "code": [
+        {
+          "label": "ReAct Agent Loop 主循环",
+          "language": "python",
+          "code": "def run_react_agent_loop(llm, tools, messages, max_iterations=6):\n    # 考察点: 终止条件、tool_call_id 配对、异常回封装不中断主循环\n    trajectory = list(messages)\n    for iteration in range(1, max_iterations + 1):\n        ai_msg = llm(trajectory)\n        trajectory.append(ai_msg)\n        # 终止判定: 无工具调用即为最终回答\n        if not ai_msg.tool_calls:\n            return {\"status\": \"success\", \"final_response\": ai_msg.content,\n                    \"iterations\": iteration, \"messages\": trajectory}\n        # 遍历执行全部工具调用; 异常封装成 ToolMessage 喂回模型供纠错\n        for call in ai_msg.tool_calls:\n            call_id, name = call[\"id\"], call[\"name\"]\n            if name not in tools:\n                trajectory.append(ToolMessage(content=f\"Error: 未知工具 {name}\",\n                                              tool_call_id=call_id, status=\"error\"))\n                continue\n            try:\n                result = tools[name](**call.get(\"args\", {}))\n                trajectory.append(ToolMessage(content=str(result), tool_call_id=call_id))\n            except Exception as exc:\n                trajectory.append(ToolMessage(content=f\"Error: {exc}\",\n                                              tool_call_id=call_id, status=\"error\"))\n    # 超限降级退出, 不抛异常\n    fallback = \"已达到最大步数限制，未能完成任务，请缩小指令范围。\"\n    trajectory.append(AIMessage(content=fallback))\n    return {\"status\": \"max_iterations_reached\", \"final_response\": fallback,\n            \"iterations\": max_iterations, \"messages\": trajectory}",
+          "note": "手写量级约 30 行 / 6 分钟；完整版（含自测）见 code/04_agent_loop_agui_hitl.py。"
+        }
+      ],
       "elaboration": "白板实现见 code/04_agent_loop_agui_hitl.py 的 run_react_agent_loop。"
     },
     "related_ids": [
@@ -5458,6 +5466,14 @@
         "事件降噪：工具调用与中间推理按策略过滤或聚合，避免底层噪声直接刷屏。",
         "前端安全阻断：不允许透传会破坏前端契约的事件类型。",
         "异常补发：连接中断后按事件序列补发缺失状态，保证前端状态机一致。"
+      ],
+      "code": [
+        {
+          "label": "事件映射 + 中间件链 + 异常兜底",
+          "language": "python",
+          "code": "def process_agui_event_stream(raw_events, middlewares=None):\n    # 考察点: 内部事件到 AG-UI 协议映射、中间件链、异常必须补发 RUN_FINISHED 闭环\n    out, run_finished, current_step = [], False, None\n    try:\n        for raw in raw_events:\n            t, mapped = raw.get(\"type\", \"\"), []\n            if t == \"run_start\":\n                mapped.append({\"type\": \"RUN_STARTED\", \"run_id\": raw.get(\"run_id\")})\n            elif t == \"on_chain_start\":\n                current_step = raw.get(\"node_name\", \"agent\")\n                mapped.append({\"type\": \"STEP_STARTED\", \"step_name\": current_step})\n            elif t == \"on_chain_end\":\n                mapped.append({\"type\": \"STEP_FINISHED\", \"step_name\": current_step or \"agent\"})\n            elif t == \"on_chat_model_stream\":\n                if \"delta_text\" in raw:\n                    mapped.append({\"type\": \"TEXT_MESSAGE_CONTENT\", \"delta\": raw[\"delta_text\"]})\n                elif \"delta_tool\" in raw:\n                    mapped.append({\"type\": \"TOOL_CALL_ARGS\", \"delta\": raw[\"delta_tool\"]})\n            elif t == \"on_tool_start\":\n                mapped.append({\"type\": \"TOOL_CALL_START\", \"tool_name\": raw.get(\"name\"), \"id\": raw.get(\"id\")})\n            elif t == \"on_tool_end\":\n                mapped.append({\"type\": \"TOOL_CALL_RESULT\", \"output\": raw.get(\"output\"), \"id\": raw.get(\"id\")})\n            elif t == \"on_interrupt\":\n                # 中断透出后立即闭合本轮流, 不挂死前端\n                mapped += [{\"type\": \"CUSTOM\", \"name\": \"on_interrupt\", \"value\": raw.get(\"payload\")},\n                           {\"type\": \"RUN_FINISHED\", \"run_id\": raw.get(\"run_id\")}]\n                run_finished = True\n            elif t == \"run_finish\":\n                mapped.append({\"type\": \"RUN_FINISHED\", \"run_id\": raw.get(\"run_id\")})\n                run_finished = True\n            # 中间件链逐级过滤或改写事件\n            for mw in middlewares or []:\n                mapped = [ev for batch in (mw(e) for e in mapped) for ev in batch]\n            out.extend(mapped)\n            if run_finished:\n                break\n    except Exception as exc:\n        # 异常兜底: 确定性地闭合 SSE 连接, 绝不悬挂\n        if current_step:\n            out.append({\"type\": \"STEP_FINISHED\", \"step_name\": current_step})\n        out.append({\"type\": \"RUN_ERROR\", \"message\": str(exc)})\n        if not run_finished:\n            out.append({\"type\": \"RUN_FINISHED\", \"run_id\": \"error_closed\"})\n    return out",
+          "note": "手写量级约 40 行 / 8 分钟；完整版（含事件序列断言与崩溃中间件自测）见 code/04_agent_loop_agui_hitl.py。"
+        }
       ],
       "elaboration": "白板实现见 code/04_agent_loop_agui_hitl.py 的 process_agui_event_stream。"
     },
@@ -5482,6 +5498,20 @@
         "一成员一持久线程：team_thread_id + member_agent_id 联合键懒加载建线程，跨步骤复用上下文与沙箱。",
         "3 槽位准入：调度器在事务内硬限活跃槽位数，超限任务进持久 FIFO 队列，槽位释放时唤醒。",
         "5 分钟软超时不判失败：只触发提醒或跟进指令，任务状态仍由成员自己推进。"
+      ],
+      "code": [
+        {
+          "label": "一成员一持久线程 + 3 槽位调度器",
+          "language": "python",
+          "code": "class PersistentTeammateManager:\n    \"\"\"一成员一持久线程: 相同 (team_thread, member_id) 稳定复用同一 teammate_thread\"\"\"\n    def __init__(self, team_thread_id):\n        self.team_thread_id = team_thread_id\n        self._threads = {}\n\n    def get_or_create_teammate_thread(self, member_agent_id):\n        # 线程 ID 由联合键确定性派生, 重派不换线程即保留成员上下文与沙箱\n        if member_agent_id not in self._threads:\n            raw = f\"{self.team_thread_id}::{member_agent_id}\".encode()\n            self._threads[member_agent_id] = \"tm_th_\" + hashlib.sha256(raw).hexdigest()[:16]\n        return self._threads[member_agent_id]\n\n\nclass TeamAssignmentScheduler:\n    MAX_ACTIVE_SLOTS = 3  # 准入硬限制\n\n    def __init__(self):\n        self.active_slots = {}\n        self.fifo_queue = deque()\n\n    def submit_assignment(self, member_agent_id, tm_thread, instruction, mode):\n        asgn = Assignment(member_agent_id=member_agent_id, teammate_thread_id=tm_thread,\n                          instruction=instruction, delegation_mode=mode)\n        if len(self.active_slots) < self.MAX_ACTIVE_SLOTS:\n            asgn.status = \"working\"\n            self.active_slots[asgn.assignment_id] = asgn\n        else:\n            asgn.status = \"queued\"   # 溢出进持久 FIFO 队列\n            self.fifo_queue.append(asgn)\n        return asgn\n\n    def on_teammate_finished(self, assignment_id, result, status=\"succeeded\"):\n        asgn = self.active_slots.pop(assignment_id, None)\n        if asgn:\n            asgn.status, asgn.result = status, result\n        # 槽位释放, 立即从 FIFO 唤醒下一项\n        if self.fifo_queue and len(self.active_slots) < self.MAX_ACTIVE_SLOTS:\n            nxt = self.fifo_queue.popleft()\n            nxt.status = \"working\"\n            self.active_slots[nxt.assignment_id] = nxt\n            return nxt\n        return None",
+          "note": "调度器在准入处硬限 3 槽位，超限任务进持久 FIFO；完整版见 code/05_orchestrator_subgraph.py。"
+        },
+        {
+          "label": "分派工具与 5 分钟软超时",
+          "language": "python",
+          "code": "class OrchestratorDelegationTools:\n    SOFT_WAIT_TIMEOUT_SECONDS = 300.0  # 5 分钟软等待窗口\n\n    def __init__(self, teammate_manager, scheduler):\n        self.teammate_manager = teammate_manager\n        self.scheduler = scheduler\n\n    def delegate_and_wait(self, member_agent_id, instruction, exec_time=1.0):\n        tm_thread = self.teammate_manager.get_or_create_teammate_thread(member_agent_id)\n        asgn = self.scheduler.submit_assignment(member_agent_id, tm_thread, instruction, \"waiting\")\n        if asgn.status == \"queued\":\n            return {\"status\": \"queued\", \"assignment_id\": asgn.assignment_id}\n        if exec_time > self.SOFT_WAIT_TIMEOUT_SECONDS:\n            # 软超时不判失败: 交由 Orchestrator 决策追加等待 / 转后台 / 取消\n            asgn.status = \"soft_timeout\"\n            return {\"status\": \"soft_timeout\", \"assignment_id\": asgn.assignment_id}\n        result = self._execute(asgn)\n        self.scheduler.on_teammate_finished(asgn.assignment_id, result)\n        return {\"status\": \"succeeded\", \"assignment_id\": asgn.assignment_id,\n                \"summary\": result[\"summary\"]}\n\n    def delegate_in_background(self, member_agent_id, instruction):\n        # 异步分派: 立即返回持久 assignment_id, 非阻塞\n        tm_thread = self.teammate_manager.get_or_create_teammate_thread(member_agent_id)\n        asgn = self.scheduler.submit_assignment(member_agent_id, tm_thread, instruction, \"background\")\n        return {\"status\": asgn.status, \"assignment_id\": asgn.assignment_id,\n                \"teammate_thread_id\": tm_thread}",
+          "note": "设计成熟度为 design_complete（设计稿，运行时尚未实施）；完整版含 send_follow_up / cancel_team_work。"
+        }
       ],
       "elaboration": "白板实现见 code/05_orchestrator_subgraph.py 的 delegate_and_wait / TeamAssignmentScheduler，含线程复用、槽位 FIFO 与软超时三个自测。"
     },
@@ -5508,6 +5538,14 @@
         "截断必须保护 ToolCall 与 ToolMessage 的配对完整性：不能截掉调用留着空结果，否则下一轮请求非法。",
         "被截段落先生成关键事实摘要回注，避免长程状态丢失。"
       ],
+      "code": [
+        {
+          "label": "阈值触发 + 成对保护截断",
+          "language": "python",
+          "code": "def truncate_and_summarize_context(messages, max_tokens=4000, usage_threshold=0.7,\n                                   preserve_ratio=0.25, min_messages=6):\n    # 考察点: 70% 阈值防抖触发、保留末尾 25%、ToolCall/ToolMessage 成对不被拆散\n    total_tokens = sum(len(m.content) // 4 + 3 for m in messages)\n    if len(messages) < min_messages or total_tokens / max_tokens < usage_threshold:\n        return messages  # 未触达压缩门限, 原样返回\n    preserve_count = max(1, int(len(messages) * preserve_ratio))\n    cutoff = len(messages) - preserve_count\n    # 安全边界: 截断点落在 ToolMessage 时向前回溯, 避免孤立 ToolMessage 使下轮请求非法\n    while cutoff > 0 and isinstance(messages[cutoff], ToolMessage):\n        cutoff -= 1\n    summarized, preserved = messages[:cutoff], messages[cutoff:]\n    # 摘要是只读投影: 原列表在 Checkpoint 中 Append-Only, 不被物理擦除\n    summary = HumanMessage(\n        content=f\"[系统上下文摘要: 已压缩前期 {len(summarized)} 条对话。]\")\n    return [summary] + preserved",
+          "note": "手写量级约 25 行 / 5 分钟；完整版（含成对完整性断言）见 code/04_agent_loop_agui_hitl.py。"
+        }
+      ],
       "elaboration": "白板实现见 code/04_agent_loop_agui_hitl.py 的 truncate_and_summarize_context。"
     },
     "related_ids": [
@@ -5532,6 +5570,20 @@
         "直接对页图像 patch 建多向量索引，版式、表格、印章等视觉信息原样保留，不需要 OCR 文本化，绕开级联误差累积。",
         "两阶段检索：粗筛（轻量单向量）缩小候选，再 MaxSim 精排，控制多向量匹配的计算量。"
       ],
+      "code": [
+        {
+          "label": "MaxSim 晚期交互打分",
+          "language": "python",
+          "code": "def maxsim_score(query_tokens, doc_tokens):\n    # 公式: MaxSim(Q, D) = sum_i max_j (q_i · d_j)\n    total = 0.0\n    for q_vec in query_tokens:\n        # 逐 Query Token 在文档全部 Patch 向量中取最高点积, 再对 Query 求和\n        total += max(dot_product(q_vec, d_vec) for d_vec in doc_tokens)\n    return total",
+          "note": "等价于 einsum('qd,pd->qp').max(-1).sum()；完整版见 code/06_retrieval_maxsim_rrf.py。"
+        },
+        {
+          "label": "两阶段检索（粗筛 + 精排）",
+          "language": "python",
+          "code": "def two_stage_retrieval(query_single_vec, query_token_vecs, candidates,\n                        top_k_rough=4, top_n_rerank=2):\n    # 第一阶段: 单向量粗召回, 快速削减候选量\n    rough = sorted(candidates,\n                   key=lambda c: dot_product(query_single_vec, c[\"single_vec\"]),\n                   reverse=True)[:top_k_rough]\n    # 第二阶段: 多向量 MaxSim 晚期交互精排\n    scored = [(maxsim_score(query_token_vecs, c[\"token_vecs\"]), c) for c in rough]\n    scored.sort(key=lambda x: x[0], reverse=True)\n    return [{\"doc_id\": c[\"doc_id\"], \"maxsim_score\": s}\n            for s, c in scored[:top_n_rerank]]",
+          "note": "粗召回用轻量单向量控计算量，精排才上多向量；完整版见 code/06_retrieval_maxsim_rrf.py。"
+        }
+      ],
       "elaboration": "白板实现见 code/06_retrieval_maxsim_rrf.py 的 maxsim_score 与 two_stage_retrieval，含单调性与两阶段自测。"
     },
     "related_ids": [
@@ -5553,6 +5605,14 @@
         "稠密向量与 BM25 的分数量纲完全不同，直接归一化相加会被某一分布主导；排名天然无量纲。",
         "倒数排名对头部结果敏感、对长尾宽容，单路异常排名的破坏被 1/(k+rank) 压平。",
         "工程角色：BM25 保政策专有名词与编号绝对命中，向量补语义泛化召回，RRF 合并两路。"
+      ],
+      "code": [
+        {
+          "label": "RRF 倒数排名融合",
+          "language": "python",
+          "code": "def reciprocal_rank_fusion(ranked_lists, k=60, weights=None):\n    # 公式: RRF_Score(d) = sum_m w_m / (k + rank_m(d))\n    if weights is None:\n        weights = [1.0] * len(ranked_lists)\n    doc_scores = {}\n    for ranked_list, w in zip(ranked_lists, weights):\n        for rank, doc_id in enumerate(ranked_list, start=1):  # 1-based rank\n            # 只用排名不用原始分: 排名天然无量纲, k=60 压平头部差距、保护长尾\n            doc_scores[doc_id] = doc_scores.get(doc_id, 0.0) + w / (k + rank)\n    return sorted(doc_scores.items(), key=lambda item: item[1], reverse=True)",
+          "note": "手写量级约 15 行 / 3 分钟；完整版见 code/06_retrieval_maxsim_rrf.py。"
+        }
       ],
       "elaboration": "白板实现见 code/06_retrieval_maxsim_rrf.py 的 reciprocal_rank_fusion。"
     },
@@ -5609,6 +5669,20 @@
         "PPO 阶段四模型：Policy 训练、Reference 冻结算 KL、RM 打分、Value 估优势，四模型显存编排是核心工程约束。",
         "KL 惩罚把策略拉回参考分布附近，防止 reward 模型被过度利用。"
       ],
+      "code": [
+        {
+          "label": "Bradley-Terry 奖励模型损失",
+          "language": "python",
+          "code": "def bradley_terry_rm_loss(r_chosen, r_rejected):\n    # 公式: L_BT = -log sigma(r_w - r_l) = log(1 + exp(-(r_w - r_l)))\n    diff = r_chosen - r_rejected\n    # 数值稳定形式: diff 极大时 exp 下溢为 0, 极小时退化为线性 -diff\n    if diff > 30.0:\n        return math.exp(-diff)\n    elif diff < -30.0:\n        return -diff\n    return math.log(1.0 + math.exp(-diff))",
+          "note": "只学相对分不学绝对分；完整版见 code/07_lora_rlhf_zero.py。"
+        },
+        {
+          "label": "PPO 四模型一步仿真",
+          "language": "python",
+          "code": "def rlhf_ppo_step_simulation(outcome_reward, policy_logp, ref_logp, values, beta=0.05):\n    # 四模型: Policy 生成 / Reference 冻结算 KL / RM 打 Outcome 分 / Critic 估 V(s)\n    T = len(policy_logp)\n    # 1. 逐步奖励 = KL 惩罚, 末位叠加 Outcome 奖励\n    step_rewards = [-beta * (policy_logp[t] - ref_logp[t]) for t in range(T)]\n    step_rewards[-1] += outcome_reward\n    # 2. GAE: delta_t = r_t + gamma*V_{t+1} - V_t, 从后向前递推\n    advantages, last_gae = [0.0] * T, 0.0\n    for t in reversed(range(T)):\n        next_v = values[t + 1] if t + 1 < len(values) else 0.0\n        delta = step_rewards[t] + next_v - values[t]\n        last_gae = delta + 0.95 * last_gae\n        advantages[t] = last_gae\n    # 3. PPO-Clip 策略损失 (首步 ratio = exp(0) = 1)\n    ratio, eps, adv = 1.0, 0.2, advantages[0]\n    surr1 = ratio * adv\n    surr2 = min(max(ratio, 1 - eps), 1 + eps) * adv\n    return {\"step_rewards\": step_rewards, \"advantages\": advantages,\n            \"policy_loss\": -min(surr1, surr2)}",
+          "note": "KL 惩罚把策略拉回参考分布附近，防 RM 被过度利用；完整版见 code/07_lora_rlhf_zero.py。"
+        }
+      ],
       "elaboration": "白板实现见 code/07_lora_rlhf_zero.py 的 bradley_terry_rm_loss 与 rlhf_ppo_step_simulation。"
     },
     "related_ids": [
@@ -5633,6 +5707,14 @@
         "同模型同卡数下显存估算随 ZeRO 级别单调递减，是白板验证的核心断言。",
         "CPU Offload 在小显存环境能省显存，但受 PCIe 带宽拖累，是吞吐换显存的权衡。"
       ],
+      "code": [
+        {
+          "label": "ZeRO-0/1/2/3 显存估算",
+          "language": "python",
+          "code": "def estimate_zero_memory(param_count_billions, num_gpus, stage=1,\n                         precision_bytes=2, activation_gb=0.0):\n    # 混合精度 Adam 静态状态 = 16 字节/参数 (16Ψ):\n    # 参数 2B + 梯度 2B + 优化器 12B (FP32 主权重 4B + 一阶动量 4B + 二阶方差 4B)\n    psi = param_count_billions * 1e9\n    to_gb = lambda b: b / 1024 ** 3\n    w_total, g_total, o_total = to_gb(2 * psi), to_gb(2 * psi), to_gb(12 * psi)\n    n = max(num_gpus, 1)\n    if stage == 0:      # 标准数据并行: 每卡全量复制\n        w, g, o = w_total, g_total, o_total\n    elif stage == 1:    # ZeRO-1: 仅切优化器状态\n        w, g, o = w_total, g_total, o_total / n\n    elif stage == 2:    # ZeRO-2: 加切梯度\n        w, g, o = w_total, g_total / n, o_total / n\n    elif stage == 3:    # ZeRO-3: 参数/梯度/优化器全切, 前反向按需 All-Gather 后即释放\n        w, g, o = w_total / n, g_total / n, o_total / n\n    else:\n        raise ValueError(f\"未知 ZeRO stage: {stage}\")\n    return {\"stage\": stage,\n            \"total_static_gb_per_gpu\": round(w + g + o, 2),\n            \"total_with_activation_gb\": round(w + g + o + activation_gb, 2)}",
+          "note": "同模型同卡数下显存随 stage 单调递减是白板核心断言；完整版见 code/07_lora_rlhf_zero.py。"
+        }
+      ],
       "elaboration": "白板实现见 code/07_lora_rlhf_zero.py 的 estimate_zero_memory。"
     },
     "related_ids": [
@@ -5655,6 +5737,20 @@
         "前缀共享：相同前缀的序列映射同一物理块，引用计数管理，写时复制（CoW）隔离各自续写。",
         "连续批处理：Prefill 与 Decode 混排调度，新请求随到随入队，不必等整批完成。",
         "显存不足时按优先级抢占回收块，被抢占请求重新排队而非失败。"
+      ],
+      "code": [
+        {
+          "label": "Block Table + 前缀共享 + CoW",
+          "language": "python",
+          "code": "class PhysicalBlock:\n    def __init__(self, block_id):\n        self.block_id, self.ref_count, self.tokens = block_id, 0, []\n\n\nclass PagedAttentionManager:\n    def __init__(self, num_total_blocks=16, block_size=4):\n        self.block_size = block_size\n        self.free_blocks = [PhysicalBlock(i) for i in range(num_total_blocks)]\n        self.block_tables = {}  # seq_id -> [PhysicalBlock, ...]\n\n    def allocate(self, seq_id, prompt_tokens):\n        need = math.ceil(len(prompt_tokens) / self.block_size)\n        if len(self.free_blocks) < need:\n            return False  # 物理块不足, 拒绝接纳\n        table = []\n        for i in range(need):\n            blk = self.free_blocks.pop(0)\n            blk.ref_count = 1\n            blk.tokens = prompt_tokens[i * self.block_size:(i + 1) * self.block_size]\n            table.append(blk)\n        self.block_tables[seq_id] = table\n        return True\n\n    def share_prefix(self, src, dst, num_shared):\n        # 前缀共享: 复制逻辑指针并自增引用计数, 不重复存 KV\n        table = self.block_tables.get(src, [])\n        if len(table) < num_shared:\n            return False\n        for blk in table[:num_shared]:\n            blk.ref_count += 1\n        self.block_tables[dst] = table[:num_shared]\n        return True\n\n    def append_token(self, seq_id, token):\n        table = self.block_tables[seq_id]\n        last = table[-1]\n        if last.ref_count > 1:\n            # 写时复制: 共享块被续写前先拷贝私有副本\n            new = self.free_blocks.pop(0)\n            new.ref_count, new.tokens = 1, list(last.tokens)\n            last.ref_count -= 1\n            table[-1] = new\n            last = new\n        if len(last.tokens) < self.block_size:\n            last.tokens.append(token)\n            return True\n        if not self.free_blocks:\n            return False  # 显存耗尽, 触发调度器抢占\n        new = self.free_blocks.pop(0)\n        new.ref_count, new.tokens = 1, [token]\n        table.append(new)\n        return True",
+          "note": "按需分块消除按最大长度预分配的碎片；完整版含 free 归还逻辑，见 code/08_serving_paged_quant.py。"
+        },
+        {
+          "label": "连续批处理调度器",
+          "language": "python",
+          "code": "class ContinuousBatchingScheduler:\n    def __init__(self, block_manager):\n        self.mgr = block_manager\n        self.waiting_queue, self.running_queue = [], []\n\n    def step(self):\n        # 1. 准入等待队列 (Prefill 随到随入, 不等整批)\n        for req in list(self.waiting_queue):\n            if self.mgr.allocate(req[\"seq_id\"], req[\"prompt_tokens\"]):\n                self.waiting_queue.remove(req)\n                self.running_queue.append(req)\n            else:\n                break  # 显存块不足, 等待后续释放\n        # 2. 运行中请求各生成 1 Token (Decode), 与 Prefill 混排\n        finished, preempted = [], []\n        for req in list(self.running_queue):\n            if not self.mgr.append_token(req[\"seq_id\"], f\"tok_{req['generated_tokens']}\"):\n                # 显存不足抢占: 释放块并踢回队首, 重计算/换出而非失败\n                self.mgr.free(req[\"seq_id\"])\n                self.running_queue.remove(req)\n                self.waiting_queue.insert(0, req)\n                preempted.append(req[\"seq_id\"])\n                continue\n            req[\"generated_tokens\"] += 1\n            if req[\"generated_tokens\"] >= req[\"max_new_tokens\"]:\n                self.mgr.free(req[\"seq_id\"])\n                self.running_queue.remove(req)\n                finished.append(req[\"seq_id\"])\n        return {\"finished\": finished, \"preempted\": preempted}",
+          "note": "抢占是被抢占请求重新排队而非失败；完整版见 code/08_serving_paged_quant.py。"
+        }
       ],
       "elaboration": "白板实现见 code/08_serving_paged_quant.py 的 PagedAttentionManager 与 ContinuousBatchingScheduler，含 CoW 与抢占自测。"
     },
