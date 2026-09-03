@@ -2389,5 +2389,4711 @@
     "follow_ups": [
       "你一个人做这些花了多长时间？"
     ]
+  },
+  {
+    "id": "proj-p2-01-overview",
+    "question": "什么是 Agent Harness？请用一分钟讲讲你们平台的整体架构。",
+    "category": "project",
+    "tags": [
+      "Agent 平台",
+      "项目概述",
+      "运行时"
+    ],
+    "priority": "must",
+    "hint": "从痛点切入，再报四层架构，最后带一句成熟度。",
+    "answer": {
+      "key_points": [
+        "痛点：大模型本身是概率性文本生成器，企业级业务要求确定性结果与安全性，必须在模型之外补一层运行时约束。",
+        "Agent Harness 就是包裹在模型外部的运行时约束与能力装配底座。",
+        "四层架构：底层双执行路径运行时（短任务动态图 + 长任务沙箱）；之上协议解耦层（AG-UI 事件流 + Ask User 中断契约）；再上插件体系（MCP 工具、Subgraph 插件、技能系统）；最上业务 Agent 实例（ChatBI、多模态问答、长任务代理）。",
+        "业务 Agent 在统一的上下文管理、权限管控与状态持久化规范下运行，新业务以配置与插件接入，运行时主干无需改动。",
+        "成熟度：核心双执行路径、协议层与长任务治理均已合入主干并稳定运行。"
+      ]
+    },
+    "follow_ups": [
+      "为什么叫 Harness 而不是 Framework？",
+      "能否用一个具体业务场景走查一遍四层流转？"
+    ],
+    "related_ids": [
+      "proj-p2-01-harness-responsibilities"
+    ]
+  },
+  {
+    "id": "proj-p2-01-harness-responsibilities",
+    "question": "Agent Harness 在实现上承担哪三项核心职责？为什么叫 Harness 而不是 Framework？",
+    "category": "project",
+    "tags": [
+      "Agent 平台",
+      "运行时"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "环境与状态封装：短任务封装为 LangGraph CompiledStateGraph，状态持久化到 Checkpointer；长任务封装为 Daytona 容器沙箱，提供独立虚拟文件系统与代码执行器。",
+        "协议与流式契约：前端不感知 LangGraph 底层消息模型，10 级中间件把图执行转换为标准 AG-UI SSE 事件流，隔离框架实现细节。",
+        "安全与治理围栏：MCP 参数动态校验与日志脱敏、长期记忆租户隔离、上下文自动压缩、沙箱产物外化存储。",
+        "Harness 与 Framework 的区别：Framework 提供 API 让开发者写业务逻辑（如 LangChain/LangGraph）；Harness 是包裹在模型外部、负责拉紧缰绳的运行时控制系统——决定模型能调哪些工具、何时必须暂停向人类请示、出错如何自愈。"
+      ],
+      "pitfalls": [
+        "Framework（代码库）与 Harness（运行时控制层）的定位不要混着说。"
+      ]
+    },
+    "related_ids": [
+      "proj-p2-01-overview"
+    ]
+  },
+  {
+    "id": "proj-p2-02-overview",
+    "question": "这个平台项目里，你个人负责什么？团队负责什么？",
+    "category": "project",
+    "tags": [
+      "Agent 平台",
+      "职责边界"
+    ],
+    "priority": "must",
+    "hint": "先报架构 ownership，再报亲手写的核心代码，最后讲清与工程团队的协同边界。",
+    "answer": {
+      "key_points": [
+        "我的角色：算法运行时的架构主导者，所有专题的技术演进方案与接口契约（全套 detail-notes）由我独立推导与确立。",
+        "我独立编写的核心代码：动态图工厂、AG-UI 协议中间件、Ask User 状态机校验、ChatBI ReAct 原型分支、长任务子图挂载中间件与上下文压缩逻辑。",
+        "工程团队负责：Java 后端 Internal API 对接、数据库与对象存储接入、Daytona 沙箱集群部署、业务前端组件适配。",
+        "边界协同方式：通过 Internal API 契约与 DataEnvelope 数据信封实现算法端与后端工程的解耦。"
+      ]
+    },
+    "follow_ups": [
+      "团队日常怎么分工协作？",
+      "上线后出过故障吗，怎么定责的？"
+    ],
+    "related_ids": [
+      "proj-p2-02-maturity-tiers"
+    ]
+  },
+  {
+    "id": "proj-p2-02-maturity-tiers",
+    "question": "平台各模块的成熟度你怎么标注？哪些上线了，哪些还在设计阶段？",
+    "category": "project",
+    "tags": [
+      "Agent 平台",
+      "成熟度",
+      "职责边界"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "已合入主干（develop）：双执行路径工厂、AG-UI 10 级中间件、Ask User 挂起恢复、沙箱生命周期与产物外化、上下文压缩、分层长期记忆、MCP 与 Subgraph 挂载。",
+        "独立参考分支：ChatBI ReAct Agent Loop，完成三段式循环与 4 个闭包工具的原型编写，主干仍运行固定 DAG。",
+        "探索原型：A2UI 生成式界面协议，在本地工作树完成瑞幸点单场景的端到端 PoC 验证。",
+        "设计完成待实施（design_complete）：Agent Teams，完成 Master PRD 与 6 项架构决策记录（ADR 0001~0006）的架构评审，运行时代码尚未实施。",
+        "动词字面为真：设计/确立/重设计/探索，未实施项绝不说「已上线」。"
+      ],
+      "pitfalls": [
+        "被追问成熟度时主动降级，不编造上线数据与业务量。",
+        "不暗示整个平台由个人单批写完，强调与工程团队的边界协同。"
+      ]
+    },
+    "related_ids": [
+      "proj-p2-02-overview"
+    ]
+  },
+  {
+    "id": "proj-p2-03-overview",
+    "question": "为什么选 LangGraph/deepagents 而不是自研状态机或其他框架？",
+    "category": "project",
+    "tags": [
+      "技术选型",
+      "LangGraph",
+      "deepagents"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "选型核心权衡是研发周期与底层原语成熟度，对比过自研状态机、AutoGPT 与 LangGraph/deepagents。",
+        "LangGraph 的收益：基于 Pregel 模型的显式状态图、细粒度 Checkpointer 快照持久化、原生 interrupt() 中断原语，契合企业复杂流转。",
+        "deepagents 的收益：现成的工具执行封装、长任务文件系统中间件与上下文压缩抽象可直接复用。",
+        "代价：接受框架版本锁定的技术债，并针对中文支持与原生 tasks 机制的缺陷做针对性二次定制。"
+      ]
+    },
+    "follow_ups": [
+      "如果完全自研一套状态机，难点在哪里？"
+    ],
+    "related_ids": [
+      "proj-p2-03-framework-costs"
+    ]
+  },
+  {
+    "id": "proj-p2-03-framework-costs",
+    "question": "用 LangGraph/deepagents 引入了哪些代价？你们打了哪些自研补丁？",
+    "category": "project",
+    "tags": [
+      "技术选型",
+      "deepagents",
+      "二次定制"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "版本锁定：主线严格锁定 deepagents 0.6.12 与 langgraph 1.2.8，避免上游 breaking changes 破坏系统。",
+        "中文适配补丁：deepagents 内置大量英文提示词与工具描述，通过 chinese_deep_agent.py 在内存中动态覆盖 Prompt，不侵入修改第三方源码。",
+        "原生 tasks 机制不可用：async_subagents 每次调用创建临时线程、无并发槽位控制、无状态隔离，演进设计中彻底推翻并重构为持久 Teammate 线程调度器。",
+        "自研难点复盘：自研状态图本身不难（简单拓扑十几行就能跑通），难在三个工业级可靠性特性——分支并行的增量状态合并与消息冲突消解、任意节点的安全挂起与序列化落库及唤醒重放、流式事件的层级冒泡与元数据追踪。",
+        "审批场景走查：LangGraph 下节点内调用 interrupt() 抛原生异常，未决操作冻结入 Checkpointer，唤醒一行 Command(resume=...) 无损重放；自研要徒手写 300+ 行状态序列化与协程唤醒代码，且恢复时容易丢局部变量或死锁。"
+      ]
+    },
+    "related_ids": [
+      "proj-p2-03-overview"
+    ]
+  },
+  {
+    "id": "proj-p2-04-overview",
+    "question": "平台为什么要设计两条执行路径？",
+    "category": "project",
+    "tags": [
+      "双执行路径",
+      "运行时",
+      "动态图",
+      "沙箱"
+    ],
+    "priority": "must",
+    "hint": "从两类业务的时延与环境诉求差异切入，再落到单一配置分流的设计。",
+    "answer": {
+      "key_points": [
+        "短任务（普通问答、图表生成、知识检索）对首字延迟（TTFT）极度敏感，要求轻量快速响应，无需容器隔离。",
+        "长任务（数据分析、代码运行、大规模文档清洗）需要独立 Linux 环境与持久化磁盘，执行耗时往往数分钟。",
+        "方案：单一 AgentConfig 规范驱动两条路径，上层共享统一的工具集、知识库与协议层。",
+        "DynamicAgentFactory 根据配置中的能力开关分流：短任务动态编排为内存状态图，长任务编排为挂载 Daytona 容器沙箱的 deepagents 实例。"
+      ]
+    },
+    "follow_ups": [
+      "同一份 AgentConfig 是怎么编译出两种图的？",
+      "短任务和长任务在状态持久化上有什么区别？"
+    ],
+    "related_ids": [
+      "proj-p2-04-config-compilation"
+    ]
+  },
+  {
+    "id": "proj-p2-04-config-compilation",
+    "question": "同一份 AgentConfig 是怎么编译出两种执行图的？",
+    "category": "project",
+    "tags": [
+      "双执行路径",
+      "AgentConfig",
+      "配置驱动"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "短任务路径：DynamicAgentFactory.build(config) 解析配置，动态挂载 agent 核心节点、tool_executor 与 chatbi_subgraph、visualization_subgraph 等业务子图，通过 route() 条件边判断 LLM 意图执行轻量流转。",
+        "长任务路径：工厂调用 create_deep_agent()，注入 DaytonaSandboxBackend 容器沙箱，挂载 /workspace 工作区目录，装配 ObservedSummarizationMiddleware 与文件系统工具链。",
+        "配置同源：两条路径共享同一个 Pydantic 模型 AgentConfig（模型配置、System Prompt、MCP 工具清单、RAG 配置、挂载子图列表），在配置加载阶段统一校验。",
+        "业务开发者只维护一份 JSON/YAML 配置资产，即可无缝切换执行模式。",
+        "状态持久化差异：短任务只依赖 Checkpointer 记录多轮对话的 Messages 序列与状态变量；长任务额外引入沙箱文件系统状态管理与对象存储产物外化，两套独立但协同的持久化机制。"
+      ]
+    },
+    "related_ids": [
+      "proj-p2-04-overview"
+    ]
+  },
+  {
+    "id": "proj-p2-05-overview",
+    "question": "配置驱动的图编译缓存怎么做？提示词变了要重新编译图吗？",
+    "category": "project",
+    "tags": [
+      "图编译缓存",
+      "热更新",
+      "Nacos"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "在 AgentRegistry 中建立基于 AgentConfig 规范化序列化 MD5 哈希的 LRU 128 进程级编译缓存，相同配置的会话直接复用已编译的图实例。",
+        "未命中则调用工厂编译并写入缓存，超出容量自动淘汰最久未使用的旧图；命中且图实例健康时直接返回。",
+        "提示词变更完全不需要重新编译图：提示词由 PromptProxy 代理，通过 Nacos 配置中心监听变更并原子替换进程内存中的提示词字典，秒级生效。",
+        "动机：如果每次运营微调 System Prompt 都清缓存重编图，高并发下会造成 CPU 尖峰与请求抖动；延迟求值让图重编开销严格为零。"
+      ]
+    },
+    "follow_ups": [
+      "PromptProxy 热更新的机制细节是什么？"
+    ],
+    "related_ids": [
+      "proj-p2-05-prompt-proxy-hot-reload"
+    ]
+  },
+  {
+    "id": "proj-p2-05-prompt-proxy-hot-reload",
+    "question": "PromptProxy 提示词热更新的机制细节是什么？多 Pod 下缓存怎么保持一致？",
+    "category": "project",
+    "tags": [
+      "热更新",
+      "PromptProxy",
+      "Nacos",
+      "LRU 缓存"
+    ],
+    "priority": "bonus",
+    "answer": {
+      "key_points": [
+        "图构建时注入的不是固定字符串，而是 PromptProxy 延迟求值代理对象。",
+        "NacosConfigProvider 注册监听器，监听到配置推送时调用 set_prompts_config() 原子替换进程内存中的提示词缓存。",
+        "LLM 节点执行 prompt.format() 时才动态读取当前最新提示词，图结构本身保持恒定。",
+        "多 Pod 一致性：LRU 缓存各 Pod 本地自治——图实例是纯逻辑无状态计算图，所有执行状态外化于 Checkpointer，本地缓存编译图没有状态一致性风险；配置更新时 Nacos 广播到所有 Pod 同时刷新提示词。"
+      ]
+    },
+    "related_ids": [
+      "proj-p2-05-overview"
+    ]
+  },
+  {
+    "id": "proj-p2-06-overview",
+    "question": "LangGraph 状态合并你们踩过什么坑？",
+    "category": "project",
+    "tags": [
+      "LangGraph",
+      "Reducer",
+      "踩坑复盘"
+    ],
+    "priority": "common",
+    "hint": "先说覆盖型 lambda 引发的配对断裂与 400 报错，再说修复方案与另一个路由缺陷。",
+    "answer": {
+      "key_points": [
+        "最严重的坑是 messages 字段的 Reducer 冲突与工具配对断裂：早期自定义状态用了覆盖型 lambda，子图回流或并发工具调用时新消息直接覆盖历史序列。",
+        "后果：AIMessage(tool_calls) 与 ToolMessage 配对断裂，调用大模型接口报 400——messages with role 'tool' must be a response to a preceeding message with 'tool_calls'。",
+        "修复：全面改用 LangGraph 原生 add_messages Reducer，按 Message ID 实现智能增量追加与更新，400 报错彻底根治。",
+        "另一缺陷：混合多工具调用时，主图条件路由函数只读第一个 tool_call 做分支判断，后续工具调用被静默丢弃；已在测试用例中记录该已知缺陷，并给出基于 LangGraph Send 原语的并行任务扇出方案。"
+      ]
+    },
+    "follow_ups": [
+      "add_messages 为什么能根治配对断裂？",
+      "并发工具调用写同一个状态字段怎么办？"
+    ],
+    "related_ids": [
+      "proj-p2-06-reducer-tool-pairing"
+    ]
+  },
+  {
+    "id": "proj-p2-06-reducer-tool-pairing",
+    "question": "add_messages 为什么能根治 tool_call 配对断裂？并发写共享状态怎么办？",
+    "category": "project",
+    "tags": [
+      "LangGraph",
+      "Reducer",
+      "消息配对"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "覆盖型 lambda 下，子图只返回一条最终总结消息就会把外层会话历史整体刷掉，部分 ToolMessage 丢失后配对断裂。",
+        "add_messages 按每条消息的唯一 ID 判重与追加，AIMessage 与 ToolMessage 严格成对保存在序列中。",
+        "LangGraph 强制要求共享状态字段声明 Reducer：列表类型用 operator.add 或 add_messages 累加；字典或标量字段必须定义自定义合并逻辑（按时间戳更新或只允许特定节点回写），否则并发写发生时运行时直接抛 InvalidUpdateError。",
+        "防回归要点：手写 ReAct 循环时即便工具执行出错，也必须回填带对应 tool_call_id 的 ToolMessage，保证配对完整。"
+      ]
+    },
+    "related_ids": [
+      "proj-p2-06-overview"
+    ]
+  },
+  {
+    "id": "proj-p2-07-overview",
+    "question": "AG-UI 是什么？为什么用它做前后端展示解耦？",
+    "category": "project",
+    "tags": [
+      "AG-UI",
+      "协议解耦",
+      "事件流"
+    ],
+    "priority": "must",
+    "hint": "先说协议定义与核心目的，再对比传统做法的问题，最后补一句流式与阻塞同源。",
+    "answer": {
+      "key_points": [
+        "AG-UI（Agent-to-UI）是平台确立的标准前端交互协议，定义与框架解耦的标准事件流规范：RUN_STARTED、TEXT_MESSAGE_*、TOOL_CALL_*、STATE_SNAPSHOT、CUSTOM 等。",
+        "核心目的是算法运行时与前端渲染彻底解耦：后端只按规范吐语义化事件流，前端基于组件树自由渲染思考框、工具调用折叠板、富文本表格，无需理解 LangGraph 底层 Pregel 节点流转。",
+        "传统做法把 LangGraph astream 的内部 chunk 直接抛给前端，前端与 LangGraph 强绑定，换框架或重构节点前端全崩。",
+        "阻塞接口与流式接口底层完全同源聚合：第三方系统走 HTTP POST 阻塞调用时，后端在内存中消费同一套 AG-UI 事件流并聚合为单个 JSON 响应，流式与非流式行为绝对一致。"
+      ]
+    },
+    "follow_ups": [
+      "AG-UI 的核心事件怎么分类？",
+      "前端断网重连后如何恢复界面展示状态？"
+    ],
+    "related_ids": [
+      "proj-p2-07-blocking-aggregator"
+    ]
+  },
+  {
+    "id": "proj-p2-07-blocking-aggregator",
+    "question": "AG-UI 的核心事件怎么分类？流式与阻塞调用怎么做到同源？",
+    "category": "project",
+    "tags": [
+      "AG-UI",
+      "事件流",
+      "SSE"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "运行生命周期：RUN_STARTED / RUN_FINISHED / RUN_ERROR。",
+        "消息流式输出：TEXT_MESSAGE_START / TEXT_MESSAGE_CONTENT / TEXT_MESSAGE_END；工具执行追踪：TOOL_CALL_START / TOOL_CALL_ARGS / TOOL_CALL_END。",
+        "业务自定义流：CUSTOM 事件承载 Ask User 澄清请求、思考过程标签、RAG 来源元数据。",
+        "统一的 AgentBlockingAggregator 在内存中完整消费事件流，聚合为包含最终回复文本、工具调用清单、产物引用与来源归属的 AgentBlockingResponse，保证流式与非流式行为绝对一致。",
+        "断网重连恢复：中间件在图执行关键节点或中断时，把 Checkpoint 中的权威快照以 STATE_SNAPSHOT 与 MESSAGES_SNAPSHOT 广播，前端增量比对对齐，无需重放全量历史流。"
+      ]
+    },
+    "related_ids": [
+      "proj-p2-07-overview"
+    ]
+  },
+  {
+    "id": "proj-p2-08-overview",
+    "question": "事件流中间件链是怎么组织的？",
+    "category": "project",
+    "tags": [
+      "AG-UI",
+      "中间件",
+      "事件流"
+    ],
+    "priority": "common",
+    "hint": "按 1~3、4~6、7~9、10 四段报中间件职责，不用逐个背名字。",
+    "answer": {
+      "key_points": [
+        "在 agent_service.generate_events 中组装 10 级异步事件流中间件链（洋葱模型），逐级处理工具名本地化、快照修复、参数脱敏、Ask User 转译、RAG 来源提取与思考链解析。",
+        "1~3 级（结构与翻译）：ToolNameTranslator 把内部英文工具名映射为中文展示名、SnapshotStateRepairer 修补不一致状态、ActivityInjector 注入步骤流转状态。",
+        "4~6 级（HITL 与安全）：AskUserToolArgsMasker 拦截发往前端的原始参数（替换为「正在准备澄清问题」，防参数未校验泄露与 JSON 闪烁）、AskUserInterruptTranslator 把底层 on_interrupt 转译为业务强类型 CUSTOM ask_user.pending。",
+        "7~9 级（增强与度量）：RagSourceCollector 提取 artifact 来源广播、ToolStatisticsCollector 旁路收集工具调用计数、ReasoningCallbackHandler 解析 <think> 标签并闭合思考框。",
+        "10 级（链路保活）：StreamingDisconnectWatcher 感知客户端断连并安全退出。"
+      ]
+    },
+    "follow_ups": [
+      "流式链路中途崩溃，怎么保证前端不卡死？",
+      "为什么强调旁路统计而不是原地篡改工具调用信息？"
+    ],
+    "related_ids": [
+      "proj-p2-08-stream-finalization"
+    ]
+  },
+  {
+    "id": "proj-p2-08-stream-finalization",
+    "question": "流式链路中途崩溃怎么保证前端不卡死？为什么不原地篡改工具调用信息？",
+    "category": "project",
+    "tags": [
+      "AG-UI",
+      "中间件",
+      "异常兜底"
+    ],
+    "priority": "bonus",
+    "answer": {
+      "key_points": [
+        "异步生成器中某个节点抛异常直接退出时，前端 SSE 连接会挂起，用户看到 Spinner 永久转圈。",
+        "最外层 try...except...finally 守卫：未捕获异常发生时先发射带错误详情的 RUN_ERROR，紧接着强制触发 RUN_FINISHED 显式闭合 SSE，前端重置为就绪并展示错误横幅。",
+        "旁路统计而非原地篡改：早期设计过 ToolIDRewriter 在 SSE 编码前重写 tool_call_id，结果导致 LangGraph 内部追踪 ID 与上报 Checkpoint 的 ID 断裂，方案被全面推翻。",
+        "改用 ToolStatisticsCollector 发送旁路的 tool_usage CustomEvent，既满足前端统计，又保护原生消息链路的完整性。"
+      ]
+    },
+    "related_ids": [
+      "proj-p2-08-overview"
+    ]
+  },
+  {
+    "id": "proj-p2-09-overview",
+    "question": "Ask User 人机协同的挂起恢复是怎么实现的？恢复时怎么防串扰？",
+    "category": "project",
+    "tags": [
+      "HITL",
+      "Ask User",
+      "LangGraph",
+      "interrupt"
+    ],
+    "priority": "must",
+    "hint": "挂起靠 interrupt() 加 Checkpointer，恢复靠 Command(resume)，防串扰靠 stable_request_id 常量时间校验。",
+    "answer": {
+      "key_points": [
+        "挂起：节点内调用 langgraph.types.interrupt(payload) 抛出 GraphInterrupt，Runner 拦截后把未决写操作写入 Checkpointer，退出当前轮次并向客户端推送 CUSTOM ask_user.pending。",
+        "恢复：用户在前端作答后，客户端调用恢复接口传入 forwardedProps.command.resume，服务端转换为 Command(resume=answer_envelope) 重新调用图，节点重放并从中断点直接取回回答。",
+        "防串扰与防重放：stable_request_id 由 thread_id、run_id、tool_call_id 混合哈希计算（au_v1_ 前缀），恢复时用 secrets.compare_digest 常量时间校验，防时序攻击与跨会话串扰。",
+        "顺序强对齐：返回的答案必须与提问题目在数量与 question_id 上严格对齐；用户取消时工具推导安全兜底值并打标 cancelled=True，让模型安全收敛。",
+        "拓扑隔离：只有顶层主 Agent 具备挂起权限，挂载子图或多 Agent 委派时中间件在能力层强制剥离 ask_user 工具，杜绝深层嵌套死锁。"
+      ]
+    },
+    "follow_ups": [
+      "interrupt 恢复时，之前的代码会重新执行一遍吗？",
+      "用户很久不回答怎么处理？"
+    ],
+    "related_ids": [
+      "proj-p2-09-resume-anti-replay"
+    ]
+  },
+  {
+    "id": "proj-p2-09-resume-anti-replay",
+    "question": "LangGraph 的 interrupt 恢复时，之前的代码会重新执行吗？防串扰校验的细节是什么？",
+    "category": "project",
+    "tags": [
+      "HITL",
+      "interrupt",
+      "幂等",
+      "安全校验"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "会：LangGraph 节点 resume 时从节点函数入口重新开始执行，框架通过 scratchpad 维护中断计数器，执行到第 N 个 interrupt() 时若检测到恢复值已存在则短路返回，不再抛异常。",
+        "因此中断节点在 interrupt 之前的逻辑必须保持严格幂等，不能有写库、发邮件等外部不可逆副作用；敏感副作用必须移到 interrupt 确认之后。",
+        "stable_request_id = au_v1_ + sha256(thread_id:run_id:tool_call_id)，恢复时 secrets.compare_digest 常量时间比对，防时序攻击与跨会话篡改。",
+        "挂起期间图不占用任何线程与计算资源，只是 Checkpointer 中的一条持久化记录。"
+      ]
+    },
+    "related_ids": [
+      "proj-p2-09-overview"
+    ]
+  },
+  {
+    "id": "proj-p2-10-overview",
+    "question": "HITL 的产品交互约束是怎么定的？",
+    "category": "project",
+    "tags": [
+      "HITL",
+      "Ask User",
+      "交互契约"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "深入调研业内标准（OpenAI Codex、Claude Code、pi-ask-user）后确立企业级最小交互契约。",
+        "单次交互严格限 1~4 道独立问题，每题 2~4 个明确选项，允许单行 Other 补充（限 500 字符内）与一键 Skip。",
+        "必须是选择式结构化提问，严禁无选项的开放式提问，禁用多选以降低状态机复杂度。",
+        "安全黑名单：AskUserQuestion Schema 校验中强制敏感词过滤，任何包含 password、token、secret、私钥、验证码 的提问直接在工具初始化层拒绝，防模型越权套取用户凭证。"
+      ]
+    },
+    "follow_ups": [
+      "用户在两台设备同时作答怎么处理？"
+    ],
+    "related_ids": [
+      "proj-p2-10-concurrent-cross-instance"
+    ]
+  },
+  {
+    "id": "proj-p2-10-concurrent-cross-instance",
+    "question": "用户在两台设备同时作答怎么处理？跨实例并发冲突怎么设计？",
+    "category": "project",
+    "tags": [
+      "HITL",
+      "并发控制",
+      "CAS"
+    ],
+    "priority": "bonus",
+    "answer": {
+      "key_points": [
+        "当前主干实现依托 Checkpointer 状态机：第一次 resume 消费完中断点后，Checkpoint 的 pending writes 被清空；后续并发请求因找不到处于 interrupted 状态的快照而报错拦截，提示「该问题已在其他设备处理」。",
+        "演进规划（Phase 3+）：设计独立 AskUserRequest 业务表，用分布式 CAS 乐观锁版本号控制，后提交方直接返回 HTTP 409 ASK_USER_ALREADY_RESOLVED。",
+        "叙事口径：当前处于单体状态机保护阶段，CAS 业务表为演进规划，不混说实现态与设计态。",
+        "超时处理：图挂起不占计算资源；超过业务有效时间（如 24 小时）后用户提交会提示过期，并引导发起新对话。"
+      ]
+    },
+    "related_ids": [
+      "proj-p2-10-overview"
+    ]
+  },
+  {
+    "id": "proj-p2-11-overview",
+    "question": "A2UI 是什么？和 AG-UI 什么关系？",
+    "category": "project",
+    "tags": [
+      "A2UI",
+      "生成式界面",
+      "AG-UI"
+    ],
+    "priority": "common",
+    "hint": "一句话分工：AG-UI 传事件流，A2UI 传组件树；成熟度务必标成探索原型。",
+    "answer": {
+      "key_points": [
+        "A2UI 是探索的生成式自适应界面协议：AG-UI 负责传输事件流与会话状态，A2UI 负责传输动态生成的 UI 组件树。",
+        "传统对话中 Agent 只能返回 Markdown；A2UI 下 Agent 可以直接生成表单、商品卡片、确认按钮等界面元素，实现「边聊边生成界面」。",
+        "协议分工：A2UI 作为 AG-UI CUSTOM 事件的内部 Payload（a2ui_surface），定义 JSON 声明式组件树，前端用 @a2ui/react 动态渲染原生控件。",
+        "成熟度口径：技术探索与验证原型，基于瑞幸点单场景完成端到端 PoC，未合入主干。"
+      ]
+    },
+    "follow_ups": [
+      "瑞幸点单 PoC 验证了什么？",
+      "A2UI 距离工业级落地还差什么？"
+    ],
+    "related_ids": [
+      "proj-p2-11-poc-luckin"
+    ]
+  },
+  {
+    "id": "proj-p2-11-poc-luckin",
+    "question": "瑞幸点单 PoC 验证了什么？A2UI 距离工业级落地还差什么？",
+    "category": "project",
+    "tags": [
+      "A2UI",
+      "PoC",
+      "生成式界面"
+    ],
+    "priority": "bonus",
+    "answer": {
+      "key_points": [
+        "分批生成与渐进式呈现：Agent 先生成饮品类目与规格选项卡片，用户点选后再生成加料与温度配置表单。",
+        "高危操作中断确认：调用最终提交订单工具（createOrder）前触发 LangGraph interrupt() 挂起，前端弹窗人工确认金额，确认后通过 resume 恢复执行。",
+        "交互回流双模式：消息模式把用户点击自动拼装为一条 HumanMessage 发送；恢复模式把用户操作直接作为 Command resume 参数回灌给挂起中的组件节点。",
+        "落地差距：大模型输出复杂组件树的 Schema 稳定性（偶发 JSON 畸变导致前端白屏）、动态组件与企业微前端的样式/鉴权隔离、高并发下的组件渲染性能，因此定界为探索原型，优先攻关更通用的文件型产物与表单交互。"
+      ]
+    },
+    "related_ids": [
+      "proj-p2-11-overview"
+    ]
+  },
+  {
+    "id": "proj-p2-12-overview",
+    "question": "长任务沙箱的生命周期是怎么管控的？",
+    "category": "project",
+    "tags": [
+      "沙箱",
+      "长任务",
+      "生命周期",
+      "Daytona"
+    ],
+    "priority": "must",
+    "hint": "报 6 状态状态机、租约、显式超时与心跳保活四件事。",
+    "answer": {
+      "key_points": [
+        "长任务依托 Daytona 容器沙箱提供隔离环境，通过 WorkspaceService 建立 6 状态生命周期模型：allocating → allocated → reclaiming → reclaimed → destroying → error。",
+        "采用 Run 级独占租约保证并发安全，避免多任务同时向同一个 Workspace 写文件发生脏覆盖。",
+        "显式超时控制：沙箱创建 240s、唤醒/启动与挂起/停止各 60s、沙箱内命令执行默认 1800s，杜绝僵尸进程常驻耗尽集群资源。",
+        "心跳保活：Daytona 平台自带空闲检测（Auto Stop），长任务执行复杂计算时无外部 I/O 可能被误判 idle，平台后台维持周期性心跳确保沙箱活跃；任务结束进入 reclaiming，等待线上配置的 10 分钟空闲回收 TTL 安全释放。",
+        "环境一致性：检测到沙箱类型或环境镜像与配置不一致时，自动销毁并重建。"
+      ]
+    },
+    "follow_ups": [
+      "用户并发很多长任务，沙箱集群撑不住怎么办？"
+    ],
+    "related_ids": [
+      "proj-p2-12-sandbox-timeouts"
+    ]
+  },
+  {
+    "id": "proj-p2-12-sandbox-timeouts",
+    "question": "沙箱同步调用的阻塞怎么隔离？并发长任务太多怎么办？",
+    "category": "project",
+    "tags": [
+      "沙箱",
+      "线程池",
+      "准入控制"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "Daytona SDK 的所有同步调用由专用 ThreadPoolExecutor（固定 16 workers）隔离调度，防止阻塞异步事件循环。",
+        "沙箱状态全生命周期映射到后端 Internal API 统一治理，算法层解耦直接的数据库读写。",
+        "并发治理：网关层限制每个用户/租户同时处于 allocated 状态的沙箱上限，超出配额的任务在调度队列中等待。",
+        "分流引导：轻量任务优先引导走短任务动态图，只有检测到真实代码运行或大文件操作才下发沙箱。"
+      ]
+    },
+    "related_ids": [
+      "proj-p2-12-overview"
+    ]
+  },
+  {
+    "id": "proj-p2-13-overview",
+    "question": "沙箱回收之后，用户的历史产物为什么不丢？",
+    "category": "project",
+    "tags": [
+      "沙箱",
+      "产物持久化",
+      "对象存储"
+    ],
+    "priority": "must",
+    "hint": "先讲第一版直读沙箱踩的 404 坑，再讲「生成即外化 + 冷启动回灌」的重构。",
+    "answer": {
+      "key_points": [
+        "第一版设计把产物（PDF 报告、Excel、图表）保存在沙箱本地，用户点击下载时直连沙箱读取字节流；沙箱因 10 分钟空闲 TTL 回收后，历史会话的产物链接全部变成 404。",
+        "推翻重构为「生成即外化 + 冷启动回灌」：外部对象存储（MinIO/S3）作为权威数据源，后端数据库维护 artifact_manifests 清单。",
+        "产物生命周期与容器计算生命周期彻底解耦，即便容器销毁重建，产物也能秒级回灌。",
+        "同步策略：任务执行中产物生成即自动异步上传，整个 Run 结束前执行最终兜底同步，确保无遗漏。"
+      ]
+    },
+    "follow_ups": [
+      "怎么判断哪些文件是产物，哪些是中间缓存垃圾？"
+    ],
+    "related_ids": [
+      "proj-p2-13-artifact-restore"
+    ]
+  },
+  {
+    "id": "proj-p2-13-artifact-restore",
+    "question": "产物外化与冷启动回灌的工程细节是什么？哪些文件算产物？",
+    "category": "project",
+    "tags": [
+      "沙箱",
+      "产物持久化",
+      "Single-Flight"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "Single-Flight + Coalesce 防穿透：高频文件产生时，相同文件的并发读写合并为单次上传，避免沙箱网络带宽打满。",
+        "冷启动回灌（Restore）：用户几天后回到历史会话发起新指令时，系统分配新沙箱，后台依据 Manifest 清单秒级把历史必要产物下载回灌至工作区，模型无缝恢复上下文。",
+        "SHA256 校验去重；针对非 ASCII 与中文文件名引入 URL 编码与规范化中转层，避免 Linux 容器与对象存储跨系统传输乱码。",
+        "产物判定收敛为「文件型 Artifact 预览器」策略：一方面支持 Agent 显式调用 export_artifacts 标记重要文件；另一方面按扩展名与目录白名单对 /workspace/artifacts/ 目录权威收敛，临时代码与编译缓存留在 /tmp 不参与外部同步。"
+      ]
+    },
+    "related_ids": [
+      "proj-p2-13-overview"
+    ]
+  },
+  {
+    "id": "proj-p2-14-overview",
+    "question": "上下文自动压缩什么时候触发？怎么保证不丢信息？",
+    "category": "project",
+    "tags": [
+      "上下文压缩",
+      "长任务",
+      "中间件"
+    ],
+    "priority": "must",
+    "hint": "先报触发参数（70%、保留 25%、至少 6 条），再讲转存文件与四段式摘要两个信息保全手段。",
+    "answer": {
+      "key_points": [
+        "自研 ObservedSummarizationMiddleware：每次模型调用前计算 Token 占用，当占用达到 70% 且总消息数不少于 6 条时触发压缩。",
+        "压缩策略：保留最近 25% 上下文，淘汰部分以结构化摘要提炼。",
+        "不物理删除消息：淘汰的明细消息序列化转存为沙箱内文件 /conversation_history/{thread_id}.md，System Prompt 告知模型可调用 read_file 随时调阅。",
+        "四段式结构化摘要：①原始任务目标与边界；②已完成的关键数据分析结论与产物路径；③当前执行进度与待处理事项；④用户明确表达的偏好与约束。",
+        "可观测性：触发压缩后发射 context.usage_updated CustomEvent，前端实时展示上下文水位变化。"
+      ]
+    },
+    "follow_ups": [
+      "为什么选 70% 和 25% 这两个参数？做过 Benchmark 吗？",
+      "压缩截断的安全边界怎么对齐？"
+    ],
+    "related_ids": [
+      "proj-p2-14-compression-boundary"
+    ]
+  },
+  {
+    "id": "proj-p2-14-compression-boundary",
+    "question": "压缩截断的安全边界怎么对齐？70%/25% 这两个参数怎么来的？",
+    "category": "project",
+    "tags": [
+      "上下文压缩",
+      "消息配对",
+      "参数口径"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "截断点绝不能落在 AIMessage(tool_calls) 与对应 ToolMessage 之间：截断索引向后微调，保证消息序列配对合法性，否则产生孤儿 ToolMessage 报错。",
+        "底层原状态 Append-Only：压缩只构造「摘要投影消息 + 保留尾部」的有效上下文载荷供当前轮推理，不在 Checkpoint 中物理擦除历史。",
+        "参数口径（主动坦白）：70%/25% 是结合经验与当时模型窗口（32k/128k）设定的安全阈值，未经学术级大规模 Benchmark。",
+        "参数合理性：70% 为单轮大输出与工具调用突发留足缓冲；25% 约能保留最近 2~3 轮深度交互细节；上线后运行稳定，未观察到上下文断层。"
+      ]
+    },
+    "related_ids": [
+      "proj-p2-14-overview"
+    ]
+  },
+  {
+    "id": "proj-p2-15-overview",
+    "question": "长期记忆和对话历史、checkpoint、上下文摘要有什么区别？",
+    "category": "project",
+    "tags": [
+      "长期记忆",
+      "存储体系"
+    ],
+    "priority": "common",
+    "hint": "用五维存储分工作答，末尾带一句 4 层收敛为 2 层。",
+    "answer": {
+      "key_points": [
+        "五维存储分工：对话历史是即时消息序列；Checkpoint 是图的单步执行恢复快照；Summary 是长窗口压缩摘要；沙箱文件是工作区磁盘；长期记忆是跨会话持久存在的用户级知识。",
+        "长期记忆独立存储于数据库 agent_memory 表，跨会话注入 Prompt，例如「用户偏好输出 Pandas 代码而不是 SQL」。",
+        "早期规划了组织级、Agent 级、用户共享、用户×Agent 共 4 层记忆方案，落地时出于安全隔离与噪音防范收敛为 2 层。"
+      ]
+    },
+    "follow_ups": [
+      "为什么从 4 层收敛成 2 层？",
+      "并发修改记忆发生冲突怎么办？"
+    ],
+    "related_ids": [
+      "proj-p2-15-memory-two-layers"
+    ]
+  },
+  {
+    "id": "proj-p2-15-memory-two-layers",
+    "question": "长期记忆为什么从 4 层收敛成 2 层？并发写冲突怎么办？",
+    "category": "project",
+    "tags": [
+      "长期记忆",
+      "数据隔离",
+      "乐观锁"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "废弃组织级记忆：不同员工对同一业务的定义往往冲突，全局灌入产生噪音干扰，且可能造成敏感信息跨部门泄露。",
+        "废弃 Agent 级全局记忆：一个 Agent 会服务成千上万个用户，Agent 级记忆容易把 A 用户的业务数据串扰给 B 用户。",
+        "收敛为 USER_GLOBAL（用户全局通用偏好）与 USER_AGENT（用户对特定智能体的业务习惯）两层，单张物理表加联合唯一索引存储。",
+        "读写契约：通过虚拟文件路径 /memories/preferences.md 暴露给 Agent 读写；写入采用乐观锁版本号防并发冲突，未授权（401/403）严格中断抛错，查询不存在（404）安全降级为空。",
+        "409 冲突处理：乐观锁重试默认 3 次，仍冲突则放弃写入并打印日志，避免阻塞主对话链路；高并发合并策略为未来规划。"
+      ],
+      "pitfalls": [
+        "跨用户偏好污染是收敛的核心动因，可举例：李处长偏好万元单位，张科员查小额明细被强制格式化成 0.00 万元。"
+      ]
+    },
+    "related_ids": [
+      "proj-p2-15-overview"
+    ]
+  },
+  {
+    "id": "proj-p2-16-overview",
+    "question": "技能（Skill）系统怎么做到渐进激活？",
+    "category": "project",
+    "tags": [
+      "技能系统",
+      "渐进激活"
+    ],
+    "priority": "common",
+    "hint": "两阶段：元数据常驻 + read_file 首次拦截激活。",
+    "answer": {
+      "key_points": [
+        "动机：避免给模型一次性灌入几十个技能导致上下文爆炸与幻觉，设计为「元数据常驻 + 内容按需渐进激活」。",
+        "阶段 1（轻量声明）：沙箱初始化时 SkillImportService 解压技能包，仅提取 SKILL.md frontmatter 元数据（名称与功能概述），轻量注入 System Prompt。",
+        "阶段 2（动态拦截激活）：模型判定需要某技能时调用 read_file 读取技能目录，文件系统中间件拦截该路径访问，内存中标记为已激活（Active）并向前端派发 skill.activated CustomEvent，去重机制防止重复发射。",
+        "体感效果：搭载 20 个技能包（解压 300MB）时初始化仅注入几百 Token 的元数据清单，沙箱不预加载任何代码，首字延迟不受资源包体积拖累。"
+      ]
+    },
+    "follow_ups": [
+      "技能包的安全治理怎么做？",
+      "为什么从平铺解压改成按业务 ID 隔离解压？"
+    ],
+    "related_ids": [
+      "proj-p2-16-skill-safety"
+    ]
+  },
+  {
+    "id": "proj-p2-16-skill-safety",
+    "question": "技能包的安全治理怎么做？为什么从平铺解压改成按业务隔离？",
+    "category": "project",
+    "tags": [
+      "技能系统",
+      "安全治理",
+      "Zip Slip"
+    ],
+    "priority": "bonus",
+    "answer": {
+      "key_points": [
+        "Zip 安全治理：严格限制上传技能包不超过 50MB；解压前扫描文件名，防止 ../ 的 Zip Slip 路径穿越攻击；校验压缩包内有且仅有一个根目录 SKILL.md。",
+        "原子替换与回滚：解压先进入 staging 临时目录，校验完整性后原子重命名至 /skills/ 生产目录，失败立即回滚。",
+        "去重与签名匹配：计算 OSS URL 签名或文件哈希，相同版本直接复用沙箱本地文件，避免重复下载引发沙箱 I/O 延迟。",
+        "演进原因：早期平铺解压时，不同业务上传的技能包内常含同名文件（如 utils.py、template.json），互相覆盖破坏；演进为 /skills/{skill_id}/ 独立隔离子目录，彻底消除命名冲突。"
+      ]
+    },
+    "related_ids": [
+      "proj-p2-16-overview"
+    ]
+  },
+  {
+    "id": "proj-p2-17-overview",
+    "question": "业务子图是怎么挂载成工具给模型调用的？为什么不用 deepagents 原生的 CompiledSubAgent？",
+    "category": "project",
+    "tags": [
+      "Subgraph",
+      "插件体系",
+      "deepagents"
+    ],
+    "priority": "must",
+    "hint": "先讲伪装成 @tool 的挂载方式，再讲原生 SubAgentMiddleware 的参数丢失缺陷。",
+    "answer": {
+      "key_points": [
+        "平台把复杂业务模块（ChatBI、数据可视化）抽象为独立子图（Subgraph）。",
+        "挂载方式：子图入口伪装为标准 @tool Schema 暴露给大模型作为决策契约；主图执行时路由函数拦截该工具调用并重定向至专有子图节点。",
+        "坚决不用 deepagents 原生 CompiledSubAgent：深度排查源码发现其 SubAgentMiddleware 调用子图时，硬编码把父级用户最新输入提取并覆盖子图状态的初始 messages。",
+        "直接后果：父级通过结构化工具调用传递的复杂参数（特定 SQL、过滤字段）被冲刷丢失，子图启动时解析不到参数直接报错崩溃。",
+        "因此自研 SubgraphToolMiddleware 彻底解决参数丢失问题。"
+      ]
+    },
+    "follow_ups": [
+      "SubgraphToolMiddleware 的设计细节是什么？",
+      "这种设计在业界多智能体架构中属于什么流派？"
+    ],
+    "related_ids": [
+      "proj-p2-17-subgraph-middleware"
+    ]
+  },
+  {
+    "id": "proj-p2-17-subgraph-middleware",
+    "question": "SubgraphToolMiddleware 的设计细节是什么？这种设计属于业界什么流派？",
+    "category": "project",
+    "tags": [
+      "Subgraph",
+      "中间件",
+      "子图即工具"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "参数保护：中间件精确拦截命中子图的工具调用，保留工具调用的原始入参 dict，在内存中构建隔离的子图私有 State。",
+        "隔离执行：调用 subgraph.ainvoke(isolated_state)，子图内部无论多少轮循环推理都封装在私有作用域中，绝不污染外层主图状态空间。",
+        "原子回写契约：子图执行完毕后，通过 Command(update={\"messages\": [ToolMessage(content=result, tool_call_id=...)]}) 把结果包装为标准工具返回消息回写主图，契合 LangGraph 原生状态流转。",
+        "流派定位：典型的 Subgraph-as-a-Tool（子图即工具）范式——把复杂子流程严格约束在确定性的工具输入输出契约内，既具备复杂状态图的局部推理与循环能力，又不会让全局会话状态与执行拓扑失控。"
+      ]
+    },
+    "related_ids": [
+      "proj-p2-17-overview"
+    ]
+  },
+  {
+    "id": "proj-p2-18-overview",
+    "question": "MCP 工具体系是怎么接入平台的？",
+    "category": "project",
+    "tags": [
+      "MCP",
+      "工具体系",
+      "参数校验"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "全面适配 Anthropic 的 MCP（Model Context Protocol）协议：运行时通过 ToolManager 动态解析 MCP Server 提供的 JSON Schema。",
+        "基于 Pydantic create_model 动态构建强类型参数校验模型。",
+        "自研 _JsonCoercingBaseModel：大模型常把复杂列表或对象写成被引号转义的 JSON 字符串，字段验证触发前自动拦截并 json.loads 反序列化，根治大模型格式瑕疵导致的验证报错。",
+        "安全日志脱敏：调用前通过 _mask_args_for_log 过滤敏感参数，长字符串只保留前 2 位与后 2 位，中间统一脱敏为 ***，确保线上日志合规。"
+      ]
+    },
+    "follow_ups": [
+      "MCP 这块现在有哪些技术债？"
+    ],
+    "related_ids": [
+      "proj-p2-18-mcp-tech-debt"
+    ]
+  },
+  {
+    "id": "proj-p2-18-mcp-tech-debt",
+    "question": "MCP 这块现在有哪些技术债？怎么诚实复盘？",
+    "category": "project",
+    "tags": [
+      "MCP",
+      "技术债",
+      "超时控制"
+    ],
+    "priority": "bonus",
+    "answer": {
+      "key_points": [
+        "无主动超时拦截：MCPClientManager.execute_tool 虽接收 timeout 参数，但代码没有用 asyncio.wait_for 包裹底层 transport 调用；外部 MCP Server 死锁或断网时，工具调用可能长时间卡住线程。",
+        "无连接池：目前每次工具调用都重新初始化 Transport 与 Client 上下文，调用完毕即断开，高频调用场景存在握手延迟开销。",
+        "当前兜底：平台网关与请求层设置了全局 HTTP 接口超时（默认 180s）。",
+        "演进规划：第一是在 execute_tool 内层显式增加 asyncio.wait_for 包裹；第二是引入基于 session 的长连接池，对高频 MCP Server 维持长连接保活与健康检查探测。"
+      ],
+      "pitfalls": [
+        "技术债要主动坦白，别等面试官挖出来；复盘时讲清「当前兜底是什么、后续怎么修」。"
+      ]
+    },
+    "related_ids": [
+      "proj-p2-18-overview"
+    ]
+  },
+  {
+    "id": "proj-p2-19-rag-as-plugin",
+    "question": "Agentic RAG 在平台里是什么形态？",
+    "category": "project",
+    "tags": [
+      "Agentic RAG",
+      "插件体系",
+      "RRF"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "Agentic RAG 不是写死在主干上的刚性流程，而是通用外挂工具插件（search_knowledge_base），由 Agent 自主决策调用。",
+        "并发检索：插件内部异步同时请求稠密向量索引、BM25 稀疏索引与图片知识库，采用 RRF（k=60）倒数排名融合，消除不同检索源分值尺度不一致问题。",
+        "多模态处理：命中图片知识库的结果，后台自动换取临时访问 URL 并调用多模态 VL 模型提取图表核心结论。",
+        "元数据透传管道：返回给模型的是精简切片；文件名、页码、段落 ID 与图片预览链接的完整元数据挂载到 ToolMessage.artifact，由 RagSourceCollector 中间件转成 CUSTOM rag_sources 事件，前端渲染可点击展开的「参考来源」折叠抽屉。"
+      ],
+      "pitfalls": [
+        "被问「为什么不做成前置强制链路」：前置检索只适合单轮 FAQ；工具化后模型可自主决定查不查、是否换关键词再查，避免算力浪费与上下文噪音，真正发挥 Agent 自主规划能力。"
+      ]
+    },
+    "follow_ups": [
+      "为什么不把 RAG 做成 Agent 前置的强制链路？"
+    ]
+  },
+  {
+    "id": "proj-p2-20-overview",
+    "question": "客户端断连、任务取消、沙箱命令失败这些异常下，平台怎么保证可靠性？",
+    "category": "project",
+    "tags": [
+      "可靠性",
+      "异常处理",
+      "沙箱"
+    ],
+    "priority": "common",
+    "hint": "三个机制各一句话：断连检测、延迟回滚、ToolErrorGuard 自愈。",
+    "answer": {
+      "key_points": [
+        "客户端断连检测：独立异步协程高频轮询 request.is_disconnected()，断连发生时主动向流式生成器注入 CancelledError，促使后台任务安全中止，不白跑浪费 Token。",
+        "取消与死锁规避：中断取消时不在 finally 块中立即同步回滚数据库（SQLite 异步连接池与读写事务会死锁），而是记录延迟回滚字典，待下次会话建立时安全回滚。",
+        "沙箱故障自愈：自研 ToolErrorGuard 拦截沙箱命令底层崩溃异常，包装为带详细报错信息的标准 ToolMessage，促使大模型自主反思并重试自愈。"
+      ]
+    },
+    "follow_ups": [
+      "延迟回滚为什么能避免死锁？",
+      "任务硬崩溃时，沙箱租约会不会泄漏？"
+    ],
+    "related_ids": [
+      "proj-p2-20-resilience-mechanisms"
+    ]
+  },
+  {
+    "id": "proj-p2-20-resilience-mechanisms",
+    "question": "延迟回滚为什么能避免死锁？ToolErrorGuard 怎么驱动模型自愈？",
+    "category": "project",
+    "tags": [
+      "可靠性",
+      "SQLite 死锁",
+      "自愈"
+    ],
+    "priority": "bonus",
+    "answer": {
+      "key_points": [
+        "延迟回滚：捕获取消异常时仅在内存记录 _pending_rollbacks[thread_id] = target_checkpoint_id；同一客户端下次发起新请求、握手建立后，以干净独立的连接与事务执行回滚，彻底根除 SQLite 异步死锁。",
+        "ToolErrorGuard：沙箱内报 No module named 'openpyxl' 这类错误时，Daytona SDK 直接抛底层 RPC 异常；守卫将其转换为 ToolMessage(status=\"error\", content=报错详情) 回给模型，模型自主执行 pip install 后重试成功，形成工业级容错闭环。",
+        "若直接让底层异常向外冒泡，整个图执行崩溃报 RUN_ERROR，失去自愈机会。",
+        "租约泄漏防护：服务层用 asyncio.shield() 保护资源释放动作，即使顶层协程被 Cancel，释放沙箱租约与通知 Internal API 的代码块仍会完整执行，防止外部沙箱资源泄漏。"
+      ]
+    },
+    "related_ids": [
+      "proj-p2-20-overview"
+    ]
+  },
+  {
+    "id": "proj-p2-21-overview",
+    "question": "固定 DAG 的 NL2SQL 有哪些结构性问题？",
+    "category": "project",
+    "tags": [
+      "ChatBI",
+      "NL2SQL",
+      "固定 DAG"
+    ],
+    "priority": "must",
+    "hint": "四大死穴：容错脆弱、列值盲区、级联放大、缺意图澄清。",
+    "answer": {
+      "key_points": [
+        "第一代 ChatBI 的 NL2SQL 是固定 6 节点 DAG：entry → query_rewrite → sql_generation → sql_self_check → error_correction → exit。",
+        "容错能力极其脆弱：只有 1 次被动的语法纠错机会，对业务逻辑错误无能为力。",
+        "缺乏列值探测能力（Value Blindness）：无法预知实际数据的枚举简称，模型只能硬猜字段值。",
+        "错误级联放大：上游改写或选表一旦偏差，下游全盘崩溃；且缺乏意图澄清机制，模糊提问只能靠大模型强行瞎猜。"
+      ]
+    },
+    "follow_ups": [
+      "为什么语法自检通过的 SQL 还会查错？",
+      "既然缺陷明显，第一代为什么还这么做？"
+    ],
+    "related_ids": [
+      "proj-p2-21-value-blindness"
+    ]
+  },
+  {
+    "id": "proj-p2-21-value-blindness",
+    "question": "为什么语法自检通过的 SQL 仍然会查错？列值盲区是怎么酿成线上问题的？",
+    "category": "project",
+    "tags": [
+      "ChatBI",
+      "列值盲区",
+      "SQL 自检"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "sql_self_check 节点只做数据库预编译（Dry Run），按返回 code != 0 判断语法；语法完全合法但业务逻辑严重偏离（统计口径错、过滤条件拼错）时，系统毫无感知直接走向 exit。",
+        "列值盲区实例：用户口语说「技术部」，底层数据库真实存储的是 RD_DEPT_001 或「研发中心-技术部」；模型硬猜 WHERE department = '技术部'，查询结果永远 0 行。",
+        "典型走查：查「各区县公积金提取额排名」，模型盲猜 county = '郑东'，Dry Run 语法通过、自检判定通过；底层枚举是「郑东新区」，实际返回 0 行直接抛给用户——语法合规但业务完全错误。",
+        "这是早期业务报障率最高的技术根因，也是推动 ReAct 重设计的直接动因。",
+        "固定 DAG 的存在合理性：拓扑确定、延迟极低（Happy Path 只需 2 次大模型调用），在结构简单、数据规范的场景容易快速出分；走向真实政企海量宽表业务时泛化短板迅速暴露。"
+      ]
+    },
+    "related_ids": [
+      "proj-p2-21-overview"
+    ]
+  },
+  {
+    "id": "proj-p2-22-overview",
+    "question": "重设计的 ReAct Agent Loop 版 ChatBI 是怎么设计的？",
+    "category": "project",
+    "tags": [
+      "ChatBI",
+      "ReAct",
+      "Agent Loop"
+    ],
+    "priority": "must",
+    "hint": "报三段式循环、4 个闭包工具、双层退出机制三件事。",
+    "answer": {
+      "key_points": [
+        "针对固定 DAG 死穴，在参考分支重设计为三段式 ReAct Agent Loop：prepare_context → reason_and_act ⇄ execute_tools → finalize_output。",
+        "为模型注入 4 个闭包工具：probe_column_values（探查列真实枚举）、execute_sql（带结果自检的试执行）、submit_final_sql（显式收敛）、submit_clarification（结构化发起反问）。",
+        "双层退出与兜底机制：最大迭代轮次硬截断（设计 5 / 代码实测 6）防死循环，超限熔断并降级回退到基线生成。",
+        "意图严重歧义时，把结构化追问回传给主 Agent 统一决策，子图绝不越权直接打扰用户。"
+      ]
+    },
+    "follow_ups": [
+      "probe → execute → submit 的自愈流程怎么走？",
+      "增加探测和试执行，响应延迟会不会大幅增加？"
+    ],
+    "related_ids": [
+      "proj-p2-22-react-tools-exit"
+    ]
+  },
+  {
+    "id": "proj-p2-22-react-tools-exit",
+    "question": "probe → execute → submit 的自愈流程怎么走？加探测会不会拖慢响应？",
+    "category": "project",
+    "tags": [
+      "ChatBI",
+      "ReAct",
+      "工具契约"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "轮次 1（探测）：面对模糊地名不盲写最终 SQL，先调 probe_column_values 按关键字模糊检索字段下前 10 个物理值，攻克列值盲区。",
+        "轮次 2（试算）：用真实枚举生成准确 SQL 调 execute_sql 试运行，返回前 5 行数据样本与元数据，模型自行校验行数与聚合逻辑。",
+        "轮次 3（收敛）：确认无误后调 submit_final_sql 显式跳出循环走向终态节点；检测到歧义则调 submit_clarification 结构化回传主 Agent。",
+        "延迟权衡：企业级 BI 首要看重正确性，查得再快给一个错数字也是负价值；全量内联 M-Schema 后通常 2~3 轮迭代收敛，相比固定 DAG 失败后用户反复重问，端到端效率反而更高。",
+        "子图静音契约：ChatBI 作为业务子图没有与终端用户直接对话的权限，澄清请求封装进结构化数据信封回传外层 Orchestrator 主 Agent，保持用户交互心智统一。"
+      ]
+    },
+    "related_ids": [
+      "proj-p2-22-overview"
+    ]
+  },
+  {
+    "id": "proj-p2-23-overview",
+    "question": "M-Schema 是什么？为什么全量内联而否定动态选表？",
+    "category": "project",
+    "tags": [
+      "ChatBI",
+      "M-Schema",
+      "Prompt 设计"
+    ],
+    "priority": "must",
+    "hint": "先讲 M-Schema 格式，再算账：3~4 张表 2000~4000 Token，内联最划算。",
+    "answer": {
+      "key_points": [
+        "M-Schema 是自定义的半结构化表表达规范：类似 YAML 的紧凑格式，输出表名、中文注释、核心物理列名、数据类型、主外键关联以及枚举列的常用前 3 个样本值。",
+        "设计动机：纯 DDL 包含大量引擎特定语法与索引干扰，简化表名列表又缺失关键上下文；M-Schema 兼顾元数据丰富度与 Token 效率。",
+        "确立全量内联：企业单技能场景关联的业务表通常只有 3~4 张，总计约 2000~4000 Tokens，在当前 32k/128k 长窗口下完全可忽略。",
+        "全量内联直接省去选表环节的 1 轮推理与网络往返，并彻底根除第一步选错表引发的级联灾难。"
+      ]
+    },
+    "follow_ups": [
+      "动态选表方案为什么被推翻？",
+      "未来接入上百张表，内联撑不住怎么办？"
+    ],
+    "related_ids": [
+      "proj-p2-23-inline-vs-dynamic"
+    ]
+  },
+  {
+    "id": "proj-p2-23-inline-vs-dynamic",
+    "question": "动态选表方案为什么被推翻？表太多内联撑不住怎么办？",
+    "category": "project",
+    "tags": [
+      "ChatBI",
+      "M-Schema",
+      "技术取舍"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "初期设想是 5 工具架构（含 get_table_schema 动态选表），经真实业务评估后推翻。",
+        "推翻理由一（时延）：多一次工具调用意味着至少增加一次完整的 LLM 推理与 HTTP 往返。",
+        "推翻理由二（级联雪崩）：第一步动态选表发生幻觉挑错表，后续所有列值探测与 SQL 生成都在错误方向上徒劳挣扎，成功率断崖。",
+        "推翻理由三（成本效益）：单技能关联表数量极为收敛（3~4 张或 1 张大宽表），2000~4000 Token 占窗口不足 5%，换 100% 稳定的 Schema 可见性是极划算的工程权衡。",
+        "扩展路径：未来跨部门全域数仓上百张表时，规划前置离线两阶段向量检索粗筛 Top-K 候选表，选出 3~5 张后再 M-Schema 全量内联给 ReAct Agent；坚决不在 Agent 循环内部做脆弱的运行时动态选表。"
+      ]
+    },
+    "related_ids": [
+      "proj-p2-23-overview"
+    ]
+  },
+  {
+    "id": "proj-p2-24-overview",
+    "question": "ChatBI 的工程实现里，为什么故意绕过 BaseTool.ainvoke？",
+    "category": "project",
+    "tags": [
+      "ChatBI",
+      "LangChain",
+      "事件冒泡"
+    ],
+    "priority": "bonus",
+    "hint": "根因是隐式 Callback 链把子图内部事件冒泡到外层流式管道。",
+    "answer": {
+      "key_points": [
+        "LangChain 提供的 @tool/BaseTool 在调用 ainvoke 时，底层强行注入 RunnableTracer 与系统 Callback 链。",
+        "在 Subgraph 嵌套执行时，这些隐式 Callback 会把子图内部私有的工具执行参数与中间状态，无差别当作外层图事件派发到 AG-UI 流式管道。",
+        "外层前端解析器无法识别子图未注册的内部事件，直接抛出反序列化异常导致连接中断崩溃。",
+        "解法：在子图工厂中把工具实现为纯 Python 异步闭包，执行完直接实例化 ToolMessage(content, tool_call_id)，并通过配置 metadata 显式抑制内部事件向外层冒泡。"
+      ]
+    },
+    "follow_ups": [
+      "查询结果怎么回给主 Agent 和前端？"
+    ],
+    "related_ids": [
+      "proj-p2-24-data-envelope"
+    ]
+  },
+  {
+    "id": "proj-p2-24-data-envelope",
+    "question": "查询结果怎么回给主 Agent 和前端？20 行阈值怎么定的？",
+    "category": "project",
+    "tags": [
+      "ChatBI",
+      "DataEnvelope",
+      "SSE"
+    ],
+    "priority": "bonus",
+    "answer": {
+      "key_points": [
+        "查询到的真实数据由 DataEnvelope 数据信封承载，避免数据格式混乱，按 MAX_RETURN_ROWS = 20 进行完整性分流。",
+        "数据不超过 20 行：打标 dataset_strategy = inline_complete，全量数据内联随 SSE 下发，前端图表组件直接渲染。",
+        "数据超过 20 行：打标 dataset_strategy = client_fetch，信封仅保留前 20 行预览与查询 Session ID，前端按需发起 HTTP 分页拉取，保护流式传输带宽。",
+        "20 行阈值由算法端与前端共同协商：真实网络环境下，SSE 长连接传输几十 KB 以上的大 JSON 易引发客户端渲染卡顿掉帧，因此把 20 行定为流式内联性能红线，大数据量一律走标准 HTTP 分页通道。"
+      ]
+    },
+    "related_ids": [
+      "proj-p2-24-overview"
+    ]
+  },
+  {
+    "id": "proj-p2-25-react-not-shipped",
+    "question": "ChatBI 的 ReAct 版本上线了吗？",
+    "category": "project",
+    "tags": [
+      "ChatBI",
+      "成熟度",
+      "技术诚实"
+    ],
+    "priority": "must",
+    "hint": "答案是否定的，主动坦白并讲清没合入的工程权衡与补齐计划。",
+    "answer": {
+      "key_points": [
+        "没有上线：develop 主线基线中运行的依然是固定 6 节点 DAG 版本。",
+        "ReAct Agent Loop 版本在独立参考分支（langagent-chatbi-agent-loop-reference）完成了全套原型架构设计与代码编写，因业务排期与测试覆盖原因未合入主干，也没有主干配套单元测试。",
+        "没合入的工程权衡：固定 DAG 已在特定政企报表业务平稳运行；业务第一优先级是交付长任务与多模态 RAG；ReAct 多次动态调用需要更高并发的只读数据库连接池支撑与端到端自动化回归测试套件。",
+        "简历动词严格写「重设计」，绝不写「已上线」或「性能带来 X% 提升」。",
+        "若现在合入需补三项防线：4 个闭包工具覆盖率 90% 以上的单测与 Mock 沙箱测试、基于真实历史慢 SQL 的 Benchmark 评测集（评估准确率收益与 Token 成本）、只读连接池的超时熔断与 QPS 准入隔离。"
+      ],
+      "pitfalls": [
+        "被问「上线后准确率提升多少」时主动澄清：线上跑的仍是固定 DAG，ReAct 仅在参考分支完成原型验证，没有线上数据；绝不为迎合追问编造数字。"
+      ]
+    },
+    "follow_ups": [
+      "如果现在要把参考分支合入主干，需要补做哪些工作？"
+    ]
+  },
+  {
+    "id": "proj-p2-26-overview",
+    "question": "Orchestrator-Worker 是什么？为什么否定自由 handoff 与黑盒调度？",
+    "category": "project",
+    "tags": [
+      "多智能体",
+      "Orchestrator-Worker",
+      "架构决策"
+    ],
+    "priority": "must",
+    "hint": "先立「单一主控心智」，再逐条讲否定自由 handoff 的三条理由。",
+    "answer": {
+      "key_points": [
+        "Orchestrator-Worker 是平台多智能体演进中确立的中心化主控协作架构，核心理念是「单一面向用户主控心智」：用户在会话中永远只与 Orchestrator 一个人交流。",
+        "多个专长智能体以 Worker 模式运行，在能力层物理禁用 Ask User 工具，仅向主控汇报，绝不能跳过主控直接打扰用户。",
+        "否定自由 handoff 的三条理由：责任不可追溯（A 推给 B、B 推给 C，出错无法定责）；上下文污染（每个 Agent 把私有思考塞进全局流，Token 迅速爆炸）；人机心智断层（不同 Agent 突然向用户提问，交互体验混乱）。",
+        "任务分派显式工具化：每一次委派都是一个可追踪的结构化工具调用。",
+        "成熟度口径：协调模式为设计确立（Agent Teams design_complete），运行时尚未实施。"
+      ]
+    },
+    "follow_ups": [
+      "分派工具化的具体设计是什么？",
+      "用户完全看不到 Worker 的工作细节吗？会不会很黑盒？"
+    ],
+    "related_ids": [
+      "proj-p2-26-delegation-tooling"
+    ]
+  },
+  {
+    "id": "proj-p2-26-delegation-tooling",
+    "question": "分派工具化的具体设计是什么？用户看不到 Worker 细节会不会很黑盒？",
+    "category": "project",
+    "tags": [
+      "多智能体",
+      "分派工具",
+      "透明度"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "把子任务分派彻底封装为 Orchestrator 的显式结构化工具调用（如 delegate_and_wait、delegate_in_background）。",
+        "Worker 严格约束：Teammate 被实例化为 Worker 时，运行时在工具注册层物理剔除 ask_user；Worker 只能消费主控下发的结构化 Assignment，执行完毕返回纯文本总结与结构化数据。",
+        "透明度设计：主交互流只展示 Orchestrator 的回答；前端右侧栏提供常驻的 Team 状态面板与 Teammate 详情卡片，用户实时可见某 Worker 正在执行哪一步、调用了什么工具。",
+        "该视图完全只读，用户无法直接向 Worker 输入或干预，兼顾高透明度与整洁的交互心智。"
+      ]
+    },
+    "related_ids": [
+      "proj-p2-26-overview"
+    ]
+  },
+  {
+    "id": "proj-p2-27-overview",
+    "question": "deepagents 原生 tasks 机制哪里不够用？",
+    "category": "project",
+    "tags": [
+      "多智能体",
+      "deepagents",
+      "tasks 机制"
+    ],
+    "priority": "common",
+    "hint": "四个缺陷：临时线程、无准入控制、裸 task_id、无事件流。",
+    "answer": {
+      "key_points": [
+        "基线版本 deepagents 0.6.12 内置 async_subagents 机制支持通过 task 工具派发异步任务，深度评估后发现无法满足企业级生产要求。",
+        "线程模型断层：每次派发都无脑创建全新临时线程，子代理执行完线程直接废弃，同一专长角色无法复用上一次的上下文与沙箱工作区。",
+        "并发准入裸奔：框架层没有任何槽位控制，模型陷入发散连续调用 10 次 task 就并发起 10 个子代理执行，直接打爆后端 LLM QPS 与数据库连接。",
+        "暴露底层裸 task_id 缺乏业务语义；后台任务结果保存在内存字典中，外部无法订阅 Worker 运行时的细粒度流式进度。"
+      ]
+    },
+    "follow_ups": [
+      "替代方案怎么设计的？并发槽位为什么定死 3 个？"
+    ],
+    "related_ids": [
+      "proj-p2-27-persistent-threads"
+    ]
+  },
+  {
+    "id": "proj-p2-27-persistent-threads",
+    "question": "替代原生 tasks 的方案怎么设计的？并发槽位为什么定死 3 个？",
+    "category": "project",
+    "tags": [
+      "多智能体",
+      "持久线程",
+      "调度器"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "一成员一持久线程：稳定映射契约 teammate_thread_id = hash(team_thread_id + member_agent_id)，同一成员在团队会话整个生命周期内只绑定唯一持久线程，后续 Follow-up 与 Redirect 均复用该线程与沙箱。",
+        "持久化 3 槽位调度器：由独立服务管理 3 个并发活跃槽位，超出限制自动进入 FIFO 队列排队，明确否定脆弱的进程内信号量方案。",
+        "3 槽位的双重权衡：前端右侧栏同时关注 3 个 Worker 已是用户认知极限；3 个 Worker 加主控共 4 条流并发推理，刚好能被私有部署节点吞吐安全消化，避免触发限流降级。",
+        "Follow-up 队列容量上限 5 条：单 Teammate 运行中接收的增量指令有界 FIFO 队列。"
+      ],
+      "pitfalls": [
+        "成熟度口径：该方案属于 Agent Teams 设计稿（design_complete），未实施；走查示例讲的是设计契约不是线上行为。"
+      ]
+    },
+    "related_ids": [
+      "proj-p2-27-overview"
+    ]
+  },
+  {
+    "id": "proj-p2-28-overview",
+    "question": "Agent Teams 的调度设计里有哪些关键契约？（口头弹药）",
+    "category": "project",
+    "tags": [
+      "Agent Teams",
+      "调度设计",
+      "ADR"
+    ],
+    "priority": "bonus",
+    "hint": "先声明这是 design_complete 设计稿，再按并发、超时、幂等、权限四块报数字。",
+    "answer": {
+      "key_points": [
+        "口径先行：Agent Teams 是已完成评审的 design_complete 方案，沉淀为 Master PRD 与 6 项 ADR，作为演进蓝图待实施。",
+        "并发与队列：3 个活跃槽位硬限制，排队队列上限 5 条，支持 interrupt_and_redirect 抢占清空。",
+        "双层超时契约：同步委派默认 5 分钟软等待（最多追加 3 次），到期仅解除阻塞不杀任务；Assignment 硬运行上限 2 小时。",
+        "生命周期与幂等：利用 Dispatch Outbox 保证网络断连下的派发幂等，结合 Lease/Heartbeat 恢复僵尸任务。",
+        "权限继承：Team 复用已有 Agent 的权限模型，全程透传用户组织上下文。"
+      ]
+    },
+    "follow_ups": [
+      "软等待超时后怎么处理？会话删除时在途任务怎么办？",
+      "既然设计这么完善，为什么没立即实施？"
+    ],
+    "related_ids": [
+      "proj-p2-28-team-timeouts"
+    ]
+  },
+  {
+    "id": "proj-p2-28-team-timeouts",
+    "question": "软等待、会话删除、权限透传的设计细节是什么？为什么没立即实施？",
+    "category": "project",
+    "tags": [
+      "Agent Teams",
+      "超时设计",
+      "权限继承"
+    ],
+    "priority": "bonus",
+    "answer": {
+      "key_points": [
+        "软等待：delegate_and_wait 达到 5 分钟窗口时任务未完成，不粗暴判失败，而是唤醒 Orchestrator 返回 status: pending_timeout，由主控自主决定追加等待、转后台或向用户播报进度。",
+        "会话删除：用户删除团队会话时建立隔离 Fence 拒绝新任务接入，在途任务享有 30 秒优雅退出宽限期，随后强制销毁沙箱并清理 Checkpoint。",
+        "权限设计（ADR 0005）：拒绝在 Team 资产层创建「上帝权限」或专属凭证；委派时用户 ID、租户 ID 与组织部门上下文在信封中强制向下透传，Worker 执行查询与工具调用一律受调用方实际数据权限控制，杜绝权限提升漏洞。",
+        "未立即实施的原因：当时业务核心诉求是单 Agent 在特定公积金业务与长任务中的准确率突破（即项目一）；把多 Agent 停留在高成熟度设计阶段，避免了过早引入系统复杂度与沉没成本。"
+      ]
+    },
+    "related_ids": [
+      "proj-p2-28-overview"
+    ]
+  },
+  {
+    "id": "proj-p2-29-overview",
+    "question": "单 Agent、Workflow、Agent Teams 三种编排范式怎么选？",
+    "category": "project",
+    "tags": [
+      "编排范式",
+      "架构决策",
+      "技术选型"
+    ],
+    "priority": "common",
+    "hint": "强调分层协同而非替代关系，末尾交代三种范式各自的成熟度。",
+    "answer": {
+      "key_points": [
+        "三者绝非非此即彼的替代关系，而是针对不同业务确定性维度的分层协同。",
+        "Workflow（DAG）：面向高确定性、强合规的固定流程（固定审批、流水线清洗、特定结构报表），零幻觉、延迟极低。",
+        "单 Agent（ReAct/工具调用）：面向局部开放式的灵活探索（单领域取数、代码编写、交互式问答），由模型自主规划工具。",
+        "Agent Teams（多智能体团队）：面向跨领域、多角色、需要长程分工的大型综合任务。",
+        "平台现状口径：主干以单 Agent 和子图为主；Workflow 处于调研建议阶段（proposed）；Agent Teams 处于设计完成阶段。"
+      ]
+    },
+    "follow_ups": [
+      "两个选型维度具体是什么？",
+      "业界都在推 Multi-Agent，你怎么看？"
+    ],
+    "related_ids": [
+      "proj-p2-29-selection-principles"
+    ]
+  },
+  {
+    "id": "proj-p2-29-selection-principles",
+    "question": "两个选型维度具体是什么？你怎么看业界的 Multi-Agent 热潮？",
+    "category": "project",
+    "tags": [
+      "编排范式",
+      "Multi-Agent",
+      "第一原则"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "维度一（任务确定性 vs 探索性）：每一步输入输出类型完全确定的逻辑坚决写成 Workflow 节点，不浪费大模型推理成本；需要根据中间结果动态调整路径时选单 Agent。",
+        "维度二（上下文复杂度与领域跨度）：任务需要 DBA、分析师、合规审核员协同，单 Agent 上下文窗口会严重注意力稀释，必须升级为多 Agent 团队协作。",
+        "演进踩坑总结的第一原则：「能用一个强 Agent + 工具解决的问题，绝不用多 Agent；能用确定性 Workflow 固化的逻辑，绝不用 Agent」。",
+        "对热潮的克制判断：很多场景用 Multi-Agent 是因为单 Agent 能力调优没做到位（上下文管理混乱、Prompt 冗长）；多智能体的网络开销、状态同步延迟与调试复杂度呈指数级上升。",
+        "当前最实用的组合：单 Agent 主干 + Subgraph-as-a-Tool 把确定性图结构（如 ChatBI）挂载进单 Agent。"
+      ]
+    },
+    "related_ids": [
+      "proj-p2-29-overview"
+    ]
+  },
+  {
+    "id": "proj-p2-30-overview",
+    "question": "平台上的业务 Agent 能不能用项目一的方法做后训练？两个项目怎么打通？",
+    "category": "project",
+    "tags": [
+      "跨项目",
+      "Agentic RL",
+      "演进规划"
+    ],
+    "priority": "common",
+    "hint": "先讲天然互补，再讲三条鸿沟，最后给两步走路径，并明确两线目前独立演进。",
+    "answer": {
+      "key_points": [
+        "天然互补：项目二的平台运行时与 Daytona 沙箱，为项目一提供高保真的 Rollout 采样环境、工具调用抽象与多轮交互轨迹沉淀底座。",
+        "关键差距：Agentic RL 依赖确定性的环境重置能力、低延迟可程序化 Reward（如数据库终态比对）与冻结的高保真模拟器；平台真实业务涉及复杂的外部未解耦系统与非确定性人类反馈。",
+        "工程现状：两条线目前独立演进。",
+        "打通路径：第一步利用平台沉淀的合规轨迹经分层验证漏斗清洗后冷启动 SFT；第二步挑选强约束的平台子图，在沙箱内完成环境形式化后开展 RL。"
+      ]
+    },
+    "follow_ups": [
+      "打通的核心鸿沟具体是什么？",
+      "如果给 ChatBI ReAct 做 RL 训练，Reward 会怎么设计？"
+    ],
+    "related_ids": [
+      "proj-p2-30-rl-bridge"
+    ]
+  },
+  {
+    "id": "proj-p2-30-rl-bridge",
+    "question": "如果给 ChatBI ReAct 做 RL 训练，Reward 怎么设计？核心鸿沟在哪？",
+    "category": "project",
+    "tags": [
+      "跨项目",
+      "Reward 设计",
+      "环境形式化"
+    ],
+    "priority": "bonus",
+    "answer": {
+      "key_points": [
+        "可验证性鸿沟：项目一落地长程 GRPO 的前提，是业务被高度收敛为离线可程序化的沙箱与 SQLite Golden State 终态；平台开放式文本输出缺乏轻量确定性评判标准，强行用 LLM-as-a-Judge 容易引发严重 Reward Hacking。",
+        "执行吞吐鸿沟：RL 需要每秒上千 Token 的高并发快速 Rollout；长任务沙箱启动耗时秒级且依赖真实外部网络调用，无法直接接入密集训练闭环。",
+        "Reward 设计（复用终态验证哲学）：不看生成的 SQL 字符串像不像，直接送入测试沙箱数据库执行，比对返回数据矩阵与 Golden Result 逐行逐列一致（一致 1.0，否则 0）。",
+        "效率与违规约束：每多调用一次 probe_column_values 扣 0.05 效率分，促使模型精简探索；达到 6 轮上限仍未收敛或 SQL 语法报错，直接判定 Hard Violation 给 0 分，防止投机。",
+        "环境形式化：把秒级 Daytona 沙箱轻量化为内存中的 SQLite 测试库，承接高频 Rollout。"
+      ],
+      "pitfalls": [
+        "该方向为跨项目自拟推演与规划，非已实施工作；陈述时用「我会怎么设计」而非「我们已经做了」。"
+      ]
+    },
+    "related_ids": [
+      "proj-p2-30-overview"
+    ]
+  },
+  {
+    "id": "proj-c11-react-loop-pairing",
+    "question": "白板手写：带配对保证与迭代上限的 ReAct Agent Loop 主循环怎么写？",
+    "category": "project",
+    "tags": [
+      "白板代码",
+      "ReAct",
+      "消息配对"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "终止判定：模型返回不带 tool_calls 的消息即为最终回答；达到 max_iterations 走降级退出并提示缩小指令范围，绝不死循环。",
+        "每个工具调用都必须追加带 tool_call_id 的 ToolMessage，与 AIMessage 的 tool_calls 严格配对，否则后续调用模型接口直接报 400。",
+        "工具不存在或执行异常时，把错误封装为 status='error' 的 ToolMessage 喂回模型供其自主纠错，绝不中断主循环。",
+        "常见追问：混合多工具调用怎么路由（Send 原语扇出）、超限怎么退出、与 LangGraph 图节点的对应关系。"
+      ],
+      "code": [
+        {
+          "label": "ReAct 主循环（配对保证版）",
+          "language": "python",
+          "code": "def run_react_agent_loop(llm, tools, messages, max_iterations=6):\n    # 考察点: 终止条件、多工具执行、tool_call_id 配对、异常回封装不中断主循环\n    trajectory = list(messages)\n    for iteration in range(1, max_iterations + 1):\n        ai_msg = llm(trajectory)\n        trajectory.append(ai_msg)\n        # 终止判定: 无工具调用即为最终回答\n        if not ai_msg.tool_calls:\n            return {\"status\": \"success\", \"final_response\": ai_msg.content,\n                    \"iterations\": iteration, \"messages\": trajectory}\n        for call in ai_msg.tool_calls:\n            if call[\"name\"] not in tools:\n                # 工具不存在: 错误也作为 ToolMessage 喂回模型供纠错\n                trajectory.append(ToolMessage(content=f\"Error: 未知工具 {call['name']}\",\n                                              tool_call_id=call[\"id\"], status=\"error\"))\n                continue\n            try:\n                raw = tools[call[\"name\"]](**call.get(\"args\", {}))\n                trajectory.append(ToolMessage(content=str(raw), tool_call_id=call[\"id\"], status=\"success\"))\n            except Exception as exc:\n                # 关键: 即便出错也必须回填对应 tool_call_id 的 ToolMessage，防止配对断裂\n                trajectory.append(ToolMessage(content=f\"Error: {exc}\", tool_call_id=call[\"id\"], status=\"error\"))\n    # 达到最大迭代次数: 降级退出而非死循环\n    fallback = \"已达到最大步数限制，未能完成任务，请缩小指令范围。\"\n    return {\"status\": \"max_iterations_reached\", \"final_response\": fallback, \"messages\": trajectory}",
+          "note": "对应源码 .scratch/interview-deck/resume-v3.1-qa/code/04_agent_loop_agui_hitl.py 的 run_react_agent_loop，30 行 / 6 分钟量级。"
+        }
+      ]
+    },
+    "related_ids": [
+      "proj-p2-06-overview",
+      "proj-p2-22-overview"
+    ]
+  },
+  {
+    "id": "proj-c12-agui-event-transform",
+    "question": "白板手写：LangGraph 内部事件流怎么映射成 AG-UI 标准事件？",
+    "category": "project",
+    "tags": [
+      "白板代码",
+      "AG-UI",
+      "事件流"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "核心映射矩阵：run_start→RUN_STARTED、on_chain_start/end→STEP_STARTED/STEP_FINISHED、on_chat_model_stream→TEXT_MESSAGE_CONTENT 或 TOOL_CALL_ARGS、on_tool_start/end→TOOL_CALL_START/TOOL_CALL_RESULT、on_custom_event→CUSTOM。",
+        "on_interrupt 透出契约：发 CUSTOM on_interrupt 后立即补 RUN_FINISHED 闭合本轮，不挂死前端。",
+        "中间件链逐级过滤或改写事件：每个中间件接收单个事件返回事件列表，链式展开。",
+        "异常兜底流：捕获未处理异常后先补 RUN_ERROR，再强制补发 RUN_FINISHED，保证前端 SSE 连接确定性闭合，绝不悬挂。"
+      ],
+      "code": [
+        {
+          "label": "astream 事件到 AG-UI 的流式转换",
+          "language": "python",
+          "code": "def process_agui_event_stream(raw_events, middlewares=None):\n    # 考察点: 事件映射矩阵、中间件链、异常必须补发 RUN_FINISHED 闭环\n    out_events, run_finished = [], False\n    try:\n        for raw in raw_events:\n            mapped = []  # 每轮重新初始化，未映射类型静默丢弃\n            t = raw.get(\"type\", \"\")\n            if t == \"run_start\":\n                mapped = [{\"type\": \"RUN_STARTED\", \"run_id\": raw.get(\"run_id\")}]\n            elif t == \"on_chat_model_stream\":\n                if \"delta_text\" in raw:\n                    mapped = [{\"type\": \"TEXT_MESSAGE_CONTENT\", \"delta\": raw[\"delta_text\"]}]\n                elif \"delta_tool\" in raw:\n                    mapped = [{\"type\": \"TOOL_CALL_ARGS\", \"delta\": raw[\"delta_tool\"]}]\n            elif t == \"on_tool_start\":\n                mapped = [{\"type\": \"TOOL_CALL_START\", \"tool_name\": raw.get(\"name\"), \"id\": raw.get(\"id\")}]\n            elif t == \"on_custom_event\":\n                mapped = [{\"type\": \"CUSTOM\", \"name\": raw.get(\"name\"), \"value\": raw.get(\"value\")}]\n            elif t == \"on_interrupt\":\n                # 中断透出契约: 发 CUSTOM on_interrupt 后立即闭合本轮，不挂死前端\n                mapped = [{\"type\": \"CUSTOM\", \"name\": \"on_interrupt\", \"value\": raw.get(\"payload\")},\n                          {\"type\": \"RUN_FINISHED\", \"run_id\": raw.get(\"run_id\")}]\n                run_finished = True\n            elif t == \"run_finish\":\n                mapped = [{\"type\": \"RUN_FINISHED\", \"run_id\": raw.get(\"run_id\")}]\n                run_finished = True\n            # 中间件链: 逐级过滤或改写事件\n            for mw in (middlewares or []):\n                mapped = [e for ev in mapped for e in mw(ev)]\n            out_events.extend(mapped)\n            if run_finished:\n                break\n    except Exception as exc:\n        # 异常兜底: 确保前端 SSE 连接确定性闭合，绝不悬挂\n        out_events.append({\"type\": \"RUN_ERROR\", \"message\": str(exc)})\n        if not run_finished:\n            out_events.append({\"type\": \"RUN_FINISHED\", \"run_id\": \"error_closed\"})\n    return out_events",
+          "note": "对应源码 code/04_agent_loop_agui_hitl.py 的 process_agui_event_stream（节选核心分支，STEP 与 TOOL_CALL_RESULT 分支同理），40 行 / 8 分钟量级。"
+        }
+      ]
+    },
+    "related_ids": [
+      "proj-p2-07-overview",
+      "proj-p2-08-overview"
+    ]
+  },
+  {
+    "id": "proj-c13-hitl-interrupt-resume",
+    "question": "白板手写：HITL 的 interrupt 挂起与 Command(resume) 恢复最小骨架怎么写？",
+    "category": "project",
+    "tags": [
+      "白板代码",
+      "HITL",
+      "interrupt"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "首次进入无 resume_command：构造挂起 payload，状态冻结写入 Checkpointer，返回中断标记（LangGraph 原生实现为 raise GraphInterrupt）。",
+        "request_id 由 thread_id:run_id:tool_call_id 做 sha256 确定性派生（au_v1_ 前缀），同一中断点永远得到同一个 ID，防伪造与跨会话串扰。",
+        "恢复时用 hmac.compare_digest 常量时间比对 request_id，防时序攻击；校验通过才清理挂起标记并合入用户输入。",
+        "Checkpointer 是硬依赖：没有它，挂起状态无处持久化，恢复也无从重放。"
+      ],
+      "code": [
+        {
+          "label": "interrupt / Command(resume) 最小骨架",
+          "language": "python",
+          "code": "def generate_request_id(thread_id, run_id, tool_call_id):\n    # 确定性、防篡改的 Request ID: 同一会话的同一中断点永远得到同一个 ID\n    raw = f\"{thread_id}:{run_id}:{tool_call_id}\".encode(\"utf-8\")\n    return \"au_v1_\" + hashlib.sha256(raw).hexdigest()[:16]\n\ndef hitl_node(state, thread_id, run_id, tool_call_id, checkpointer, resume_command=None):\n    # 考察点: interrupt 挂起、Checkpointer 状态冻结、resume 恢复与恒定时间校验\n    expected_req_id = generate_request_id(thread_id, run_id, tool_call_id)\n    if resume_command is None:\n        # 1. 首次进入: 触发中断并持久化挂起 (LangGraph 原生为 raise GraphInterrupt)\n        state[\"_pending_interrupt\"] = {\"request_id\": expected_req_id,\n                                       \"questions\": state.get(\"questions\", [])}\n        checkpointer.save(thread_id, state)\n        return {\"__interrupt__\": state[\"_pending_interrupt\"]}\n    # 2. 外部恢复: 恒定时间比对防时序攻击与跨会话串扰\n    given = resume_command.get(\"request_id\", \"\")\n    if not hmac.compare_digest(given, expected_req_id):\n        raise ValueError(f\"Request ID 不匹配: 收到 {given}, 期望 {expected_req_id}\")\n    # 3. 校验通过才清理挂起标记并合入用户输入\n    state.pop(\"_pending_interrupt\", None)\n    state[\"user_feedback\"] = resume_command.get(\"user_feedback\")\n    checkpointer.save(thread_id, state)\n    return state",
+          "note": "对应源码 code/04_agent_loop_agui_hitl.py 的 hitl_node（Checkpointer 以 MockCheckpointer 模拟），25 行 / 5 分钟量级。"
+        }
+      ]
+    },
+    "related_ids": [
+      "proj-p2-09-overview"
+    ]
+  },
+  {
+    "id": "proj-c14-orchestrator-delegation-tools",
+    "question": "白板手写：Orchestrator 的持久线程派生与 3 槽位调度器怎么写？",
+    "category": "project",
+    "tags": [
+      "白板代码",
+      "Agent Teams",
+      "调度器"
+    ],
+    "priority": "bonus",
+    "answer": {
+      "key_points": [
+        "成熟度先行：这是 design_complete 设计稿的白板伪码，运行时尚未实施。",
+        "一成员一持久线程：teammate_thread_id 由 sha256(team_thread_id::member_agent_id) 截取 16 位确定性派生，同成员复用同一线程保住上下文与沙箱。",
+        "3 槽位硬准入：MAX_ACTIVE_SLOTS=3，未满直接 working，已满进 FIFO 队列；任务完成后释放槽位并立即唤醒队首。",
+        "软超时契约：delegate_and_wait 5 分钟窗口到期返回 soft_timeout 而非失败，交由 Orchestrator 决策追加等待/转后台/取消。",
+        "常见追问：为什么槽位是 3（认知负荷 + 算力吞吐）、队列积压怎么办、异步分派怎么回收结果。"
+      ],
+      "code": [
+        {
+          "label": "持久线程派生 + 3 槽位调度",
+          "language": "python",
+          "code": "class PersistentTeammateManager:\n    # 一成员一持久线程: 相同 (team_thread, member_id) 稳定复用同一 teammate_thread\n    def get_or_create_teammate_thread(self, member_agent_id):\n        if member_agent_id not in self._threads:\n            raw = f\"{self.team_thread_id}::{member_agent_id}\".encode(\"utf-8\")\n            # 确定性派生: 重新委派/追问都能定位到同一线程与沙箱\n            self._threads[member_agent_id] = \"tm_th_\" + hashlib.sha256(raw).hexdigest()[:16]\n        return self._threads[member_agent_id]\n\nclass TeamAssignmentScheduler:\n    MAX_ACTIVE_SLOTS = 3  # 槽位硬限制: 防模型发散连续派发打爆算力\n    def submit_assignment(self, member_agent_id, teammate_thread_id, instruction, mode):\n        asgn = Assignment(member_agent_id=member_agent_id,\n                          teammate_thread_id=teammate_thread_id,\n                          instruction=instruction, delegation_mode=mode)\n        if len(self.active_slots) < self.MAX_ACTIVE_SLOTS:\n            asgn.status = \"working\"\n            self.active_slots[asgn.assignment_id] = asgn\n        else:\n            asgn.status = \"queued\"  # 溢出进入持久 FIFO 队列，而非拒绝\n            self.fifo_queue.append(asgn)\n        return asgn\n    def on_teammate_finished(self, assignment_id, result, status=\"succeeded\"):\n        asgn = self.active_slots.pop(assignment_id, None)\n        if asgn:\n            asgn.status, asgn.result = status, result\n        # 释放槽位后立即从 FIFO 队列唤醒下一项\n        if self.fifo_queue and len(self.active_slots) < self.MAX_ACTIVE_SLOTS:\n            nxt = self.fifo_queue.popleft()\n            nxt.status = \"working\"\n            self.active_slots[nxt.assignment_id] = nxt\n            return nxt\n        return None",
+          "note": "对应源码 code/05_orchestrator_subgraph.py 的 PersistentTeammateManager 与 TeamAssignmentScheduler；delegate_and_wait 的软超时契约见 05 文件同节。"
+        }
+      ]
+    },
+    "related_ids": [
+      "proj-p2-28-overview",
+      "proj-p2-27-overview"
+    ]
+  },
+  {
+    "id": "proj-c15-subgraph-tool-middleware",
+    "question": "白板手写：SubgraphToolMiddleware 的拦截与白名单回写怎么写？",
+    "category": "project",
+    "tags": [
+      "白板代码",
+      "Subgraph",
+      "中间件"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "架构红线：不改子图契约、不改第三方包，以中间件拦截（框架 AgentMiddleware.awrap_tool_call 扩展点）取代 CompiledSubAgent。",
+        "未命中子图注册表的工具调用透传给下一级 handler，不影响普通工具链路。",
+        "命中子图：拷贝隔离状态执行子图，防止子图污染主图内存状态；子图结果仅按白名单字段回写，私有变量不泄漏。",
+        "回写载体是 Command(update=...)：messages 里带 tool_call_id 配对的 ToolMessage，白名单字段原子更新主图状态。"
+      ],
+      "code": [
+        {
+          "label": "拦截、隔离执行与白名单回写",
+          "language": "python",
+          "code": "class SubgraphToolMiddleware:\n    \"\"\"红线: 不改子图契约、不改第三方包，以中间件拦截取代 CompiledSubAgent\"\"\"\n    def __init__(self, subgraph_registry,\n                 whitelist_fields=(\"data_envelope\", \"visualization_result\", \"report_draft\")):\n        self._registry = subgraph_registry\n        self._whitelist = set(whitelist_fields)\n\n    def wrap_tool_call(self, tool_call, main_state, next_handler):\n        # 考察点: 拦截、隔离子图执行、白名单回写防私有变量泄漏\n        if tool_call.get(\"name\") not in self._registry:\n            return next_handler(tool_call)  # 未命中子图: 透传给普通工具执行器\n        subgraph = self._registry[tool_call[\"name\"]]\n        # 隔离执行: 拷贝完整上下文，防止子图对主图内存状态造成污染\n        isolated_state = copy.deepcopy(main_state)\n        subgraph_result = subgraph.invoke(isolated_state)\n        tool_msg = ToolMessage(content=f\"子图 {tool_call['name']} 执行成功\",\n                               tool_call_id=tool_call.get(\"id\", \"call_default\"),\n                               status=\"success\")\n        # 白名单回写: 仅预定领域字段同步回主图，子图私有变量不泄漏\n        state_update = {\"messages\": [tool_msg]}\n        for field in self._whitelist:\n            if field in subgraph_result:\n                state_update[field] = subgraph_result[field]\n        # 通过 Command 机制原子更新主图状态\n        return Command(update=state_update)",
+          "note": "对应源码 code/05_orchestrator_subgraph.py 的 SubgraphToolMiddleware.wrap_tool_call，25 行 / 5 分钟量级。"
+        }
+      ]
+    },
+    "related_ids": [
+      "proj-p2-17-overview"
+    ]
+  },
+  {
+    "id": "proj-c16-context-compression-cutoff",
+    "question": "白板手写：上下文压缩的触发判定与安全截断边界怎么写？",
+    "category": "project",
+    "tags": [
+      "白板代码",
+      "上下文压缩",
+      "消息配对"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "触发门禁：消息数达标（不少于 6 条）且 Token 估算占比超过 70% 才压缩，未触门限原样返回。",
+        "初始截断点：保留末尾 25% 消息。",
+        "安全边界：若截断点落入 ToolMessage，向前回溯到发起它的 AIMessage，保证 tool_calls 与 ToolMessage 成对不被截断拆散，否则产生孤儿 ToolMessage 报错。",
+        "原消息列表 Append-Only 不物理删除：只构造「摘要投影消息 + 保留尾部」的有效上下文载荷供当前轮推理。"
+      ],
+      "code": [
+        {
+          "label": "触发门禁 + 安全截断边界对齐",
+          "language": "python",
+          "code": "def truncate_and_summarize_context(messages, max_tokens=4000, usage_threshold=0.7,\n                                   preserve_ratio=0.25, min_messages=6):\n    # 考察点: 70% 阈值防抖触发、保留末尾 25%、tool_call 配对不被截断拆散\n    total_tokens = estimate_tokens(messages)\n    # 1. 触发门禁: 消息数达标且 Token 占比超过阈值才压缩，否则原样返回\n    if len(messages) < min_messages or (total_tokens / max_tokens) < usage_threshold:\n        return messages\n    # 2. 初始截断点: 保留后 25% 消息\n    preserve_count = max(1, int(len(messages) * preserve_ratio))\n    cutoff = len(messages) - preserve_count\n    # 3. 安全边界: 截断点落入 ToolMessage 时向前回溯到发起它的 AIMessage，保证成对完整\n    while cutoff > 0 and isinstance(messages[cutoff], ToolMessage):\n        cutoff -= 1\n    messages_to_summarize = messages[:cutoff]\n    preserved = messages[cutoff:]\n    # 4. 原状态 Append-Only 不物理删除: 只构造摘要投影 + 保留尾部的有效载荷\n    summary = HumanMessage(\n        content=f\"[系统上下文摘要: 已压缩前期 {len(messages_to_summarize)} 条对话。\"\n                f\"关键事实: 用户任务已进入执行阶段，后续步骤请基于最新上下文推进。]\",\n        id=\"msg_summary_projection\")\n    return [summary] + preserved",
+          "note": "对应源码 code/04_agent_loop_agui_hitl.py 的 truncate_and_summarize_context（Token 估算用 chars//4+3 粗估），25 行 / 5 分钟量级。"
+        }
+      ]
+    },
+    "related_ids": [
+      "proj-p2-14-overview"
+    ]
+  },
+  {
+    "id": "proj-d1-reward-terminal-gating",
+    "question": "讲一下防 Reward 投机那次决策：为什么用终态乘法门控，而不是给拒办动作加分？",
+    "category": "project",
+    "tags": [
+      "Reward 设计",
+      "Reward Hacking",
+      "技术取舍"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "无写库任务上错误办结与正确拒办的数据库终态同为空写，仅比对状态的 Reward 会让两类动作同分，GRPO 组内优势直接归零。",
+        "常规做法是给合规拒办单独加分，但加分破坏必要条件的语义，模型会两头下注套利，且要陷入非对称权重调参。",
+        "我的判断是终态正确与终局动作正确是强逻辑与：完成度 = 状态分 × 终局动作门控，三值精确比对，缺失或错配即 0。",
+        "同时把转人工加分移出训练总目标，只留作诊断监控，堵住模型把转人工当成逃避路径的投机漏洞。",
+        "效果：GRPO 训练中合规拒办准确率从 8.6% 提升到 80.5%，稀有动作重新拿到组内相对优势梯度。"
+      ],
+      "pitfalls": [
+        "别说成「给拒办加了权重」——门控是一票否决，不是加分。"
+      ]
+    },
+    "follow_ups": [
+      "为什么无写库任务会同分博弈？",
+      "门控公式具体是什么？",
+      "为什么拒绝加法打补丁？",
+      "转人工加分为什么必须移出？",
+      "8.6%→80.5% 是什么口径？",
+      "还有哪些 reward hacking 残余？怎么监控？",
+      "和 DeepSeek-R1 的规则奖励是什么关系？"
+    ],
+    "related_ids": [
+      "proj-d1-01-no-write-terminal-tie",
+      "proj-d1-02-gating-formula",
+      "proj-d1-03-why-not-additive-bonus",
+      "proj-d1-04-escalate-reward-removal",
+      "proj-d1-05-fwr-metric-scope",
+      "proj-d1-06-residual-hacking-monitoring",
+      "proj-d1-07-rlvr-industry-comparison",
+      "proj-c01-reward-terminal-gating"
+    ]
+  },
+  {
+    "id": "proj-d1-01-no-write-terminal-tie",
+    "question": "为什么无写库任务上，错误办结和正确拒办会同分博弈？",
+    "category": "project",
+    "tags": [
+      "Reward 设计",
+      "GRPO"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "合规拒办场景的 Golden 期望数据库变更为空：代办人未核身、提取材料不符等任务要求不对任何表做修改。",
+        "若模型错误调用 Finish 办结且全程没碰写库工具，数据库最终快照与初始完全一致，纯状态比对的状态分照样拿满 1.0。",
+        "GRPO 无 Critic，优势完全来自组内相对分 A_i = (R_i − R̄)/σ_R；正反例得分相同则优势为 0，梯度直接消失。",
+        "SFT 先验里正常办结占绝大多数，零梯度下模型继续倒向办结，合规拒绝能力持续停滞。"
+      ],
+      "elaboration": "走查：K=8 采样中 7 条错误 Finish、1 条正确 FinishWithRefusal，纯状态对比下 8 条轨迹总分全为 1.0，组内标准差为 0，正确拒办一条优势都拿不到。",
+      "pitfalls": [
+        "同分的根因是「期望终态相同」，不是「拒办太难」——先讲终态再讲梯度。"
+      ]
+    },
+    "related_ids": [
+      "proj-d1-reward-terminal-gating",
+      "proj-c01-reward-terminal-gating",
+      "proj-c02-grpo-group-advantage"
+    ]
+  },
+  {
+    "id": "proj-d1-02-gating-formula",
+    "question": "终态乘法门控的公式具体是什么？走一遍数字。",
+    "category": "project",
+    "tags": [
+      "Reward 设计",
+      "公式"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "R_total = 0.65 × R_complete + 0.35 × R_disclosure − 0.10 × 轮数惩罚 − 0.10 × 失败调用惩罚；触发硬约束违规（含格式崩溃）时 R_total 直接置 0。",
+        "核心完成度 R_complete = 状态分 × TerminalScore；TerminalScore 是三值指示函数：实际终局动作严格匹配 Golden（Finish / FinishWithRefusal / Escalate 三选一）才得 1，缺失或错配即 0。",
+        "错误办结轨迹：状态分 1.0 但动作错配，R_complete = 0，总分被封顶在 0.35 以下。",
+        "正确拒办轨迹拿满分 1.0，组内瞬间拉开约 0.65 的结构性分差。",
+        "数字走查：K=8 组内得分为 7×0.35 + 1×1.0，算得错误轨迹优势约 −0.38、正确轨迹优势约 +2.64。"
+      ]
+    },
+    "pitfalls": [
+      "别把 0.65/0.35 的权重说成唯一配置——重点讲门控结构，具体权重是当时的调参结果。"
+    ],
+    "related_ids": [
+      "proj-d1-reward-terminal-gating",
+      "proj-c01-reward-terminal-gating"
+    ]
+  },
+  {
+    "id": "proj-d1-03-why-not-additive-bonus",
+    "question": "为什么拒绝给拒办动作单独加分的打补丁方案？",
+    "category": "project",
+    "tags": [
+      "Reward 设计",
+      "技术取舍"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "加分破坏「必要条件」语义：终态正确与动作正确本是逻辑与关系，加法把它变成可补偿的加分项。",
+        "加分引发两头下注套利：模型办结之后顺手再调一个拒办动作去蹭加分。",
+        "破坏动作间对称性：拒办加 0.1，转人工加多少？系统会陷入非对称权重的调参泥潭。",
+        "加法分差只有 0.1，会被轮数惩罚、告知波动等 0.1~0.2 量级的噪声淹没；乘法门控拉开 1.0 vs 0.0 的绝对断崖。",
+        "乘法门控下三类终局动作的完成度上界都是 1.0，损失尺度保持归一化与对称，且零超参数。"
+      ],
+      "pitfalls": [
+        "面试官常追问「那噪声怎么办」——答案是 0.55 以上的结构性分差盖过次要惩罚项。"
+      ]
+    },
+    "related_ids": [
+      "proj-d1-reward-terminal-gating",
+      "proj-c01-reward-terminal-gating"
+    ]
+  },
+  {
+    "id": "proj-d1-04-escalate-reward-removal",
+    "question": "转人工加分为什么被移出训练总目标？",
+    "category": "project",
+    "tags": [
+      "Reward 设计",
+      "Reward Hacking"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "早期版本对转人工动作额外赋予 +0.10 的正向奖励。",
+        "结果是模型把转人工当成逃避路径：商业贷款转公积金贷这类长链路任务，第 2 轮查完征信就提前转人工，既赚加分又躲开后续轮数惩罚。",
+        "副作用是正常办结类任务成功率不升反降，出现系统性负迁移。",
+        "移出后转人工的正确性完全由乘法门控约束：该转时转得满分，不该转时转判 0 分；加分项仅保留为诊断监控指标，不计入总分。"
+      ]
+    },
+    "related_ids": [
+      "proj-d1-reward-terminal-gating",
+      "proj-c01-reward-terminal-gating"
+    ]
+  },
+  {
+    "id": "proj-d1-05-fwr-metric-scope",
+    "question": "8.6%→80.5% 这个数字是什么口径测出来的？",
+    "category": "project",
+    "tags": [
+      "评测口径",
+      "数字"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "口径：覆盖 12 个 task_type × terminal 空间格的 96 题分层测试集上，三大终局动作之一的合规拒办（FinishWithRefusal）单项准确率。",
+        "该单项包含 32 道专门评测越权与违规拒绝的任务，每题独立采样 K=8 条轨迹，共 256 条 fresh 轨迹。",
+        "SFT 基线只拒对 22/256（8.6%），强化学习后拒对 206/256（80.5%），净增 71.9 个百分点。",
+        "评测是同窗口 Fresh 双臂对比：基线与候选都在独立环境现场采样，严禁复用历史读数。",
+        "三大动作拆解：转人工 85.9%→90.6%，正常办结 68.4%→82.0%，合规拒办 8.6%→80.5%。"
+      ],
+      "pitfalls": [
+        "96 题测试集永远不称 held-out：它是与训练集 family 隔离的训练监控面板；千题最终 holdout 已建好执行器但未执行。",
+        "54.3%→84.4% 是 96 题大盘严格成功率，8.6%→80.5% 只是其中拒办分项，别混着说。"
+      ]
+    },
+    "related_ids": [
+      "proj-d1-reward-terminal-gating",
+      "proj-c01-reward-terminal-gating",
+      "proj-c03-passk-unbiased-estimate",
+      "proj-m-03-strict-success-30pp"
+    ]
+  },
+  {
+    "id": "proj-d1-06-residual-hacking-monitoring",
+    "question": "乘法门控上线后还有哪些 reward hacking 残余？怎么监控？",
+    "category": "project",
+    "tags": [
+      "Reward Hacking",
+      "审计"
+    ],
+    "priority": "bonus",
+    "answer": {
+      "key_points": [
+        "残余投机主要有三类：合规告知套话复读骗 0.35 披露分、跳过必要核验提前结单的轮数效率投机、对自动化判定器的规则博弈。",
+        "告知复读用 per-message NLI 防范：告知必须出现在真实交互轮次中，模板切分为独立 assertion 比对业务上下文相关性。",
+        "训练器启用 Advantage 级 KL 惩罚：用 disable_adapter 计算参考策略对数概率，偏离过大直接扣减优势。",
+        "训练中期做第三方双盲差分审计：定义博弈漏洞为「Judge 判对但人类判错」，差分阈值 +5pp；同时扫描 192 条全轨迹的环境系统提示词泄漏，实测 0 泄漏。"
+      ],
+      "pitfalls": [
+        "博弈率的终点数字材料里两处口径不一致，面试只报方向与审计机制，不背具体终点数。"
+      ]
+    },
+    "related_ids": [
+      "proj-d1-reward-terminal-gating",
+      "proj-c01-reward-terminal-gating",
+      "proj-c05-advantage-kl-disable-adapter"
+    ]
+  },
+  {
+    "id": "proj-d1-07-rlvr-industry-comparison",
+    "question": "你的 Reward 设计和 DeepSeek-R1 的规则奖励、RLVR、PRM 是什么关系？",
+    "category": "project",
+    "tags": [
+      "业界对照",
+      "Reward 设计"
+    ],
+    "priority": "bonus",
+    "answer": {
+      "key_points": [
+        "共性：都摒弃易坍缩的神经奖励模型，坚持纯确定性客观真值验证，奖励信号在长程探索中零漂移。",
+        "R1 是单轮生成的端到端答案判别（格式校验加答案比对），没有外部状态变更，也不存在动作协议。",
+        "任务型 Agent 是多轮交互下的环境状态转移加业务协议遵从，必须同时验证数据库快照与离散终局动作；乘法门控就是把两者统一成逻辑与契约，是 RLVR 在多轮环境下的自然演进。",
+        "不用 PRM 的原因：企业业务的过程路径高度多样（先查余额还是先查缴存同等合规），单步硬打分会扼杀长程规划自由度。"
+      ],
+      "pitfalls": [
+        "边界要主动讲：开放域生成与主观任务无法定义确定性终态，那类任务必须回到 RLHF/DPO 或大模型评审。"
+      ]
+    },
+    "related_ids": [
+      "proj-d1-reward-terminal-gating"
+    ]
+  },
+  {
+    "id": "proj-d2-merged-serial-adr",
+    "question": "讲一下 Async RL 那次取舍：为什么 Merged 单份权重下改走串行？",
+    "category": "project",
+    "tags": [
+      "Async RL",
+      "架构决策",
+      "vLLM"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "多轮 Agentic RL 里 Rollout 交互占全局训练耗时的大头，训推异步化是业界主流，但前提是服务端能保留多版本权重供在途会话走完。",
+        "OpenPipe ART 的 LoRA 训练中，为绕开 Triton LoRA kernel 的性能悬崖，我们选择 Merged 模式（LoRA 合并进基座热推），Rollout 吞吐恢复约 6 倍。",
+        "评估 PipelineTrainer（k=1）异步流程时发现在途多轮请求访问旧版本 Adapter 直接 404——是机制冲突，不是陈旧度问题。",
+        "据此定 ADR：Merged 下走 Strict 串行，把吞吐收益吃满；换回动态 LoRA 多版本可得异步，但要让出 Rollout 吞吐。"
+      ],
+      "pitfalls": [
+        "被误读为「不懂异步」时先肯定异步主流与多版本前提，再把结论限定在 Merged 约束内。"
+      ]
+    },
+    "follow_ups": [
+      "异步化的前提是什么？",
+      "404 具体怎么发生的？",
+      "为什么选 Merged？",
+      "什么条件下应该回到异步？",
+      "陈旧度代价你测过吗？",
+      "业界怎么做多版本？",
+      "适配代码做到什么程度？"
+    ],
+    "related_ids": [
+      "proj-d2-01-async-premise",
+      "proj-d2-02-404-mechanism-conflict",
+      "proj-d2-03-merged-throughput-swap",
+      "proj-d2-04-when-back-to-async",
+      "proj-d2-05-staleness-cost-measured",
+      "proj-d2-06-cispo-staleness-robustness",
+      "proj-d2-07-industry-async-solutions",
+      "proj-d2-08-adapter-code-status",
+      "proj-c07-async-lease-staleness",
+      "proj-c19-lora-forward-merge"
+    ]
+  },
+  {
+    "id": "proj-d2-01-async-premise",
+    "question": "为什么业界做 Rollout 训练异步化？它的前提是什么？",
+    "category": "project",
+    "tags": [
+      "Async RL",
+      "训练系统"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "多轮 Agent 轨迹包含多轮模型推理与环境调用，单条生成可达数秒到数十秒；串行时训练器在采样期间全卡饥饿空转。",
+        "异步化的目标是让采样与反向传播重叠，把采样等待延迟隐藏掉。",
+        "绝对前提：推理服务层支持多版本策略权重共存（版本租约），保证在途多轮会话始终能访问到启动时的同一版本策略。",
+        "业界主流是有界陈旧（如 k≤1）的异步训练，允许训练器消费滞后一步以内的数据。"
+      ],
+      "elaboration": "时间账本走查：64 条多轮轨迹采样约 60 秒、训练步约 5 秒；串行下单步 65 秒、训练器闲置约 92%；异步下 60 秒等待被完全重叠，但前提是训练器更新出 t+1 版时，在途会话还能继续调用 t 版策略。"
+    },
+    "related_ids": [
+      "proj-d2-merged-serial-adr",
+      "proj-c07-async-lease-staleness",
+      "proj-c06-sync-rl-pipeline"
+    ]
+  },
+  {
+    "id": "proj-d2-02-404-mechanism-conflict",
+    "question": "Merged 模式下异步的机制冲突具体是怎么发生的？",
+    "category": "project",
+    "tags": [
+      "Async RL",
+      "故障排查"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "Merged 模式下推理端只加载一份合并后的全量权重，服务端模型名通过全局变量热推覆盖（agent@12 → agent@13），旧模型名被物理抹去。",
+        "多轮交互不是单步完成：Agent 每执行完一轮工具或收到模拟器回复，都要重新向推理端发一次生成请求。",
+        "第 12 步发起的 8 轮交互跑到中途，按会话生命周期继续请求 agent@12，服务端注册表只剩 @13，直接抛 HTTP 404 Model Not Found。",
+        "整条已跑数轮的在途轨迹当场报废——与后端陈旧度丢弃逻辑完全无关，是单权重热推与多版本异步租约的架构机制冲突。"
+      ],
+      "pitfalls": [
+        "别把这讲成数据陈旧度该不该丢的算法问题——根因是版本寻址失败。"
+      ]
+    },
+    "related_ids": [
+      "proj-d2-merged-serial-adr",
+      "proj-c07-async-lease-staleness"
+    ]
+  },
+  {
+    "id": "proj-d2-03-merged-throughput-swap",
+    "question": "为什么当初选 Merged 模式？这是缺陷还是交换？",
+    "category": "project",
+    "tags": [
+      "vLLM",
+      "LoRA",
+      "性能诊断"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "诊断：基线 Step 0 零增量时 vLLM 约 1511 tok/s；Step 1 起非零 LoRA 增量在 r=128 下触发 Triton kernel 慢路径，吞吐跌到约 200~280 tok/s，约 6 倍性能悬崖。",
+        "轻量调优全部无效：Eager 模式仅 +3%、关 chunked prefill 仅 +6%、关 CUDA Graph 仅 +11%，确认是底层开源算子瓶颈。",
+        "Merged 模式把 LoRA 合并进基座，推理端跑纯 Dense GEMM，吞吐恢复到 1500+ tok/s，单步 Rollout 从约 8 分钟压回 1 分钟。",
+        "交换：主动让出动态 LoRA 多版本共存能力，换取 6 倍物理采样吞吐；这个取舍直接决定了异步不可行。"
+      ],
+      "pitfalls": [
+        "措辞红线：6 倍是「诊断出悬崖后修复恢复」，不是凭空优化。",
+        "数字口径：约 250 → 约 1500 tok/s。"
+      ]
+    },
+    "related_ids": [
+      "proj-d2-merged-serial-adr",
+      "proj-c19-lora-forward-merge"
+    ]
+  },
+  {
+    "id": "proj-d2-04-when-back-to-async",
+    "question": "什么条件下应该回到异步训练？",
+    "category": "project",
+    "tags": [
+      "Async RL",
+      "架构演进"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "动态 Multi-LoRA 算子得到底层优化（如 S-LoRA/Punica 类批处理），r=128 下吞吐与 Dense 相当，可直接切回多版本租约模式。",
+        "集群具备多卡多副本 Serving：新旧权重分别部署独立实例，网关按版本号路由，旧实例专供在途任务排空。",
+        "工程上实现排空屏障（Drain Barrier）：旧版本进入 DRAINING 状态不再接新会话，在途自然闭合后原子切换流量。",
+        "算法端支持轮次级混合策略（Turn-level Mixed Policy）：单条对话前后几轮由不同版本生成，损失计算时分别挂对应版本的 π_old 算重要性比值。"
+      ]
+    },
+    "related_ids": [
+      "proj-d2-merged-serial-adr",
+      "proj-c07-async-lease-staleness"
+    ]
+  },
+  {
+    "id": "proj-d2-05-staleness-cost-measured",
+    "question": "异步的陈旧度代价你实测过吗？",
+    "category": "project",
+    "tags": [
+      "Async RL",
+      "实验数据"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "做过 14 步真实异步压测：2×A6000，GPU0 训练器、GPU1 策略采样，配置 max_steps_off_policy=1。",
+        "推进到 Step 14 累计 112 个训练组，49 组因陈旧度超标被强制丢弃，丢弃率约 43.8%，另有 38 组零方差丢弃。",
+        "采样端被 LoRA 慢速拖累，训练器累计空转超 1000 秒。",
+        "策略漂移相比串行扩大约 1.8~2 倍（prob_ratio_p95），且更早诱发格式解析失败。",
+        "结论：Serving 慢 → 异步队列堵塞 → 数据超期废弃 → 有效梯度匮乏的恶性循环；单实例慢 Serving 下强推异步是负收益。"
+      ],
+      "pitfalls": [
+        "这是追问才给的第二个论据：主论据永远是机制冲突（404），压测数据用来加固。"
+      ]
+    },
+    "related_ids": [
+      "proj-d2-merged-serial-adr",
+      "proj-c07-async-lease-staleness"
+    ]
+  },
+  {
+    "id": "proj-d2-06-cispo-staleness-robustness",
+    "question": "CISPO 对异步陈旧度为什么比 PPO 更鲁棒？",
+    "category": "project",
+    "tags": [
+      "CISPO",
+      "PPO",
+      "损失函数"
+    ],
+    "priority": "bonus",
+    "answer": {
+      "key_points": [
+        "PPO 双侧窄剪裁 [1−ε, 1+ε] 的目标对重要性比值求导：比值越界进入常数截断区，梯度直接为 0，高价值样本白采。",
+        "CISPO 对 detach 后的比值做截断，截断值只作为常数权重：梯度是 −w·A·∇log π，永远非零且方向正确。",
+        "ART 默认截断窗口 [0, 5]（epsilon=1.0, epsilon_high=4.0），比 PPO 的 [0.8, 1.2] 宽得多，天然包容 1~2 步的异步策略滞后。",
+        "走查：比值漂到 1.30 时 PPO 该 token 导数归零，CISPO 仍输出 1.30×A 的有效加权梯度。"
+      ]
+    },
+    "related_ids": [
+      "proj-d2-merged-serial-adr",
+      "proj-c04-cispo-token-loss",
+      "proj-m-07-skill-post-training"
+    ]
+  },
+  {
+    "id": "proj-d2-07-industry-async-solutions",
+    "question": "业界异步方案（AReaL、Kimi 等）怎么做多版本权重？",
+    "category": "project",
+    "tags": [
+      "业界对照",
+      "Async RL"
+    ],
+    "priority": "bonus",
+    "answer": {
+      "key_points": [
+        "AReaL：训练器与 Rollout 集群物理隔离，定时广播轻量权重增量，推理节点用 LRU 缓存保留最近 k 个版本，请求带 policy_id 动态切换。",
+        "Kimi 类自研基础设施：滚动发布，旧节点继续托管旧权重直到长程交互自然结束，新节点承接新会话，靠集群调度物理隔离版本。",
+        "算法端配合 V-trace/IMPALA/CISPO 类重要性采样修正，容忍陈旧策略分布偏差。",
+        "诚实边界：我的场景是双卡极端约束；大厂有专用推理集群，异步化与多版本物理隔离是成熟且必选的标准架构。"
+      ]
+    },
+    "related_ids": [
+      "proj-d2-merged-serial-adr",
+      "proj-c07-async-lease-staleness"
+    ]
+  },
+  {
+    "id": "proj-d2-08-adapter-code-status",
+    "question": "PipelineTrainer 异步适配你做到什么程度？",
+    "category": "project",
+    "tags": [
+      "工程交付",
+      "Async RL"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "适配代码完整开发并通过单测：独立训练器入口 train_grpo_pipeline.py 封装 PipelineTrainConfig。",
+        "越界安全拦截：强制校验 max_steps_off_policy ≤ 1、KL 惩罚系数大于 0 且来源为 sample，缺配直接抛断言异常。",
+        "把方差感知采样器封装为异步流式数据生成器对接消费。",
+        "细粒度策略漂移遥测（logprob 差值、比值统计、approx_kl）已合入主工程，配端到端单测。",
+        "简历口径严格是「适配、评估、因机制冲突主动放弃」，不说「没做完」。"
+      ]
+    },
+    "related_ids": [
+      "proj-d2-merged-serial-adr",
+      "proj-c07-async-lease-staleness"
+    ]
+  },
+  {
+    "id": "proj-d3-orchestrator-worker-dispatch",
+    "question": "多 Agent 编排为什么否定自由 handoff，确立 Orchestrator-Worker 加分派工具化？",
+    "category": "project",
+    "tags": [
+      "多智能体",
+      "架构决策"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "任务分派与上下文隔离是多 Agent 系统的共性难题：自由转交会导致调用黑盒化、上下文互相污染、交互心智失控、无法追踪定责。",
+        "我们否定无中心自由 handoff 与黑盒调度，确立 Orchestrator 为唯一面向用户的主控。",
+        "把子任务分派封装为 Orchestrator 的结构化工具调用（delegate_and_wait、delegate_in_background、redirect 等），委派变成受控 Function Calling。",
+        "以 CompiledGraph 显式图编排替代 deepagents 原生 tasks 机制，确立一成员一持久线程、3 槽位事务准入与软超时契约。",
+        "该设计定型为平台多智能体演进标准方案（Master PRD 与 6 项 ADR 归档），实现跨 Agent 交互的确定性追踪与上下文物理隔离。"
+      ],
+      "pitfalls": [
+        "成熟度红线：Agent Teams 是 design_complete 未实施，动词只用「设计/确立」，不说已上线。"
+      ]
+    },
+    "follow_ups": [
+      "任务分派与上下文隔离为什么是共性难题？",
+      "为什么否定无中心自由 handoff？",
+      "分派工具化是什么意思？",
+      "CompiledGraph 替代 deepagents tasks 具体替代了什么？",
+      "确定性追踪与隔离怎么体现？",
+      "实施到什么程度？",
+      "和你的专利「动态拓扑自调节」矛盾吗？",
+      "和业界方案怎么对照？"
+    ],
+    "related_ids": [
+      "proj-d3-01-dispatch-isolation-problem",
+      "proj-d3-02-reject-free-handoff",
+      "proj-d3-03-dispatch-as-tools",
+      "proj-d3-04-compiledgraph-replaces-tasks",
+      "proj-d3-05-tracing-and-isolation",
+      "proj-d3-06-design-complete-status",
+      "proj-d3-07-patent-vs-architecture",
+      "proj-d3-08-industry-multiagent-comparison",
+      "proj-c14-orchestrator-dispatch-tools",
+      "proj-m-09-skill-agent-architecture"
+    ]
+  },
+  {
+    "id": "proj-d3-01-dispatch-isolation-problem",
+    "question": "任务分派与上下文隔离为什么是多 Agent 的共性难题？",
+    "category": "project",
+    "tags": [
+      "多智能体",
+      "上下文管理"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "上下文污染穿透：子 Agent 产生的几百行中间日志和原始表格直接合回主线程，几轮就撑爆主模型上下文并稀释注意力。",
+        "心智分裂：多个子 Agent 争抢向用户提问，交互界面完全失序。",
+        "并发失控：无节制的任务派发打穿后台沙箱资源。",
+        "缺乏确定性追踪标识：内存态派发在节点重启后直接丢失，无法溯源与断点恢复。"
+      ],
+      "elaboration": "走查：子 Agent 跑 3 次 SQL 抓 500 行明细加 120 行过程日志，不过滤塞回主图后，主会话上下文两轮从 2k 涨到 45k token，总结开始张冠李戴。"
+    },
+    "related_ids": [
+      "proj-d3-orchestrator-worker-dispatch",
+      "proj-c14-orchestrator-dispatch-tools",
+      "proj-c16-context-compression-truncation"
+    ]
+  },
+  {
+    "id": "proj-d3-02-reject-free-handoff",
+    "question": "为什么否定无中心自由 handoff 和黑盒调度？",
+    "category": "project",
+    "tags": [
+      "多智能体",
+      "架构决策"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "自由 handoff 是不可预测的动态拓扑：模型边界判断脆弱时形成相互交接死循环，token 爆炸不收敛。",
+        "用户不知道当前在跟谁说话，出现责任黑盒。",
+        "确立 Orchestrator-Only 心智：全局只有 Orchestrator 直接面向用户并对最终产出负全责。",
+        "物理权限剥离：Worker 在能力层被剔除 ask_user 工具，需要人类确认的诉求必须结构化汇报给 Orchestrator 统一发起，行为可预测、可审计。"
+      ],
+      "elaboration": "走查：公积金断缴封存提取咨询里，缴存与提取两个 Agent 自由 handoff 来回踢皮球 4 轮、消耗上万 token 后超时；集中编排下 Orchestrator 拆成先查封存状态再校验资格的有序步骤，无死循环。"
+    },
+    "related_ids": [
+      "proj-d3-orchestrator-worker-dispatch",
+      "proj-c14-orchestrator-dispatch-tools"
+    ]
+  },
+  {
+    "id": "proj-d3-03-dispatch-as-tools",
+    "question": "分派工具化是什么意思？工具列表有哪些？",
+    "category": "project",
+    "tags": [
+      "多智能体",
+      "工具设计"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "把跨 Agent 委派降维封装为主 Agent 提示词里的常规结构化工具，纳入大模型动作空间，而不是不可控的控制权跳跃。",
+        "同步委派 delegate_and_wait：启动 5 分钟软等待窗口，用于主回复强依赖子结果的场景。",
+        "后台委派 delegate_in_background：立即返回带 assignment_id 的回执，主回复可先行输出阶段性反馈。",
+        "运行时管控：send_follow_up 追加指令、interrupt_and_redirect 清队列改目标、cancel_team_work 显式终止、list_team_tasks/check_team_task 主动轮询。",
+        "每次调用在图状态中产生标准 ToolCall 与 ToolMessage 记录，天然具备完备可观测性。"
+      ]
+    },
+    "related_ids": [
+      "proj-d3-orchestrator-worker-dispatch",
+      "proj-c14-orchestrator-dispatch-tools"
+    ]
+  },
+  {
+    "id": "proj-d3-04-compiledgraph-replaces-tasks",
+    "question": "CompiledGraph 显式编排替代 deepagents tasks，具体替代了什么？",
+    "category": "project",
+    "tags": [
+      "LangGraph",
+      "deepagents",
+      "多智能体"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "线程生命周期：原生每次委派都 threads.create() 新建临时线程，同一成员被分裂出多个线程、沙箱文件无法跨步骤复用；改为 team_thread_id + member_agent_id 绑定的一成员一持久线程。",
+        "并发准入：原生无会话级并发限制，改为调度器在事务内硬限 3 个活跃槽位，超限任务进持久 FIFO 队列。",
+        "工具抽象层级：原生直接暴露 start/check/update_async_task 强绑底层 task_id，封装为面向协作隐喻的业务委派工具。",
+        "事件隔离：原生缺乏子 Agent 归属流，自研 Team Event 桥接输出主流、状态流、详情流三层解耦。"
+      ],
+      "pitfalls": [
+        "出处是 deepagents 0.6.12 的 middleware/async_subagents.py 源码剖析，别泛泛说「框架不好」。"
+      ]
+    },
+    "related_ids": [
+      "proj-d3-orchestrator-worker-dispatch",
+      "proj-c14-orchestrator-dispatch-tools"
+    ]
+  },
+  {
+    "id": "proj-d3-05-tracing-and-isolation",
+    "question": "确定性追踪与上下文隔离具体怎么体现？",
+    "category": "project",
+    "tags": [
+      "多智能体",
+      "可观测性"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "三层全链路标识：team_thread_id（会话）、member_agent_id（成员）、assignment_id（任务），日志、沙箱与事件流全部绑定该元数据。",
+        "状态物理隔离：每个成员在独立 Checkpoint 命名空间执行，任务结束只向 Orchestrator 返回 result_summary 与必要文件 URI。",
+        "Worker 模式物理剔除 ask_user 工具，杜绝越权向用户插话。",
+        "三层事件解耦：主流只推 Orchestrator 回复，状态流低频推槽位状态，详情流由前端按需订阅只读细节，杜绝跨 Agent 事件穿透。"
+      ]
+    },
+    "related_ids": [
+      "proj-d3-orchestrator-worker-dispatch",
+      "proj-c14-orchestrator-dispatch-tools",
+      "proj-c12-agui-event-stream"
+    ]
+  },
+  {
+    "id": "proj-d3-06-design-complete-status",
+    "question": "Agent Teams 这套多智能体设计实施到什么程度？",
+    "category": "project",
+    "tags": [
+      "成熟度口径",
+      "多智能体"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "口径是严格的 design_complete：设计完成态，未在运行时实施、未上线。",
+        "已产出完整 Master PRD、6 项正式 ADR（0001 最新有效配置动态解析、0002 一成员一持久线程、0003 历史会话跟随最新定义、0004 三槽位持久准入、0005 三层事件解耦、0006 长任务沙箱复用）。",
+        "白板演进代码通过了架构推演验收，但 develop 主线代码仓库尚未合入运行时调度器代码。",
+        "面试动词严格限定「主导设计/确立/规划」，绝不说已上线或已带来性能提升。"
+      ],
+      "pitfalls": [
+        "被问线上并发规模时立即坦诚设计完成态，主动引导到 ADR 的具体技术权衡展开。"
+      ]
+    },
+    "related_ids": [
+      "proj-d3-orchestrator-worker-dispatch",
+      "proj-c14-orchestrator-dispatch-tools"
+    ]
+  },
+  {
+    "id": "proj-d3-07-patent-vs-architecture",
+    "question": "这项多 Agent 架构和你的专利「动态拓扑自调节」矛盾吗？",
+    "category": "project",
+    "tags": [
+      "专利",
+      "多智能体",
+      "口径"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "两条完全独立的技术线，各讲各的，不做生硬联系。",
+        "专利 CN121561033B 面向开放多轮对话：按用户意图分布动态调节 Agent 间拓扑边权重，属前沿探索性设计。",
+        "平台决策卡面向企业严肃长任务：动态自组织拓扑意味着不可控的调度黑盒，因此反其道确立集中式刚性编排。",
+        "两者体现的是按业务约束选取针对性架构的工程成熟度，不是观点摇摆。"
+      ]
+    },
+    "related_ids": [
+      "proj-d3-orchestrator-worker-dispatch",
+      "proj-m-13-patent-dynamic-topology"
+    ]
+  },
+  {
+    "id": "proj-d3-08-industry-multiagent-comparison",
+    "question": "和 OpenAI Agents SDK handoff、AutoGen、Claude subagents 相比，你的方案处在什么位置？",
+    "category": "project",
+    "tags": [
+      "业界对照",
+      "多智能体"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "两大流派：对等 Handoff（OpenAI Swarm/Agents SDK，transfer_to_agent 控制权彻底移交，灵活但易失控）与 Subagent-as-Tool（Claude subagents 及本方案，主控牢牢掌握对话主线）。",
+        "AutoGen 的 GroupChat 每次发言所有 Agent 都拉全量历史，token 消耗剧烈且推理波动时易发言抢占混乱。",
+        "对等 handoff 移交后原始上下文被割裂，多轮转交后调用栈变深，容易丢失初始用户目标。",
+        "集中主控天然支持 HITL：只有一个节点面对用户，确认与授权逻辑完全内聚。",
+        "企业严肃场景下 Subagent-as-Tool 有压倒性的可控性与工程鲁棒性优势。"
+      ]
+    },
+    "related_ids": [
+      "proj-d3-orchestrator-worker-dispatch",
+      "proj-c14-orchestrator-dispatch-tools"
+    ]
+  },
+  {
+    "id": "proj-d7-subgraph-as-tool",
+    "question": "subagent 该当工具还是当 worker？讲一下 Subgraph-as-Tool 那次架构决策。",
+    "category": "project",
+    "tags": [
+      "LangGraph",
+      "架构决策",
+      "子图"
+    ],
+    "priority": "common",
+    "hint": "先讲共性岔路，再讲官方路线的具体破坏点，最后讲自研中间件。",
+    "answer": {
+      "key_points": [
+        "共性岔路：把已有业务子图（ChatBI、可视化、研报）挂到长任务主智能体时，子图当独立 worker 还是当可组合工具，是平台架构的分水岭。",
+        "官方 CompiledSubAgent 路线把输入改写为单条 HumanMessage，子图入口丢失 tool_calls 结构化参数，直接崩溃。",
+        "推翻该路线：否定修改第三方框架，也否定把全部子图改造成双轨入口。",
+        "确立 Subgraph-as-Tool：自研 SubgraphToolMiddleware 拦截入口工具，隔离执行 CompiledStateGraph，并用 Command(update) 回写领域字段。",
+        "子图契约与第三方包均保持原样，源码与全套单测已合入版本库，实现状态边界的精确隔离。"
+      ]
+    },
+    "follow_ups": [
+      "subagent 当工具和当 worker 的本质区别？",
+      "为什么推翻 CompiledSubAgent 路线？",
+      "SubgraphToolMiddleware 怎么实现？",
+      "状态边界不互染怎么保证？"
+    ],
+    "related_ids": [
+      "proj-d7-01-tool-vs-worker",
+      "proj-d7-02-compiledsubagent-flattening",
+      "proj-d7-03-subgraph-tool-middleware",
+      "proj-d7-04-state-isolation-whitelist",
+      "proj-c15-subgraph-tool-middleware"
+    ]
+  },
+  {
+    "id": "proj-d7-01-tool-vs-worker",
+    "question": "subagent 当工具和当 worker 的本质区别是什么？",
+    "category": "project",
+    "tags": [
+      "子图",
+      "架构设计"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "当 worker：独立生命周期的异步实体，有自己的线程与运行环境，适合耗时长、需要多轮交互的开放性任务。",
+        "当工具：主 Agent 执行流里的同步计算单元，直接消费结构化返回值，适合输入输出契约明确、高确定性的专业状态机（一次 SQL 查询、一张图表）。",
+        "worker 模式回传复杂表格数据会退化为不精确的自然语言摘要，丢失结构化 Data Envelope。",
+        "工具模式通过标准 ToolMessage 与 State 变更注入高精度数据结构，主模型心智里只是调用了一个强力原子能力。"
+      ],
+      "elaboration": "走查：年度分析报告任务里查「2025 年郑东新区按月提取总额与人数分布」，当 worker 挂载只能拿回一段文字摘要，画图得靠模型编数字；当工具挂载则通过 Command(update) 把二维表格直接注入 data_envelope，下一步无缝画图。"
+    },
+    "related_ids": [
+      "proj-d7-subgraph-as-tool",
+      "proj-c15-subgraph-tool-middleware"
+    ]
+  },
+  {
+    "id": "proj-d7-02-compiledsubagent-flattening",
+    "question": "为什么推翻官方 CompiledSubAgent 路线？",
+    "category": "project",
+    "tags": [
+      "deepagents",
+      "踩坑"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "机制死穴：框架 SubAgentMiddleware 在拉起子图前强制执行消息扁平化 subagent_input = {messages: [HumanMessage(content=str(task_input))]}。",
+        "ChatBI 等子图入口节点严格强类型，必须从 messages[-1].tool_calls[0].args 读取结构化参数（查询字段、时间范围、表白名单）。",
+        "被改写后入口抛 AttributeError（HumanMessage 无 tool_calls 属性）或参数缺失反序列化异常，子图启动当场崩溃。",
+        "否定魔改第三方源码（升级包袱与依赖锁定风险），否定全量子图双轨改造（回归风险大），选择在工具拦截层于框架外部解决。"
+      ]
+    },
+    "related_ids": [
+      "proj-d7-subgraph-as-tool",
+      "proj-c15-subgraph-tool-middleware"
+    ]
+  },
+  {
+    "id": "proj-d7-03-subgraph-tool-middleware",
+    "question": "SubgraphToolMiddleware 具体怎么实现？",
+    "category": "project",
+    "tags": [
+      "LangGraph",
+      "中间件"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "纯 Schema 注册：子图以符合 JSON Schema 的空函数注册进主模型工具列表，模型生成带 id 与参数的标准 tool_call。",
+        "wrap_tool_call 拦截：命中子图入口工具即阻断默认沙箱派发，提取参数构造子图专属的局部 State。",
+        "隔离执行：await subgraph.ainvoke(local_state, config=child_config)，在独立异步任务中运行编译图。",
+        "Command(update) 原子回写：data_envelope、visualization_result 等领域字段与配对 tool_call_id 的 ToolMessage 一次性写回主图。",
+        "第三方框架感知不到子图存在，子图入口契约与框架包完好无损。"
+      ]
+    },
+    "related_ids": [
+      "proj-d7-subgraph-as-tool",
+      "proj-c15-subgraph-tool-middleware"
+    ]
+  },
+  {
+    "id": "proj-d7-04-state-isolation-whitelist",
+    "question": "子图与主图的状态边界不互染怎么保证？",
+    "category": "project",
+    "tags": [
+      "状态隔离",
+      "LangGraph"
+    ],
+    "priority": "bonus",
+    "answer": {
+      "key_points": [
+        "输入投影：按子图 InputState 定义做白名单投影，只注入必要查询参数与运行时上下文；主图上百条历史消息与沙箱句柄不透传，子图无权修改主图变量。",
+        "回写白名单：只允许回写经过声明的领域字段（如 data_envelope）与标准 ToolMessage。",
+        "子图内部 SQL 生成、验证重试产生的十余条中间消息被物理丢弃，绝不进主图上下文。",
+        "全套逻辑有单测覆盖正常回写、异常中断与状态污染断言。"
+      ]
+    },
+    "related_ids": [
+      "proj-d7-subgraph-as-tool",
+      "proj-c15-subgraph-tool-middleware"
+    ]
+  },
+  {
+    "id": "proj-m-01-four-years-llm-experience",
+    "question": "顶栏写的「4年+ 大模型算法与 Agent 工程」是怎么算的？",
+    "category": "project",
+    "tags": [
+      "顶栏",
+      "经历口径"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "从 2022 年 7 月入职小冰做虚拟人对话系统与 RLHF 对齐起算。",
+        "完整走过三个阶段：小冰的单基座世界观注入、对抗样本构造与 RLHF 人设对齐；数字郑州初期的开源大模型私有化部署与企业级 Agent 平台运行时；再到主导任务型 Agentic RL 后训练全链路。",
+        "2022 年底就落地了基于 Bradley-Terry 偏好模型的 Reward Model 训练与 PPO 强化学习对齐，对 Reward Hacking、策略漂移、KL 散度约束有第一手直觉。"
+      ],
+      "pitfalls": [
+        "被质疑「2022 年算大模型后训练吗」：当时用百亿参数基座做剧本无监督续写与指令微调，且已落地 RM 训练加 PPO 对齐。"
+      ]
+    },
+    "related_ids": [
+      "proj-m-06-career-mainline",
+      "proj-c20-rlhf-bt-ppo-four-models"
+    ]
+  },
+  {
+    "id": "proj-m-02-six-zero-to-one-systems",
+    "question": "「6 个 0→1 大模型系统落地」是哪六个？怎么判定独立系统？",
+    "category": "project",
+    "tags": [
+      "顶栏",
+      "系统清单"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "判定口径是系统≠项目：独立系统必须具备独立的业务调用入口、独立的状态机或数据链路、独立的业务验收与交付边界。",
+        "①任务型 Agent 后训练系统：程序化沙箱、双角色 Teacher 合成、分层验证漏斗、冻结 Simulator 与长程 GRPO 闭环，以 84.4% 严格成功率独立验收。",
+        "②企业级 Agent 平台运行时：双执行路径、AG-UI 协议与 HITL 机制，供全公司多业务线接入。",
+        "③ChatBI 数据分析系统（平台孵化）：NL2SQL 重构为 ReAct Agent Loop，驱动政务大屏可视化分析；④多模态文档 RAG 检索系统：独立页图像特征库与 MaxSim 重排接口。",
+        "⑤开源 LLM 私有化推理体系：vLLM/SGLang 覆盖英伟达与昇腾双硬件，提供 OpenAI 兼容网关；⑥小冰游戏 NPC 人格化对话系统：单卡承载十余位在线 NPC。"
+      ],
+      "pitfalls": [
+        "平台孵化的独立上线系统计入系统数，不是文字游戏——每个都有独立入口与验收边界。"
+      ]
+    },
+    "related_ids": [
+      "proj-m-03-strict-success-30pp"
+    ]
+  },
+  {
+    "id": "proj-m-03-strict-success-30pp",
+    "question": "顶栏的 54.3%→84.4% 是什么口径？96 题测试集是 held-out 吗？",
+    "category": "project",
+    "tags": [
+      "数字口径",
+      "评测",
+      "红线"
+    ],
+    "priority": "must",
+    "hint": "先报数字与口径，再主动澄清测试集性质。",
+    "answer": {
+      "key_points": [
+        "覆盖 12 个业务空间格的 96 题分层测试集上，任务型 Agent 严格成功率（Strict Success）从 SFT 基线 54.3%（417/768）提升到 84.4%（648/768），净增 30.1 个百分点。",
+        "54.3% 是已经充分微调的高质量 SFT 基线，不是未训练的基座模型。",
+        "绝对红线：96 题是从 dev 集按业务场景与终局动作分层抽取的训练监控面板，与训练集 family 隔离，但训练中用于周期性 Checkpoint 评测与方向监控，永远不称 held-out。",
+        "千题规模最终 holdout 执行器已建好但未执行，泛化性不说「已验证」，只说监控面板上稳定提升、最终泛化评测未执行。",
+        "Strict Success 三重一票否决：数据库终态严格一致、终局动作三值匹配（Finish / FinishWithRefusal / Escalate）、硬约束零违规。"
+      ],
+      "pitfalls": [
+        "每题 K=8 采样、双臂同窗口 fresh 对比，共 768 条轨迹——别把轨迹数说成题数。"
+      ]
+    },
+    "related_ids": [
+      "proj-d1-05-fwr-metric-scope",
+      "proj-c01-reward-terminal-gating"
+    ]
+  },
+  {
+    "id": "proj-m-04-two-granted-patents",
+    "question": "顶栏写 2 项授权专利，副标写 3 项，什么关系？",
+    "category": "project",
+    "tags": [
+      "专利",
+      "口径"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "顶栏只放已获法律确权的授权发明专利（B 号）：CN121561033B（第一发明人，动态拓扑自调节多智能体）与 CN119250033B（独立发明人，MOPAR 多智能体文本生成协同）。",
+        "副标完整披露发明布局：第一发明人 3 项 = 2 项授权 + 1 项实质审查中（CN118733612A，自然语言生成图表，A 号）。",
+        "另有跨团队合作署名 5 项发明专利。",
+        "严格遵守专利法审查状态口径：实审中的 A 号绝不包装成授权专利。"
+      ]
+    },
+    "related_ids": [
+      "proj-m-13-patent-dynamic-topology",
+      "proj-m-14-patent-mopar",
+      "proj-m-15-patent-nl2chart",
+      "proj-m-17-collaborative-patents"
+    ]
+  },
+  {
+    "id": "proj-m-05-background-intro",
+    "question": "用两句话介绍你的背景（学校、公司、角色）。",
+    "category": "project",
+    "tags": [
+      "简介",
+      "自我介绍"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "北航 NLP 方向硕士，现任数字郑州科技有限公司高级算法工程师。",
+        "数字郑州是阿里巴巴与郑州市政府合资企业，融合阿里技术中台与政务民生数字化真实场景。",
+        "我主导两条业务主线：算法深水区的任务型 Agent 后训练全链路（SFT 数据合成 → 质量管控 → GRPO 强化学习），与工程架构的企业级 Agent 平台运行时（双执行路径、协议解耦、插件体系）。"
+      ]
+    },
+    "related_ids": [
+      "proj-m-06-career-mainline"
+    ]
+  },
+  {
+    "id": "proj-m-06-career-mainline",
+    "question": "你的职业主线「对话系统 → Agent 平台 → Agentic RL 后训练」是怎么演进的？",
+    "category": "project",
+    "tags": [
+      "职业主线",
+      "自我介绍"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "小冰期（2022.07~2023.07）：深耕多轮对话、世界观注入、对抗样本构建与 RLHF 对齐，积累对大模型生成不确定性与偏好学习的直觉。",
+        "Agent 平台期（数字郑州前期）：落地中发现单纯对话解决不了复杂业务，必须构建工具调用、沙箱环境、状态管理与流式协议，主导设计 Agent 平台运行时。",
+        "Agentic RL 后训练期（至今）：认识到 Prompt 工程与外围规则脚手架有天花板，长程任务成功率由模型本体与环境交互的决策策略决定，走向以 GRPO 为核心的后训练全链路。"
+      ],
+      "pitfalls": [
+        "被问「为什么很多团队停在平台工程」：外围工程能解决约 60% 的流程路由与工具封装，但 10 轮以上多步骤交互必须靠强化学习优化模型本体。"
+      ]
+    },
+    "related_ids": [
+      "proj-m-05-background-intro",
+      "proj-m-01-four-years-llm-experience"
+    ]
+  },
+  {
+    "id": "proj-m-07-skill-post-training",
+    "question": "技能行「大模型后训练」这一排关键词分别在哪里用的、能深挖什么？",
+    "category": "project",
+    "tags": [
+      "技能",
+      "后训练"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "SFT：P1 数据合成与策略初始化（Qwen3-4B）加小冰剧本世界观注入；深挖点是模仿学习的指令迎合偏好（Sycophancy）使违规诉求丧失拒绝能力，要补针对性拒办样本并控 epoch 防过拟合。",
+        "LoRA：训练框架载体加单基座替代多 LoRA 热切换；深挖 W' = W + (α/r)BA、Merged 与动态加载的吞吐权衡、vLLM Triton kernel 性能悬崖排查。",
+        "RLHF：小冰人设对齐；深挖 Bradley-Terry 损失 −log σ(r_w − r_l) 与 Policy/Ref/RM/Value 四模型显存编排及 KL 惩罚调优。",
+        "GRPO：P1 核心范式，指组内相对优势估计（去 Critic、A_i = (R_i − R̄)/σ、零方差组过滤）；CISPO：实际生效的 token-level policy loss（ART 默认），截断比值但不截断梯度方向。",
+        "Async RL：评估 PipelineTrainer（k=1），发现 Merged 机制冲突后确立 Strict 串行；PyTorch 深挖 token-level 损失分母地板；DeepSpeed 深挖 ZeRO-1/2/3 切分；LLaMA-Factory 用于 SFT 基准快速复现；OpenPipe ART 是 RL 训练底座。"
+      ],
+      "pitfalls": [
+        "GRPO vs CISPO 分层是口径红线：GRPO 说的是组内相对优势估计范式，实际 policy loss 是 token-level CISPO，被问 loss 要主动分层讲清。"
+      ]
+    },
+    "related_ids": [
+      "proj-c19-lora-forward-merge",
+      "proj-c20-rlhf-bt-ppo-four-models",
+      "proj-c22-deepspeed-zero-sharding",
+      "proj-m-08-skill-training-and-eval"
+    ]
+  },
+  {
+    "id": "proj-m-08-skill-training-and-eval",
+    "question": "技能行「训练系统与评测」这一排在项目里怎么落地的？",
+    "category": "project",
+    "tags": [
+      "技能",
+      "训练系统",
+      "评测"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "Reward 设计：针对无写库任务同分博弈设计乘法门控（状态分 × TerminalScore），拒绝给拒办加分，转人工加分移出总目标。",
+        "Rollout 加速：定位 Triton LoRA kernel 性能悬崖后改 Merged serving，吞吐从约 250 tok/s 恢复约 6 倍到约 1500 tok/s。",
+        "Simulator：RL 阶段冻结使用，角色反转（Role-Reversal）数据转换、多轮历史掩码只对用户发言算 loss，严防环境系统提示词泄漏（保真审计实测 0 泄漏）。",
+        "轨迹合成与分层验证：双角色 Teacher 驱动，三层过滤漏斗——格式语法校验 → 业务合法性校验 → 沙箱 Golden State 模拟执行验证。",
+        "训推一致性：自研 token-diff 校验器，排查 Jinja 聊天模板、Special Token 注入与尾部换行引发的概率分布偏移。"
+      ]
+    },
+    "related_ids": [
+      "proj-d1-reward-terminal-gating",
+      "proj-c08-token-diff-gate",
+      "proj-c09-sandbox-golden-diff",
+      "proj-c10-nli-per-message-max",
+      "proj-c25-variance-sampler",
+      "proj-c27-simulator-role-merge"
+    ]
+  },
+  {
+    "id": "proj-m-09-skill-agent-architecture",
+    "question": "技能行「Agent 系统架构」这一排的关键词怎么讲？",
+    "category": "project",
+    "tags": [
+      "技能",
+      "Agent 架构"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "LangGraph：短任务动态图执行面，StateGraph 编译、Command(resume/update) 实现 HITL 暂停恢复与子图白名单字段回写。",
+        "deepagents：长任务执行面底座；否定其临时新建线程与暴露底层 task_id 的黑盒机制，封装持久 Teammate 线程与三槽位调度。",
+        "MCP：JSON Schema 动态反序列化为 Pydantic 校验模型，参数日志脱敏与长连接生命周期防护。",
+        "AG-UI：消费 astream_events 统一映射为标准事件流中间件，对工具调用与中间推理做事件降噪与前端安全阻断。",
+        "沙箱生命周期：预热池、租约超时自动清理、产物持久化到对象存储、崩溃后按需重建；上下文压缩：Token 预算阈值触发截断加关键摘要，保护 ToolCall 配对完整。",
+        "多智能体编排：否定无中心自由 handoff，确立 Orchestrator-Worker 与分派工具化（Agent Teams 为 design_complete 未实施）。"
+      ]
+    },
+    "related_ids": [
+      "proj-d3-orchestrator-worker-dispatch",
+      "proj-c11-react-agent-loop",
+      "proj-c12-agui-event-stream",
+      "proj-c13-hitl-interrupt-resume",
+      "proj-c14-orchestrator-dispatch-tools",
+      "proj-c16-context-compression-truncation"
+    ]
+  },
+  {
+    "id": "proj-m-10-skill-serving-and-ascend",
+    "question": "技能行「推理部署与国产化」这一排怎么讲？",
+    "category": "project",
+    "tags": [
+      "技能",
+      "推理部署",
+      "昇腾"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "vLLM：P1 Rollout 采样与 P3 私有化部署引擎，深挖 PagedAttention 消除显存碎片、连续批处理调度、Block Table 逻辑到物理块的按需映射。",
+        "SGLang：面向复杂长前缀多轮对话与结构化约束输出，深挖 RadixAttention 树状前缀缓存复用对延迟的压缩。",
+        "GPTQ：二阶 Hessian 逆矩阵的 OBQ 误差补偿、逐列量化 W4A16；AWQ：激活感知保护前 1% 显著权重通道，大幅降低工具调用 JSON 格式崩溃率。",
+        "NVIDIA GPU：FlashAttention-2/3 集成、张量并行跨卡切分、KV Cache 显存容量的严谨推算。",
+        "昇腾 910B：基于 CANN 栈与 vllm-ascend/MindIE 做算子兼容性验证与量化格式适配；边界诚实——是框架适配调优，不是自研算子。"
+      ]
+    },
+    "related_ids": [
+      "proj-c23-pagedattention-continuous-batching",
+      "proj-c24-gptq-awq-quantization"
+    ]
+  },
+  {
+    "id": "proj-m-11-skill-retrieval-and-nl2sql",
+    "question": "技能行「检索与问答」这一排怎么讲？",
+    "category": "project",
+    "tags": [
+      "技能",
+      "检索",
+      "NL2SQL"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "Agentic RAG：检索动作下放为 Agent 可动态调用的工具，支持自主重写查询、多步检索、事实性自检与知识库多轮协同。",
+        "ColPali：晚期交互（Late-Interaction）与 MaxSim（Σ_i max_j q_i·d_j），直接基于视觉 patch 多向量检索，绕开传统 OCR 级联误差累积。",
+        "向量+BM25 混合检索：稠密向量管语义泛化召回，稀疏 BM25 保证政策专有名词与编号绝对命中，RRF（k=60）做无量纲融合。",
+        "NL2SQL（M-Schema）：半结构化 M-Schema 表达规范，单技能 3~4 张表场景下全量内联进提示词，彻底消除动态选表模块的错误级联。"
+      ]
+    },
+    "related_ids": [
+      "proj-c17-maxsim-late-interaction",
+      "proj-c18-rrf-fusion"
+    ]
+  },
+  {
+    "id": "proj-m-12-skill-engineering",
+    "question": "技能行「工程与 AI 研发」这一排怎么讲？",
+    "category": "project",
+    "tags": [
+      "技能",
+      "工程"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "Python：asyncio 高并发事件循环、生成器流式响应、GIL 机制下多进程隔离、Pydantic 严格元编程。",
+        "FastAPI：ASGI 高性能异步请求处理、SSE 流式协议封装、全局异常守卫。",
+        "Redis：TTL 会话临时状态隔离与持久化同步，分布式锁控制智能体并发槽位准入。",
+        "Docker：cgroups 资源配额（CPU/内存/GPU）、非 root 安全沙箱构建与文件挂载隔离防逃逸。",
+        "Coding Agent 辅助研发：人类架构师设计接口与断言（TDD）→ Coding Agent 补全实现 → 自动化测试与人工双重审查的安全协作工作流。"
+      ]
+    },
+    "related_ids": [
+      "proj-m-07-skill-post-training"
+    ]
+  },
+  {
+    "id": "proj-m-13-patent-dynamic-topology",
+    "question": "介绍一下你的授权专利「基于动态拓扑的自调节对话式多智能体系统」。",
+    "category": "project",
+    "tags": [
+      "专利",
+      "多智能体"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "CN121561033B，已授权，第一发明人，申请人数字郑州科技。",
+        "解决固定星型拓扑的痛点：领域智能体向用户补充关键信息时必须绕回缺乏子任务上下文的调度器，补充参数易被误判为新意图，引发对话焦点漂移。",
+        "核心机制：领域智能体内置元认知监测，实时融合多维认知负载计算认知不确定性指数 CCI；超标时向拓扑控制模块发协助信号，通信拓扑从星型临时切换为用户与该智能体的点对点直连，子任务完成后自动恢复星型。",
+        "配套分布式语义知识图谱，在所有智能体间实时共享、关联并持久化多轮会话中的结构化业务实体，打破知识孤岛。",
+        "与简历项目的口径：两条独立线——平台面向严谨交付确立固定 Orchestrator-Worker，专利是面向更自治对话系统的前沿探索，不强行呼应。"
+      ]
+    },
+    "follow_ups": [
+      "拓扑频繁切换会不会震荡或死锁？",
+      "点对点模式下用户突然换话题怎么办？",
+      "共享知识图谱高并发下会不会成瓶颈？"
+    ],
+    "related_ids": [
+      "proj-m-13-deep-topology-switch-mechanism",
+      "proj-m-13-deep-defense-and-project-line",
+      "proj-d3-07-patent-vs-architecture"
+    ]
+  },
+  {
+    "id": "proj-m-13-deep-topology-switch-mechanism",
+    "question": "专利里拓扑切换的触发与恢复机制怎么防震荡和死锁？",
+    "category": "project",
+    "tags": [
+      "专利",
+      "拓扑控制"
+    ],
+    "priority": "bonus",
+    "answer": {
+      "key_points": [
+        "触发准则是多维 CCI 而非单一模型自评置信度：融合信息熵缺失度、逻辑闭环冲突、外部系统断言失败与历史连续失败次数，因为大模型自评置信度不可靠（过度自信）。",
+        "迟滞判定与单任务租约：进入点对点模式后拓扑锁定至少一个完整子任务状态机周期，任务图谱流转到终态且逻辑冲突消除后才平滑恢复星型。",
+        "设置硬性轮数兜底，杜绝无限震荡。",
+        "话题边界拦截：点对点中用户输入被判定完全脱离当前任务图谱定义时，领域智能体主动发强制退出信号，立即恢复星型调度并转交中心分发。"
+      ]
+    },
+    "related_ids": [
+      "proj-m-13-patent-dynamic-topology"
+    ]
+  },
+  {
+    "id": "proj-m-13-deep-defense-and-project-line",
+    "question": "这个专利的共享知识图谱怎么设计？为什么平台项目不采用动态拓扑？",
+    "category": "project",
+    "tags": [
+      "专利",
+      "口径防守"
+    ],
+    "priority": "bonus",
+    "answer": {
+      "key_points": [
+        "知识图谱分层架构：单次交互中智能体只对当前会话命名空间做内存级高频读写，跨智能体共享仅在拓扑切换或状态节点迁移时同步，不影响单步生成实时性。",
+        "平台项目面向企业级生产交付，首要目标是执行路径的确定性与绝对可审计性。",
+        "拓扑自调节会放大分布式调试与事务状态追踪的复杂度，所以平台层禁止自由 handoff、确立固定 Orchestrator-Worker 编排。",
+        "被问与项目矛盾时的标准回答：两者业务约束与工程阶段完全不同，不仅不矛盾，还是互为补充的深层探索。"
+      ]
+    },
+    "related_ids": [
+      "proj-m-13-patent-dynamic-topology",
+      "proj-d3-07-patent-vs-architecture"
+    ]
+  },
+  {
+    "id": "proj-m-14-patent-mopar",
+    "question": "介绍一下你的授权专利 MOPAR 多智能体文本生成协同机制。",
+    "category": "project",
+    "tags": [
+      "专利",
+      "多智能体",
+      "文本生成"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "CN119250033B，已授权，独立发明人（单独署名）。",
+        "针对传统方案依赖微调、单智能体写作视角单一、初稿直出无自省的问题，提出 Match-Outline-Perspective-Action-Reflect 五阶段协同机制。",
+        "Action 拆为检索、总结、生成三个独立智能体：总结智能体作为信息瓶颈层做降噪与跨视角融合，防检索噪声带偏生成（Lost in the Middle）。",
+        "反思智能体依托结构化检查清单（大纲覆盖率、事实冲突校验、篇幅符合度）审查，不达标时按根因多级定向回灌到对应阶段智能体，而不是盲目整篇重写。",
+        "演进脉络：MOPAR 验证的专业分工、工具化分派与显式流程编排思想，后来抽象进通用 Agent 平台 Harness 底座；两者保持独立叙事。"
+      ]
+    },
+    "follow_ups": [
+      "为什么把执行阶段拆成三个智能体？",
+      "反思回灌怎么定向？",
+      "延迟和 token 成本怎么控？",
+      "和单模型 Prompt 角色扮演本质区别？"
+    ],
+    "related_ids": [
+      "proj-m-14-deep-action-split-and-reflect",
+      "proj-m-14-deep-cost-and-boundary"
+    ]
+  },
+  {
+    "id": "proj-m-14-deep-action-split-and-reflect",
+    "question": "MOPAR 为什么把执行阶段拆成三个智能体、反思怎么做定向回灌？",
+    "category": "project",
+    "tags": [
+      "专利",
+      "反思机制"
+    ],
+    "priority": "bonus",
+    "answer": {
+      "key_points": [
+        "单模型一次性吸收检索结果再写长文容易被文档噪声带偏（Lost in the Middle），拆出总结智能体保证生成拿到结构化、高密度的干净输入。",
+        "反思先诊断根因：结构失调回退大纲层、论述单一回退视角层、缺事实支撑回退检索层、仅措辞问题只回生成层。",
+        "多轮微小改动不再提升总分时自适应退出，返回当前最高分版本，避免死循环修改。"
+      ]
+    },
+    "related_ids": [
+      "proj-m-14-patent-mopar"
+    ]
+  },
+  {
+    "id": "proj-m-14-deep-cost-and-boundary",
+    "question": "MOPAR 多智能体串行的延迟成本怎么控制？和单模型 Prompt 角色扮演的本质区别在哪？",
+    "category": "project",
+    "tags": [
+      "专利",
+      "成本",
+      "边界"
+    ],
+    "priority": "bonus",
+    "answer": {
+      "key_points": [
+        "Action 阶段不同大纲章节的检索与总结并发执行；反思通过判定设收敛阈值，最大迭代硬顶 2 轮，成本处于企业级交付可接受范围。",
+        "与单模型 Prompt 角色扮演的本质区别：物理隔离的独立系统提示词、独立输入输出数据流、独立外部工具权限（可调独立搜索引擎），加上反思驱动的有向图回流重试。",
+        "单模型内多角色存在注意力互相污染与上下文窗口快速饱和的问题，工程深度无法等同。"
+      ]
+    },
+    "related_ids": [
+      "proj-m-14-patent-mopar"
+    ]
+  },
+  {
+    "id": "proj-m-15-patent-nl2chart",
+    "question": "介绍一下你实审中的专利「自然语言生成图表」。",
+    "category": "project",
+    "tags": [
+      "专利",
+      "NL2SQL",
+      "可视化"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "CN118733612A，实质审查中（不是授权，也不是「受理中」），第一发明人。",
+        "解决直接生成动态 SQL 的注入、越权与慢查询风险：大模型只充当参数抽取器，不编写任何 SQL。",
+        "语义向量在向量数据库中检索预定义图表函数元数据，取数逻辑封闭在经审计的受控代码或预设视图内。",
+        "四阶段渐进式推理拆解认知负载：维度与指标 → 筛选条件 → 排序与数量限制 → 图表展示样式，最终参数化渲染。"
+      ]
+    },
+    "follow_ups": [
+      "向量召回错了图表函数怎么办？",
+      "四阶段串行延迟高吗？",
+      "和简历里的 ChatBI 什么关系？"
+    ],
+    "related_ids": [
+      "proj-m-15-deep-four-stage-inference",
+      "proj-m-15-deep-security-and-chatbi-line"
+    ]
+  },
+  {
+    "id": "proj-m-15-deep-four-stage-inference",
+    "question": "四阶段渐进式推理为什么比单次 Prompt 生成完整参数好？",
+    "category": "project",
+    "tags": [
+      "专利",
+      "提示词设计"
+    ],
+    "priority": "bonus",
+    "answer": {
+      "key_points": [
+        "单次 Prompt 要同时理解数据维度、过滤条件、聚合排序与展示样式，认知负载高，字段漏填与格式错乱率高。",
+        "四阶段链式：先推维度与指标字段值，再基于前序结果推筛选条件，再推排序方式与数量限制，最后推图表样式。",
+        "每阶段上下文极简（仅元数据字段名与极少轮次），单阶段输出仅几个 token，四次轻量调用在现代推理引擎下总耗时通常 1 秒以内，稳定性高于一次复杂大 Prompt 失败后的重试。"
+      ]
+    },
+    "related_ids": [
+      "proj-m-15-patent-nl2chart"
+    ]
+  },
+  {
+    "id": "proj-m-15-deep-security-and-chatbi-line",
+    "question": "这个专利的安全设计怎么落地？和简历里的 ChatBI 是什么关系？",
+    "category": "project",
+    "tags": [
+      "专利",
+      "安全",
+      "ChatBI"
+    ],
+    "priority": "bonus",
+    "answer": {
+      "key_points": [
+        "Top-1 向量相似度低于阈值时不强行执行，降级为结构化追问或推荐 Top-3 让用户确认；元数据含必填参数断言，后续推理匹配不上触发优雅回退。",
+        "专利（2024.07 申请）面向固定业务报表与大屏高频统计场景：零 SQL 注入风险的参数化模板路线。",
+        "ChatBI 面向更开放的探索式即席分析，走 ReAct Agent Loop 加 M-Schema 内联路线。",
+        "可视化展示环节继承专利「参数规范化、数据与展示解耦」的思想：图表渲染隔离为输出 AntV G2 Spec 的专门子图，双通道分流保障稳定。"
+      ],
+      "pitfalls": [
+        "专利与项目独立叙事：一个探索参数化函数模板与语义路由，一个是不同场景下的深化实践，别混为一谈。"
+      ]
+    },
+    "related_ids": [
+      "proj-m-15-patent-nl2chart"
+    ]
+  },
+  {
+    "id": "proj-m-16-nlpcc-2021-paper",
+    "question": "介绍一下你的 NLPCC 2021 一作论文。",
+    "category": "project",
+    "tags": [
+      "论文",
+      "NLP"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "题目 Syntax and Coherence: The Effect on Automatic Argument Quality Assessment，NLPCC 2021（CCF-C 推荐会议），第一作者，硕士在读期间发表。",
+        "任务是论证质量自动评估（Argument Quality Assessment）：给定辩题与论证文本，判定说服力与逻辑严密性。",
+        "核心方法：依存句法树提取句法复杂度特征（树深度、依存弧距离等），配合语篇实体网格与句间转移矩阵建模连贯性，与预训练模型表示做特征融合。",
+        "核心洞察：表层流畅度与内在逻辑连贯性是两码事——这条理念延续到后来的结构化工具约束与状态比对 Reward 设计。"
+      ],
+      "pitfalls": [
+        "SOTA 表述与具体基准名称属凭记忆口径，面试前重读原文确认后再报。"
+      ]
+    },
+    "related_ids": [
+      "proj-m-18-education"
+    ]
+  },
+  {
+    "id": "proj-m-17-collaborative-patents",
+    "question": "合作署名 5 项专利是什么情况？",
+    "category": "project",
+    "tags": [
+      "专利",
+      "合作"
+    ],
+    "priority": "bonus",
+    "answer": {
+      "key_points": [
+        "与多模态感知、语音交互及政务数字化兄弟算法团队合作署名 5 项发明专利。",
+        "方向覆盖语音情感识别、多模态政务咨询分析等。",
+        "个人主要参与跨模态接口设计、Prompt 调优与业务逻辑方案评审。",
+        "简历不枚举这些名称，把版面留给两条主导技术主线。"
+      ]
+    },
+    "related_ids": [
+      "proj-m-04-two-granted-patents"
+    ]
+  },
+  {
+    "id": "proj-m-18-education",
+    "question": "教育背景与硕士课题，和现在做的工作相关吗？",
+    "category": "project",
+    "tags": [
+      "教育",
+      "自我介绍"
+    ],
+    "priority": "bonus",
+    "answer": {
+      "key_points": [
+        "成都理工大学计算机科学与技术本科，专业排名前 10%（2015~2019），扎实的数据结构、操作系统与系统编程功底。",
+        "北京航空航天大学计算机技术硕士，NLP 方向（2019~2022），在校期间 NLPCC 2021 一作。",
+        "硕士研究论证质量评估，本质是探索语言模型对长文本逻辑、因果连贯性与质量边界的判别。",
+        "与现在的关联：为理解大模型上下文注意力机制、构造对抗样本与设计 Reward 奖励函数打下理论底座。"
+      ]
+    },
+    "related_ids": [
+      "proj-m-16-nlpcc-2021-paper"
+    ]
+  },
+  {
+    "id": "proj-c11-react-agent-loop",
+    "question": "手写一个 ReAct Agent Loop 主循环，你怎么设计？",
+    "category": "project",
+    "tags": [
+      "ReAct",
+      "Agent Loop",
+      "白板"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "每轮把系统提示、历史消息与工具 Schema 发给模型；返回含 tool_calls 即进入工具执行分支，否则输出最终回复退出循环。",
+        "工具执行结果按 tool_call_id 配对包装成 ToolMessage 追加回消息列表，配对不完整则下一轮请求非法。",
+        "状态放在循环外层的图状态里累积，不散落在局部变量，便于 Checkpoint 与恢复。",
+        "设最大轮数与终止条件双保险，防止模型陷入工具调用死循环。"
+      ],
+      "elaboration": "白板实现见 code/04_agent_loop_agui_hitl.py 的 run_react_agent_loop。"
+    },
+    "related_ids": [
+      "proj-m-09-skill-agent-architecture"
+    ]
+  },
+  {
+    "id": "proj-c12-agui-event-stream",
+    "question": "AG-UI 事件流处理怎么实现？怎么做到事件降噪与异常补发？",
+    "category": "project",
+    "tags": [
+      "AG-UI",
+      "流式协议",
+      "白板"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "消费 LangGraph 的 astream_events，把内部事件统一映射为标准事件流中间件再下发前端。",
+        "事件降噪：工具调用与中间推理按策略过滤或聚合，避免底层噪声直接刷屏。",
+        "前端安全阻断：不允许透传会破坏前端契约的事件类型。",
+        "异常补发：连接中断后按事件序列补发缺失状态，保证前端状态机一致。"
+      ],
+      "elaboration": "白板实现见 code/04_agent_loop_agui_hitl.py 的 process_agui_event_stream。"
+    },
+    "related_ids": [
+      "proj-m-09-skill-agent-architecture",
+      "proj-d3-05-tracing-and-isolation"
+    ]
+  },
+  {
+    "id": "proj-c14-orchestrator-dispatch-tools",
+    "question": "手写 Orchestrator 分派工具与调度器，核心结构是什么？",
+    "category": "project",
+    "tags": [
+      "多智能体",
+      "调度",
+      "白板"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "分派工具集：delegate_and_wait 同步等待、delegate_in_background 立即返回 assignment_id、send_follow_up 追加指令、cancel_team_work 显式终止。",
+        "一成员一持久线程：team_thread_id + member_agent_id 联合键懒加载建线程，跨步骤复用上下文与沙箱。",
+        "3 槽位准入：调度器在事务内硬限活跃槽位数，超限任务进持久 FIFO 队列，槽位释放时唤醒。",
+        "5 分钟软超时不判失败：只触发提醒或跟进指令，任务状态仍由成员自己推进。"
+      ],
+      "elaboration": "白板实现见 code/05_orchestrator_subgraph.py 的 delegate_and_wait / TeamAssignmentScheduler，含线程复用、槽位 FIFO 与软超时三个自测。"
+    },
+    "related_ids": [
+      "proj-d3-orchestrator-worker-dispatch",
+      "proj-d3-03-dispatch-as-tools",
+      "proj-d3-04-compiledgraph-replaces-tasks",
+      "proj-d3-06-design-complete-status",
+      "proj-m-09-skill-agent-architecture"
+    ]
+  },
+  {
+    "id": "proj-c16-context-compression-truncation",
+    "question": "上下文压缩的触发与安全截断边界怎么设计？",
+    "category": "project",
+    "tags": [
+      "上下文管理",
+      "白板"
+    ],
+    "priority": "bonus",
+    "answer": {
+      "key_points": [
+        "Token 预算达到阈值（如 70%）且轮数超标时触发自动截断加关键摘要生成。",
+        "截断必须保护 ToolCall 与 ToolMessage 的配对完整性：不能截掉调用留着空结果，否则下一轮请求非法。",
+        "被截段落先生成关键事实摘要回注，避免长程状态丢失。"
+      ],
+      "elaboration": "白板实现见 code/04_agent_loop_agui_hitl.py 的 truncate_and_summarize_context。"
+    },
+    "related_ids": [
+      "proj-d3-01-dispatch-isolation-problem",
+      "proj-m-09-skill-agent-architecture"
+    ]
+  },
+  {
+    "id": "proj-c17-maxsim-late-interaction",
+    "question": "手写 MaxSim 晚期交互打分，它为什么绕得开 OCR？",
+    "category": "project",
+    "tags": [
+      "ColPali",
+      "检索",
+      "白板"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "文档侧每个视觉 patch 一个多向量，查询侧每个 token 一个向量；得分 = Σ_i max_j q_i·d_j，逐查询向量取与文档向量的最大内积再求和。",
+        "晚期交互：query 与 doc 向量各自独立编码，匹配推迟到查询时进行，文档向量可离线预计算。",
+        "直接对页图像 patch 建多向量索引，版式、表格、印章等视觉信息原样保留，不需要 OCR 文本化，绕开级联误差累积。",
+        "两阶段检索：粗筛（轻量单向量）缩小候选，再 MaxSim 精排，控制多向量匹配的计算量。"
+      ],
+      "elaboration": "白板实现见 code/06_retrieval_maxsim_rrf.py 的 maxsim_score 与 two_stage_retrieval，含单调性与两阶段自测。"
+    },
+    "related_ids": [
+      "proj-m-11-skill-retrieval-and-nl2sql"
+    ]
+  },
+  {
+    "id": "proj-c18-rrf-fusion",
+    "question": "RRF 融合为什么用倒数排名而不是归一化分数相加？",
+    "category": "project",
+    "tags": [
+      "混合检索",
+      "白板"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "公式 score(d) = Σ 1/(k + rank_i)，k 常取 60，只用排名不用原始分。",
+        "稠密向量与 BM25 的分数量纲完全不同，直接归一化相加会被某一分布主导；排名天然无量纲。",
+        "倒数排名对头部结果敏感、对长尾宽容，单路异常排名的破坏被 1/(k+rank) 压平。",
+        "工程角色：BM25 保政策专有名词与编号绝对命中，向量补语义泛化召回，RRF 合并两路。"
+      ],
+      "elaboration": "白板实现见 code/06_retrieval_maxsim_rrf.py 的 reciprocal_rank_fusion。"
+    },
+    "related_ids": [
+      "proj-m-11-skill-retrieval-and-nl2sql",
+      "proj-c17-maxsim-late-interaction"
+    ]
+  },
+  {
+    "id": "proj-c19-lora-forward-merge",
+    "question": "手写 LoRA 前向与权重合并，Merged 模式和动态加载差在哪？",
+    "category": "project",
+    "tags": [
+      "LoRA",
+      "白板"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "前向 h = W_0x + (α/r)·B(Ax)：A 先降维到 r，B 再升维回去，旁路两跳小矩阵乘。",
+        "初始化：A 高斯（或小随机）、B 严格全零，保证训练初始步 ΔW = 0、基座先验零扰动。",
+        "参数量 = r×(d_in+d_out)×目标模块数×层数；典型只挂 q/v 投影，占比不到 1%。",
+        "merge_weights 把 (α/r)·B@A 加进 W_0，部署推理零额外延迟；unmerge 还原冻结权重可继续训练。",
+        "高频追问：为什么 B 零初始化、r 与 α 怎么选、合并后能否再拆、与 QLoRA 的差别。"
+      ],
+      "code": [
+        {
+          "label": "LoRA 线性层",
+          "language": "python",
+          "code": "class LoRALinear:\n    def __init__(self, in_features, out_features, rank=4, alpha=16.0):\n        self.scaling = alpha / rank\n        # 冻结基座 W_0\n        self.weight = [[0.05 * (i + j) for j in range(in_features)] for i in range(out_features)]\n        self.frozen = [row[:] for row in self.weight]\n        # A 小随机/高斯初始化, B 严格全零: 训练初始步 delta W = 0\n        self.lora_A = [[(k + 1) * 0.01 for _ in range(in_features)] for k in range(rank)]\n        self.lora_B = [[0.0] * rank for _ in range(out_features)]\n        self.merged = False\n\n    def forward(self, x):\n        h = [sum(w * xj for w, xj in zip(row, x)) for row in self.weight]      # W_0 x\n        if not self.merged:\n            ax = [sum(a * xj for a, xj in zip(row, x)) for row in self.lora_A]  # 降维到 r\n            d = [sum(b * aj for b, aj in zip(row, ax)) for row in self.lora_B]  # B(Ax) 升维\n            h = [hi + self.scaling * di for hi, di in zip(h, d)]\n        return h\n\n    def merge_weights(self):\n        # 部署期 W = W_0 + (alpha/r) * B @ A, 推理零额外延迟\n        for i in range(len(self.weight)):\n            for j in range(len(self.weight[0])):\n                self.weight[i][j] += self.scaling * sum(\n                    self.lora_B[i][k] * self.lora_A[k][j] for k in range(len(self.lora_A)))\n        self.merged = True",
+          "note": "完整实现与合并/解合并自测见 code/07_lora_rlhf_zero.py。"
+        }
+      ]
+    },
+    "related_ids": [
+      "proj-d2-merged-serial-adr",
+      "proj-d2-03-merged-throughput-swap",
+      "proj-m-07-skill-post-training"
+    ]
+  },
+  {
+    "id": "proj-c20-rlhf-bt-ppo-four-models",
+    "question": "RLHF 的 Bradley-Terry 奖励模型损失和 PPO 四模型协同怎么讲？",
+    "category": "project",
+    "tags": [
+      "RLHF",
+      "PPO",
+      "白板"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "BT 假设偏好概率 p(w≻l) = σ(r_w − r_l)，RM 损失 = −log σ(r_w − r_l)，只学相对分不学绝对分。",
+        "PPO 阶段四模型：Policy 训练、Reference 冻结算 KL、RM 打分、Value 估优势，四模型显存编排是核心工程约束。",
+        "KL 惩罚把策略拉回参考分布附近，防止 reward 模型被过度利用。"
+      ],
+      "elaboration": "白板实现见 code/07_lora_rlhf_zero.py 的 bradley_terry_rm_loss 与 rlhf_ppo_step_simulation。"
+    },
+    "related_ids": [
+      "proj-m-07-skill-post-training",
+      "proj-m-01-four-years-llm-experience"
+    ]
+  },
+  {
+    "id": "proj-c22-deepspeed-zero-sharding",
+    "question": "DeepSpeed ZeRO-1/2/3 各切分什么？怎么估显存？",
+    "category": "project",
+    "tags": [
+      "DeepSpeed",
+      "分布式训练",
+      "白板"
+    ],
+    "priority": "bonus",
+    "answer": {
+      "key_points": [
+        "ZeRO-1 切优化器状态，ZeRO-2 加切梯度，ZeRO-3 再切模型参数，三者显存占用逐级下降。",
+        "代价是通信量逐级上升：ZeRO-3 在前向与反向都要做参数聚合通信。",
+        "同模型同卡数下显存估算随 ZeRO 级别单调递减，是白板验证的核心断言。",
+        "CPU Offload 在小显存环境能省显存，但受 PCIe 带宽拖累，是吞吐换显存的权衡。"
+      ],
+      "elaboration": "白板实现见 code/07_lora_rlhf_zero.py 的 estimate_zero_memory。"
+    },
+    "related_ids": [
+      "proj-m-07-skill-post-training"
+    ]
+  },
+  {
+    "id": "proj-c23-pagedattention-continuous-batching",
+    "question": "手写 PagedAttention 的 Block Table 与连续批处理调度器。",
+    "category": "project",
+    "tags": [
+      "vLLM",
+      "推理优化",
+      "白板"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "KV Cache 按固定大小 block 分页，Block Table 维护逻辑块到物理块的按需映射，消除按最大长度预分配的显存碎片。",
+        "前缀共享：相同前缀的序列映射同一物理块，引用计数管理，写时复制（CoW）隔离各自续写。",
+        "连续批处理：Prefill 与 Decode 混排调度，新请求随到随入队，不必等整批完成。",
+        "显存不足时按优先级抢占回收块，被抢占请求重新排队而非失败。"
+      ],
+      "elaboration": "白板实现见 code/08_serving_paged_quant.py 的 PagedAttentionManager 与 ContinuousBatchingScheduler，含 CoW 与抢占自测。"
+    },
+    "related_ids": [
+      "proj-m-10-skill-serving-and-ascend"
+    ]
+  },
+  {
+    "id": "proj-c24-gptq-awq-quantization",
+    "question": "GPTQ 和 AWQ 的量化原理区别是什么？为什么 AWQ 更保工具调用？",
+    "category": "project",
+    "tags": [
+      "量化",
+      "白板"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "GPTQ：逐列量化取残差 err = w − ŵ，按 (err/[H⁻¹]_jj)·[H⁻¹][j, k+1:] 补偿传播给所有未量化列。",
+        "AWQ：激活绝对值均值定通道重要度；等价变换 Y=(W·s)(X/s) 恒等，对放大后的权重列量化、量化结果除回 s。",
+        "AWQ 的重构误差按激活幅值平方加权，显著通道的保护力度自动更大。",
+        "高频追问：校准集构成与语言覆盖、group size、W4A16 的 Marlin kernel、什么场景选哪个。"
+      ],
+      "code": [
+        {
+          "label": "GPTQ + AWQ 核心",
+          "language": "python",
+          "code": "def gptq_quantize_layer(weights, h_inv, bits=4):\n    # 逐列量化, 残差按逆 Hessian 补偿传播给未量化列\n    W = [row[:] for row in weights]\n    for j in range(len(W[0])):\n        h_jj = h_inv[j][j]\n        col_max = max(abs(W[i][j]) for i in range(len(W)))\n        scale = max(col_max / (2 ** (bits - 1) - 1), 1e-6)\n        for i in range(len(W)):\n            w, w_hat = W[i][j], round(W[i][j] / scale) * scale\n            W[i][j] = w_hat\n            err = w - w_hat                          # 本列量化残差\n            for k in range(j + 1, len(W[0])):\n                W[i][k] -= (err / h_jj) * h_inv[j][k]  # 补偿传播\n    return W\n\n\ndef awq_search_scale(weights, activation_x, grid=(0.6, 0.8, 1.0, 1.2, 1.4)):\n    # 显著通道 = 激活幅值大的通道; 等价缩放 Y=(W*s)(X/s) 恒等, 量化后再除回 s\n    in_dim, out_dim = len(weights[0]), len(weights)\n    act = [sum(abs(activation_x[b][j]) for b in range(len(activation_x))) / len(activation_x)\n           for j in range(in_dim)]\n    best_scales = []\n    for j in range(in_dim):\n        best_s, best_err = 1.0, float(\"inf\")\n        for s in grid:\n            col = [weights[i][j] * s for i in range(out_dim)]\n            q_scale = max(max(abs(v) for v in col) / 7.0, 1e-6)   # 4-bit 对称量化 scale\n            # 量化后除回 s 与原权重比误差, 误差按激活幅值平方加权\n            err = sum((weights[i][j] - round(col[i] / q_scale) * q_scale / s) ** 2\n                      for i in range(out_dim)) * act[j] ** 2\n            if err < best_err:\n                best_err, best_s = err, s\n        best_scales.append(best_s)\n    return best_scales",
+          "note": "完整实现含 h_inv 构造与数值细节，见 code/08_serving_paged_quant.py。"
+        }
+      ]
+    },
+    "related_ids": [
+      "proj-m-10-skill-serving-and-ascend"
+    ]
+  },
+  {
+    "id": "proj-p3-01-overview",
+    "question": "传统文档 RAG 的「OCR 误差累积」具体指什么？什么场景下 OCR 路线仍然更好？",
+    "tags": [
+      "多模态检索",
+      "OCR",
+      "项目概述"
+    ],
+    "priority": "must",
+    "hint": "先说级联链路里错误怎么被逐步放大，再说 ColPali 从哪一步把它绕开。",
+    "answer": {
+      "key_points": [
+        "传统链路是「版面分析 → OCR 文字识别 → 文本切块 → Embedding」的级联流程，任一环节的错误都会不可逆地向后放大。",
+        "典型失效有四类：多栏阅读流错乱、表格行列拓扑坍塌成一维文本、图表印章公式等视觉信息被直接抛弃、固定长度切块切碎实体与上下文。",
+        "OCR 路线仍有优势的三种工况：纯文本清晰排版、超大规模海量文档（存储预算受限）、需要字符级精确引用与定位回溯的法定审计场景。",
+        "我的方案是引入 ColPali 把整页 PDF 渲染成图像做端到端视觉检索，从链路上消除这级联误差，并作为通用工具接入 Agent 平台。"
+      ],
+      "elaboration": "一分钟讲法：政务红头文件里双栏被横向拼句、无框线表格行列错位、红章压字出乱码、切块再斩断，最后文本向量检索把目标页沉到几十名开外——这是级联放大的硬断裂；ColPali 直接看整页像素，版面与文字交给同一个模型联合表征，容错率天然更高。追问「换 LayoutLMv3 能否根治」时答：能大幅改善但无法根治，级联系统的本质是前一步的硬分类决策限制了后一步。"
+    },
+    "follow_ups": [
+      "如果版面分析换成 LayoutLMv3 这类更强的模型，能彻底根治表格问题吗？"
+    ],
+    "related_ids": [
+      "proj-p3-01-ocr-cascade-walkthrough",
+      "proj-p3-02-colpali-architecture"
+    ],
+    "category": "project"
+  },
+  {
+    "id": "proj-p3-01-ocr-cascade-walkthrough",
+    "question": "同一份带公章和表格的红头文件，传统 OCR 链路和 ColPali 分别会怎么处理？",
+    "tags": [
+      "多模态检索",
+      "OCR",
+      "案例走查"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "版面分析把左右双栏横向拼成一句话，「政策依据」和「办理流程」语义直接错乱。",
+        "OCR 扫无框线表格丢失坐标拓扑，表头与数值错位串行；红章压字区域被识别成乱码符号。",
+        "512 token 固定切块把表格斩成两半，文本向量检索得分很低，目标页沉底到几十名以后。",
+        "ColPali 不做版面分析也不做文字识别，SigLIP 的 patch 完整保留双栏空白、表格二维网格与公章轮廓。",
+        "Query token 通过 MaxSim 与表格区域 patch 强聚焦对齐，目标页直接 Top-1 命中召回。"
+      ],
+      "elaboration": "走查读数（演示用）：同一查询「租房提取额度」，传统路线文本向量得分约 0.41、目标页排第 40 名以后；ColPali 路线 MaxSim 得分 2.64、Top-1 命中。这个正反对比一笔讲清「级联不可逆损耗」与「端到端像素拓扑」的差别。",
+      "pitfalls": [
+        "别把 ColPali 说成全面碾压：极小字号密集数值表格是它的失效区（见局限卡）；此处只主张复杂版面与扫描件的召回鲁棒性。"
+      ]
+    },
+    "related_ids": [
+      "proj-p3-01-overview",
+      "proj-p3-07-colpali-eval-qualitative"
+    ],
+    "category": "project"
+  },
+  {
+    "id": "proj-p3-02-colpali-architecture",
+    "question": "ColPali 的架构是什么样的？一页文档是怎么变成多向量的？",
+    "tags": [
+      "多模态检索",
+      "ColPali"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "ColPali 把 ColBERT 的 late-interaction 机制拓展到文档图像端：整页 PDF 渲染成图像，彻底绕开 OCR 与切块。",
+        "文档侧：SigLIP 以 14×14 像素窗口切 patch，448×448 输入产生 32×32 = 1024 个视觉 token。",
+        "patch 序列拼接引导前缀后送入 Gemma 语言模型做自注意力融合，再经线性投影层降到 128 维并做 L2 归一化，得到约 1024×128 的文档多向量矩阵。",
+        "查询侧：查询文本经同一个语言模型和同一个投影层产出 token 级多向量序列（几个到 32 个向量）。",
+        "基座是 PaliGemma-3B（SigLIP-So400m 视觉编码器 + Gemma-2B），业界后续有以 Qwen2-VL 为底座的 ColQwen2 变体。",
+        "降到 128 维是存储约束：2048 维 FP16 下单页索引约 4MB，10 万页要 400GB 以上；128 维下单页约 256KB，且论文实验表明 128 维足以保留局部判别力。"
+      ],
+      "elaboration": "五步走查：页渲染 448×448 → SigLIP 切 1024 patch → 拼「Describe the image.」前缀进 Gemma 得 1024×2048 隐层 → 投影到 1024×128 并归一化离线入库 → 查询「租房提取额度」3 个 token 经同层投影出 3×128。",
+      "pitfalls": [
+        "别把「一页一个向量」说出口——ColPali 是一页约 1024 个向量的多向量表示，单向量是 bi-encoder 的做法。"
+      ]
+    },
+    "related_ids": [
+      "proj-p3-03-maxsim-late-interaction",
+      "proj-p3-01-overview"
+    ],
+    "category": "project"
+  },
+  {
+    "id": "proj-p3-03-maxsim-late-interaction",
+    "question": "Late-interaction 的 MaxSim 公式怎么写？和 bi-encoder、cross-encoder 相比处在什么位置？",
+    "tags": [
+      "多模态检索",
+      "ColPali",
+      "MaxSim"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "MaxSim 公式：Score(q, d) = Σ_i max_j (E_q,i · E_d,j)，对每个 query token 在文档全部 patch 中取最高点乘，再对 query 维求和。",
+        "doc 维取 max 的物理意义：页面很大但答案可能只依赖一个表格区域，取均值会被 99% 的无关背景稀释掉那 1% 的高相关 patch。",
+        "query 维取 sum 的物理意义：查询是复合意图，求和要求文档尽可能同时覆盖多个查询概念；取 max 则命中单个词就满分，无法区分单点匹配与全局匹配。",
+        "对比 bi-encoder：消除了整页压成单向量的信息瓶颈；对比 cross-encoder：文档端可离线预索引，在线只算轻量点乘矩阵。",
+        "在线复杂度 O(N_q · N_d · d)，毫秒级矩阵乘，适合中小规模检索或精确重排阶段。"
+      ],
+      "elaboration": "数字演算（演示）：3 个 query token 对 5 个代表性 patch 的点乘矩阵里逐行取最大 0.91 + 0.88 + 0.85 = 2.64；若把整页 patch 均值压成单向量再点乘只有 0.48，局部强信号被平庸背景稀释。",
+      "pitfalls": [
+        "两个向量集合都已 L2 归一化，点乘即余弦相似度；没归一化的话 max 的数值含义会漂。"
+      ]
+    },
+    "related_ids": [
+      "proj-p3-02-colpali-architecture",
+      "proj-c17-maxsim-two-stage-retrieval"
+    ],
+    "category": "project"
+  },
+  {
+    "id": "proj-p3-04-colpali-training-infonce",
+    "question": "ColPali 是怎么训练的？用什么数据和损失？",
+    "tags": [
+      "多模态检索",
+      "对比学习",
+      "InfoNCE"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "训练目标是批内负样本 InfoNCE：拉近查询与正样本页面的 MaxSim 得分，推远与批内其他页面及 hard negative 的得分。",
+        "损失形式是 -log[exp(s(q, d+)/τ) / Σ_j exp(s(q, d_j)/τ)]，温度系数通常取 0.05 到 0.1。",
+        "训练数据是「自然语言 Query → 目标页图像」对，标注不需要文本边界框或 OCR 字符流；ViDoRe 基准覆盖学术论文、财报、政府公报、幻灯片、信息图等 10 类文档。",
+        "参数高效策略：冻结 SigLIP 视觉编码器，只在 Gemma 注意力层注入 LoRA（r=32、α=64），128 维投影层全量更新。",
+        "hard negative 用同一份 PDF 内的邻近页，迫使模型区分同模板但具体文字 patch 不同的页面，避免只学版面捷径。"
+      ],
+      "elaboration": "单步演算（演示）：B=4 时正例 MaxSim 2.64、负例最高 1.45，除以 τ=0.1 后正例指数项占绝对主导，损失接近 0；若同模板 hard negative 涨到 2.50，正例概率骤降到 0.8、损失升到 0.22，回传强梯度更新投影层与 LoRA——这就是对比学习拉开分差的过程。",
+      "pitfalls": [
+        "最难的负样本是版面一模一样、仅数值不同的财报页：靠注意力把权重聚集到具体文字或数值 patch 上来区分，而不是匹配版面大纲。"
+      ]
+    },
+    "related_ids": [
+      "proj-p3-02-colpali-architecture"
+    ],
+    "category": "project"
+  },
+  {
+    "id": "proj-p3-05-colpali-storage-two-stage",
+    "question": "ColPali 每页一千多个向量，索引存储代价怎么办？",
+    "tags": [
+      "多模态检索",
+      "向量检索",
+      "存储优化"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "原始代价：每页 1024 patch × 128 维 × 2 字节（BF16）≈ 256KB，10 万页约 25.6GB；单向量方案只要约 150MB，相差超过 170 倍。",
+        "Token Pooling：2×2 相邻 patch 均值池化把每页 1024 向量压到 256，token 数直降 75%，精度几乎无损——图像空间连续性强，一个字符常横跨多个相邻 patch。",
+        "向量量化：BF16 转 INT8 再减半（单页 32KB），1-bit 二值化可压到单页 4KB 但精度下降明显（nDCG@5 约降到 92%）。",
+        "两阶段检索：离线把每页多向量求均值生成单向量建 HNSW 粗召回 Top-100，在线只对这 100 页加载完整多向量做 MaxSim 精排。",
+        "压缩收益：10 万页从 25.6GB 压到 6.4GB（pooling）再压到 3.2GB（INT8），全量 MaxSim 的在线计算也只发生在候选集内。"
+      ],
+      "elaboration": "追问「均值粗召回会不会漏掉局部强相关页」：理论上存在极端漏召，但 Top-100 的宽松窗口下粗召回 Recall@100 按业界经验能到 96% 以上——局部匹配页的整体语义方向与查询仍保持较高余弦相似度；以极小长尾损失换 90% 以上的延迟与内存节省，是工程折衷不是免费午餐。",
+      "pitfalls": [
+        "两阶段是精度换工程可行性的取舍，别包装成无损优化；漏召长尾由宽松候选窗口兜底。"
+      ]
+    },
+    "related_ids": [
+      "proj-p3-03-maxsim-late-interaction",
+      "proj-c17-maxsim-two-stage-retrieval"
+    ],
+    "category": "project"
+  },
+  {
+    "id": "proj-p3-06-page-image-generation",
+    "question": "检索命中整页图像之后，答案是怎么生成的？",
+    "tags": [
+      "多模态检索",
+      "RAG",
+      "视觉问答"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "主流路径：把命中的 1~3 张页面原图直接送入具备视觉理解能力的大模型（如 Qwen2-VL），看着真实排版提取表格与图表信息并标注证据页码。",
+        "Token 预算：一页文档图约占 800~1400 个 vision token，Top-3 候选页合计约 3000~4200 token，必须做上下文预算保护。",
+        "预算超限时对次级候选页降分辨率，或只裁剪与命中 patch 重合的 ROI 子区域送入生成模型，保住首字延迟。",
+        "兜底路径：生成端是纯文本 LLM，或业务要求逐字精确引用时，只对命中的 1~3 页做轻量 OCR 再拼进 Prompt。",
+        "Prompt 注入视觉引用协议：结论必须标明出自哪一页的哪个表格或条款，前端同步展示页码缩略图供点击回溯。"
+      ],
+      "elaboration": "走查：查询「租房提取额度与材料」，召回 Page 5 提取限额表与 Page 12 办事指南图，两图约 2048 个 vision token 进入 Qwen2-VL，输出「Page 5 表格：单身 1500 元/月、已婚家庭 3000 元/月；Page 12 材料清单：身份证 + 无房证明」。",
+      "pitfalls": [
+        "跨 5 个页面的长程对比会断章取义：对策是「页面窗口滑动」——核心页召回时捆绑物理相邻的前后页作伴随上下文，全书纲领性问题由混合检索里的文本摘要路兜底。"
+      ]
+    },
+    "related_ids": [
+      "proj-p3-02-colpali-architecture",
+      "proj-p3-09-colpali-limitations"
+    ],
+    "category": "project"
+  },
+  {
+    "id": "proj-p3-07-colpali-eval-qualitative",
+    "question": "ColPali 在你们自己的文档上效果怎么验证的？有量化提升数字吗？",
+    "tags": [
+      "多模态检索",
+      "评测方法"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "口径红线：简历与叙述保持纯定性——「免去 OCR 预处理链路」，绝不报没有审计出处的提升百分比。",
+        "验证集：人工精选约 50 份政务复杂版面文档（双栏公文、无框线报表、印章扫描件、流程图），编写约 100 条 Query 并人工标注目标页作 Ground Truth。",
+        "对照设计：对照组是 OCR → 512 token 切块 → BGE 文本向量检索，实验组是页图 → ColPali 多向量 late-interaction 检索。",
+        "指标用 nDCG@5 与 Recall@3 加人工双盲抽检；典型难例的判据是「目标页能否从几十名开外捞回 Top-1」。",
+        "胜出案例集中在印章压字与双栏排版；失效案例是低于 150 DPI 的密集小字表格——patch 下采样导致细小数字边缘模糊。",
+        "对业务方交账的是工程收益：免维护版面分析、OCR、清洗三套微服务；业务最头疼的十大复杂表格难例现场抽检全部定位。"
+      ],
+      "elaboration": "走查案例：某证明文件被红章大面积遮字，对照组 OCR 出乱码、目标页排第 43 名；实验组凭印章视觉拓扑与残余字形 Top-1 命中（演示读数 0.38 vs 2.45）。被追问精确召回率时的降级话术：给方法、给指标定义、给胜出与失效案例特征，不给编造数字。",
+      "pitfalls": [
+        "本项目定位是探索性技术攻关与平台工具补短板，验证重点是链路端到端跑通与工程解耦收益，不是刷榜。"
+      ]
+    },
+    "related_ids": [
+      "proj-p3-01-ocr-cascade-walkthrough"
+    ],
+    "category": "project"
+  },
+  {
+    "id": "proj-p3-08-platform-rrf-integration",
+    "question": "ColPali 是怎么接入 Agent 平台的？和文本 RAG 工具是什么关系？",
+    "tags": [
+      "多模态检索",
+      "RAG",
+      "RRF",
+      "Agent 平台"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "ColPali 封装为平台通用 RAG 工具（search_knowledge_base / create_rag_tool，FACT-TOOL-005），与文本检索是互补并行而非替代。",
+        "双路并发：文本路 ES BM25 + BGE 稠密向量，视觉路 Milvus HNSW 粗召回 + MaxSim 精排，asyncio.gather 真异步并发调度。",
+        "两路分数量纲不同（余弦 0~1，MaxSim 是大于 1 的累加值），用 RRF 排名融合：Score = Σ 1/(k + rank)，k=60。",
+        "RRF 的价值：只要任一路排名靠前就获得无偏加权，文本第 2 + 视觉第 1 的文档可以胜过单边第 1。",
+        "命中页图通过对象存储临时 URL 写入 ToolMessage(artifact=sources)，经 AG-UI 事件流中间件广播，前端侧边栏展开 PDF 原页高清快照实现视觉溯源。"
+      ],
+      "elaboration": "RRF 演算（k=60）：Doc_B 文本第 2、视觉第 1，得分 1/62 + 1/61 ≈ 0.03252；Doc_A 文本第 1、视觉第 3，得分 1/61 + 1/63 ≈ 0.03226——Doc_B 逆袭 Top-1。双路并发不翻倍延迟：文本检索与视觉粗召都是网络 I/O 等待可以重叠，两阶段精排耗时控制在几十毫秒。",
+      "pitfalls": [
+        "讲清融合为什么用 rank 不用 score：两路分数量纲不可直接加权，RRF 无参数、对异构检索稳健。"
+      ]
+    },
+    "related_ids": [
+      "proj-p3-05-colpali-storage-two-stage",
+      "proj-p3-03-maxsim-late-interaction"
+    ],
+    "category": "project"
+  },
+  {
+    "id": "proj-p3-09-colpali-limitations",
+    "question": "ColPali 有哪些局限？中文文档、密集数值表格上表现如何？",
+    "tags": [
+      "多模态检索",
+      "ColPali",
+      "技术局限"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "中文弱势：早期基座 PaliGemma 的中文语料占比低，Gemma tokenizer 把中文词切成多个单字甚至 byte，查询多向量分散、MaxSim 在中文短语上聚焦度差；换 ColQwen2 有本质改善。",
+        "数值精度受限：固定 patch 划分下，6 号小字密集表格的单字符像素极小，一个 patch 挤 2~3 个数字，相似数字（8/3、0/6）在向量层面容易混淆。",
+        "页粒度过粗：召回单位是整页，百页长文档的 vision token 消耗大，且受 Lost in the Middle 注意力衰减影响，跨页逻辑关联难。",
+        "架构对策：密集数值问答分流到 ChatBI 结构化查询（查数据库）或局部高倍放大 OCR，不强行用视觉走到底。",
+        "重选型结论：以文本混合检索（BM25+BGE）为骨架，仅对复杂排版、高图占比、扫描件资产激活 ColQwen2 视觉分支，生成端加动态 ROI 裁剪。"
+      ],
+      "elaboration": "走查：财务问「三季度环比增长多少元」，ColPali 能精准召回第 92 页收支表，但 60 行 15 列的 6 号小字让 VLM 把 1,283,490.52 误读成 1,288,490.52；正确做法是平台意图识别判定为数值精确计算后，路由到 ChatBI 直查数据库——记住「能帮你翻到第 92 页，但 6 号小字对账必须交给结构化工具」。"
+    },
+    "follow_ups": [
+      "既然有这些局限，重来一次你会怎么选型？"
+    ],
+    "related_ids": [
+      "proj-p3-02-colpali-architecture",
+      "proj-p3-06-page-image-generation"
+    ],
+    "category": "project"
+  },
+  {
+    "id": "proj-p3-10-overview",
+    "question": "vLLM 的 PagedAttention 解决什么问题？核心思路一句话是什么？",
+    "tags": [
+      "推理部署",
+      "vLLM",
+      "PagedAttention",
+      "项目概述"
+    ],
+    "priority": "must",
+    "hint": "从 KV Cache 为什么被浪费讲起，再落到操作系统分页这个类比。",
+    "answer": {
+      "key_points": [
+        "解决的是自回归推理中 KV Cache 的显存浪费与碎片：传统系统按 max_seq_len 预分配连续显存，60%~80% 分配了却未使用。",
+        "思路借鉴操作系统虚拟内存分页：KV Cache 切成固定大小的 block（16 或 32 个 token），物理显存无需连续。",
+        "每个序列维护一张 block table，记录逻辑块到离散物理块的映射，生成时按需动态追加物理块。",
+        "显存浪费率压到 4% 以下，省出的显存容纳更多并发 batch，吞吐提升数倍。"
+      ]
+    },
+    "follow_ups": [
+      "block table 在算子层面怎么被消费？",
+      "前缀共享和写时复制是怎么回事？",
+      "Block Size 选 16 还是 32？"
+    ],
+    "related_ids": [
+      "proj-p3-10-paged-attention-mechanism",
+      "proj-c23-paged-attention-block-table"
+    ],
+    "category": "project"
+  },
+  {
+    "id": "proj-p3-10-paged-attention-mechanism",
+    "question": "PagedAttention 的 block table 具体怎么工作？前缀共享和写时复制呢？",
+    "tags": [
+      "推理部署",
+      "vLLM",
+      "PagedAttention"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "消灭三类浪费：单请求内部碎片只剩最后一个未满 block（不到 16 个 token）；全库统一 block 大小、全局空闲列表分配，零外部碎片；公共前缀跨请求共享同一物理块。",
+        "前缀共享用引用计数实现：多个请求的 block table 指向同一物理块，并行采样与系统提示词前缀缓存免费复用。",
+        "写入共享块时触发写时复制（CoW）：拷贝到新块再写、原块引用计数减一，保证各序列 KV 不互相污染。",
+        "算子层改造：定制 kernel 外层按 block table 遍历离散物理块首地址，内层在单个连续 block 内做点乘与 softmax 局部规约，抹平非连续访存对 Tensor Core 效率的影响。"
+      ],
+      "elaboration": "走查（block size=4）：两请求共享 4 token 系统前缀，物理块 #10 引用计数为 2；请求 A 映射 #10+#11（#11 仅 1 token），请求 B 映射 #10+#12+#13——传统连续分配要按 4096 预分配两份，PagedAttention 实际只占 4 个块存 14 个 token。",
+      "pitfalls": [
+        "Block Size 是显存利用率与访存对齐的权衡：16 尾部碎片更小适合短对话，32 契合 warp/Tensor Core 合并访存适合长文本；主流默认 16。"
+      ]
+    },
+    "related_ids": [
+      "proj-p3-10-overview",
+      "proj-c23-paged-attention-block-table",
+      "proj-p3-11-overview"
+    ],
+    "category": "project"
+  },
+  {
+    "id": "proj-p3-11-overview",
+    "question": "连续批处理和静态批处理的区别是什么？prefill 和 decode 的调度冲突怎么解决？",
+    "tags": [
+      "推理部署",
+      "vLLM",
+      "连续批处理",
+      "项目概述"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "静态批处理按请求打包，必须等最慢请求完成才能整体退出，短序列早早结束却只能填 padding 空转，运行中无法插入新请求。",
+        "连续批处理把调度细化到每一步解码迭代：结束的序列立即释放显存退出，等待队列的新请求立即插入，GPU 利用率接近 100%。",
+        "调度冲突的根源：prefill 是 GEMM 计算密集、瓶颈在算力；decode 是 GEMV 访存密集、瓶颈在显存带宽，两者抢占同一块 GPU。",
+        "工程解法是 Chunked Prefill：按单步 token 预算把长 prompt 切块，与当前 decode 批量混排进同一个前向，兼顾 TTFT 与 TPOT。"
+      ]
+    },
+    "follow_ups": [
+      "长 prompt 进场时正在流式吐字的请求会卡吗？",
+      "有没有更彻底的解法？"
+    ],
+    "related_ids": [
+      "proj-p3-11-continuous-batching-chunked-prefill",
+      "proj-c23-paged-attention-block-table"
+    ],
+    "category": "project"
+  },
+  {
+    "id": "proj-p3-11-continuous-batching-chunked-prefill",
+    "question": "讲一下 Chunked Prefill 的调度细节：长 prompt 进场时，正在 decode 的请求会卡吗？",
+    "tags": [
+      "推理部署",
+      "vLLM",
+      "Chunked Prefill"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "调度器维护单步 token 预算（如 max_num_batched_tokens = 2048），长 prompt 被切成多个 chunk 逐步调度。",
+        "每一步先用预算保 decode、再拿剩余额度给 prompt chunk：预算 512、在途 10 个 decode token，则取 502 个 prompt token 混排进同一 batch。",
+        "效果：在途请求吐字节奏稳定在每 token 二十几毫秒、感知不到卡顿；新请求分几步完成 prefill，而不是排队数秒或抢跑卡死别人。",
+        "不做的代价：4096 token 的 prompt 一次性 prefill 会让同卡几十个流式会话停滞数百毫秒，用户肉眼可见打字机卡死。"
+      ],
+      "elaboration": "走查：800 token 的请求 A 进场，第一步 10 个 decode + 500 个 prefill chunk 共 510 token 前向，第二步完成剩余 300 token；若不做 chunked，A 要么插队让 10 个在途会话卡 300ms，要么死等到全部会话结束、TTFT 飙到数秒。",
+      "pitfalls": [
+        "更彻底的方案是 PD 分离架构（Mooncake、Splitwise）：prefill 与 decode 物理分集群，各配算力卡/带宽卡，中间用 RDMA 直传 KV Cache。"
+      ]
+    },
+    "related_ids": [
+      "proj-p3-11-overview",
+      "proj-c23-paged-attention-block-table"
+    ],
+    "category": "project"
+  },
+  {
+    "id": "proj-p3-12-sglang-vs-vllm-selection",
+    "question": "vLLM 和 SGLang 各自优势是什么？为什么两个都用？",
+    "tags": [
+      "推理部署",
+      "vLLM",
+      "SGLang"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "SGLang 的王牌是 RadixAttention：全局基数树维护前缀 KV，任意位置最长前缀匹配，多轮对话与长 System Prompt 的 prefill 耗时接近 0。",
+        "SGLang 原生整合 XGrammar/FSM 约束解码，在 logits 阶段按 JSON Schema 掩掉非法 token，严格结构化输出零回退、零延迟损耗。",
+        "vLLM 的优势是工业生态与异构硬件支持：NVIDIA、昇腾 CANN（官方共建 vllm-ascend）、AMD ROCm，多机多卡私有化交付稳定性高。",
+        "分工：上层 Agent 与 ChatBI 业务接 SGLang 榨前缀复用与 JSON 约束；底层跨硬件交付（尤其昇腾 910B）用 vLLM 做统一标准底座。",
+        "RadixAttention 显存满时按叶子节点最后访问时间 LRU 向下剪枝释放，极致复用与内存安全兼得。"
+      ],
+      "elaboration": "场景对照：ChatBI 五轮连续对账，每轮携带 2500 token 表结构前缀，RadixAttention 命中率 100%、TTFT 从 450ms 降到 15ms，JSON 合规率 100%；而政企指定昇腾机房时，SGLang 当时算子支持还在实验期，vLLM 有官方 vllm-ascend 插件、TP=2 稳定压测数天无故障。",
+      "pitfalls": [
+        "被问 RadixAttention 跨会话泄露：缓存的是无状态 token 序列与物理 KV 块；多租户可显式禁用全局缓存或按命名空间做树隔离。"
+      ]
+    },
+    "related_ids": [
+      "proj-p3-17-openai-standard-serving"
+    ],
+    "category": "project"
+  },
+  {
+    "id": "proj-p3-13-overview",
+    "question": "GPTQ 和 AWQ 都是 W4A16 量化，一句话讲清两者路线差异和选型结论？",
+    "tags": [
+      "推理部署",
+      "模型量化",
+      "GPTQ",
+      "AWQ",
+      "项目概述"
+    ],
+    "priority": "must",
+    "hint": "一个改权重做补偿，一个不改权重做缩放保护——先立住这条主线。",
+    "answer": {
+      "key_points": [
+        "两者都是权重 4-bit、激活保持 16-bit 的训练后量化（PTQ），目标都是压静态显存、提吞吐。",
+        "GPTQ 走二阶误差补偿：用校准集的逆 Hessian 矩阵，在逐列量化时把残差补偿给后序未量化的权重列，最小化输出均方误差。",
+        "AWQ 走激活感知通道缩放：观察到约 1% 的高激活显著通道决定精度，对它们做等价逐通道缩放 W′=WS、X′=S⁻¹X 后再量化。",
+        "选型结论：AWQ 不改写权重相对大小、保留原始拓扑，在指令遵循与 Agent 工具调用上的泛化普遍优于 GPTQ，是我们的首选。"
+      ]
+    },
+    "follow_ups": [
+      "为什么 AWQ 在代码和工具调用场景明显好于 GPTQ？",
+      "两者的数学推导能展开吗？"
+    ],
+    "related_ids": [
+      "proj-p3-13-gptq-awq-mechanism",
+      "proj-c24-gptq-awq-quantization",
+      "proj-p3-14-quant-accuracy-regression"
+    ],
+    "category": "project"
+  },
+  {
+    "id": "proj-p3-13-gptq-awq-mechanism",
+    "question": "GPTQ 的逆 Hessian 补偿和 AWQ 的缩放搜索，数学上具体怎么做？",
+    "tags": [
+      "推理部署",
+      "模型量化",
+      "GPTQ",
+      "AWQ"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "GPTQ 优化目标是 argmin ||WX − ŴX||²，Hessian 取 H = 2XXᵀ + λI；第 q 列量化后按 w_remaining ← w_remaining − (w_q − ŵ_q)/[H⁻¹]_qq · [H⁻¹][:, q] 更新后续列。",
+        "GPTQ 的局限：强行改写了权重的相对大小，校准集上 MSE 极小，但遇到远离校准分布的数据时长尾泛化容易坍塌。",
+        "AWQ 的等价缩放：Y = (WS)(S⁻¹X) 数学上严格恒等，显著通道权重被放大后再量化，相对截断误差大幅下降。",
+        "缩放因子取 S = s_X^α，s_X 是校准激活绝对值均值，在 α ∈ [0,1] 上网格搜索最小化量化输出误差。",
+        "推理 kernel（Marlin FP16×INT4）重新排布权重适配 Tensor Core 访存，decode 小 batch 与 prefill 大 batch 都能到接近 FP16 的 2~3 倍吞吐。"
+      ],
+      "elaboration": "四权重列演算：W=[0.3, 1.7, −0.8, 2.1]，激活均值 s_X=[0.2, 8.5, 0.1, 0.3]，第 2 通道是显著通道。GPTQ 把 w1=0.3 量化成 0 后按 Hessian 把 +0.3 残差补偿给 w2，1.7 被改成 1.55——关键通道响应比例被物理篡改；AWQ 给该通道 scale=2.0，权重放大到 3.4、激活除以 2，量化相对误差从 15% 降到 3% 以内。",
+      "pitfalls": [
+        "Agent 场景的特殊性：JSON 括号、引号等特殊 token 的激活分布极尖，GPTQ 改权重容易伤到控制语法的前馈极值响应，引发格式幻觉——这正是 AWQ 保护的通道。"
+      ]
+    },
+    "related_ids": [
+      "proj-p3-13-overview",
+      "proj-c24-gptq-awq-quantization"
+    ],
+    "category": "project"
+  },
+  {
+    "id": "proj-p3-14-quant-accuracy-regression",
+    "question": "模型量化成 4-bit 之后，精度回归要怎么做？",
+    "tags": [
+      "推理部署",
+      "模型量化",
+      "评测"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "三层回归流程：先看 WikiText-2 等语料的困惑度劣化（相对增幅小于 0.5），再跑 MMLU/GSM8K/HumanEval 保证综合能力保留率 98% 以上。",
+        "最核心的是业务 Agent 专项回归：约 500 条真实业务 Query，专测复杂 JSON 结构化解析成功率、Tool Call 参数准确率与长上下文对齐率。",
+        "校准集避坑：默认英文数据集（Pile/C4）会让中文政务场景断崖掉点；要人工混排 128~256 条含公文、多轮对话、JSON System Prompt、工具调用轨迹的垂直样本，序列长度覆盖 2048 token。",
+        "敏感层保护：embed_tokens、lm_head、首末层保持 FP16，只对中间 MLP 门控与 QKV 投影做 W4，多花不到 5% 显存保住格式合规与长文本对齐。",
+        "线上兜底：Grammar-Guided Decoding 把 JSON Schema 编译成前向 FSM 硬约束解码，从解码逻辑上杜绝少右括号这类静默劣化。"
+      ],
+      "elaboration": "走查示例：7B 全量 W4 后 PPL 5.62→5.88、MMLU 保留 98.6% 都达标，但业务测试里 JSON 末尾丢右大括号、合规率掉到 88%；定位到 embed_tokens 与 lm_head 被过度量化导致边界字符概率畸变，恢复 FP16 后回到 100%。另一条路是把 group size 从 128 降到 64/32，提高缩放系数密度降低截断误差。",
+      "pitfalls": [
+        "量化回归不能只看学术基准——业务测试集上少不少一个大括号才是真金白银。"
+      ]
+    },
+    "follow_ups": [
+      "量化后发现总少输出一个右大括号，不推翻量化怎么救？"
+    ],
+    "related_ids": [
+      "proj-p3-13-overview",
+      "proj-p3-12-sglang-vs-vllm-selection"
+    ],
+    "category": "project"
+  },
+  {
+    "id": "proj-p3-15-ascend-910b-adaptation",
+    "question": "昇腾 910B 的适配具体做了什么？你的边界在哪里？",
+    "tags": [
+      "推理部署",
+      "昇腾",
+      "异构计算"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "诚实边界：做的是服务栈适配、环境部署、量化格式兼容与运行时调优，不写底层 Ascend C 算子/Kernel——高性能算子由华为 CANN 团队与开源社区提供。",
+        "技术栈：CANN + torch_npu + vllm-ascend（或 MindIE）把开源 LLM 落到 910B，向上保持 OpenAI 兼容接口不变。",
+        "坑一：Eager 模式下小算子 CPU 发射与同步开销大、部分算子隐式回退 CPU；开 ACL Graph 图编译启用 RMSNorm/RoPE/QKV 融合算子，并排查所有 .item()/.cpu() 隐式同步点。",
+        "坑二：NVIDIA 的 GPTQ/AWQ kernel 无法直接平移（缺 Triton/CUDA 特权指令）；昇腾 DaVinci 架构 Cube 单元原生偏好 W8A8，用昇腾压缩工具链重新生成量化权重。",
+        "坑三：多卡 TP 下排查 RoCE 网卡绑定与 NUMA 亲和性，避免跨 Socket 传输拉垮 HCCL 通信。",
+        "口径守则：结论只说「双硬件覆盖、平稳支撑业务私有化落地」，不报与英伟达的性能对比倍数。"
+      ],
+      "elaboration": "调优走查：Eager 直接拉起吞吐很差 → msprof 抓到大量小算子间几十微秒的 CPU 调度空隙与 RMSNorm 回退 CPU → 开图编译换融合算子 → 量化转 W8A8、两卡 TP 部署平稳支撑上线（走查中的具体读数为场景示例，不作为一手审计数字报出）。被问 NPU/GPU 精度分叉：固定随机种子，用 MindStudio 精度比对逐层 dump 中间张量算余弦相似度与最大绝对误差，定位到具体算子后把中间累加器强制保持 FP32。"
+    },
+    "related_ids": [
+      "proj-p3-13-overview",
+      "proj-p3-17-openai-standard-serving",
+      "proj-p3-19-p1-vllm-experience-link"
+    ],
+    "category": "project"
+  },
+  {
+    "id": "proj-p3-16-overview",
+    "question": "部署一个 7B 模型，显存和并发容量怎么估？",
+    "tags": [
+      "推理部署",
+      "显存估算",
+      "KV Cache",
+      "项目概述"
+    ],
+    "priority": "must",
+    "hint": "三块显存构成加一个每 token 公式，最后落到并发数的除法。",
+    "answer": {
+      "key_points": [
+        "显存三部分：模型静态权重、运行时框架与激活预留（约 2~4GB）、KV Cache 动态池。",
+        "KV Cache 公式：每 token 字节数 = 2（K 和 V）× 层数 × n_kv_heads × d_head × dtype_bytes。",
+        "7B 典型配置（32 层、GQA 8 个 KV 头、头维 128、BF16）下单 token 128KB。",
+        "GQA 是关键变量：传统 MHA 32 个 KV 头要 512KB/token，GQA 直接砍掉 75% KV 显存，是现代模型扛高并发的架构前提。",
+        "估并发：48GB 卡留 30GB 给 KV 池约容纳 24.5 万 token，按单请求全周期 2000 token 算约 122 路并发。"
+      ]
+    },
+    "follow_ups": [
+      "换成 W4A16 量化，并发能涨多少？",
+      "现场手推一遍这个公式？"
+    ],
+    "related_ids": [
+      "proj-p3-16-kv-cache-estimation"
+    ],
+    "category": "project"
+  },
+  {
+    "id": "proj-p3-16-kv-cache-estimation",
+    "question": "现场手推：7B 模型单 token 的 KV Cache 是多少？一张卡能扛多少并发？",
+    "tags": [
+      "推理部署",
+      "显存估算",
+      "KV Cache"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "单 token：2 × 32 层 × 8 KV 头 × 128 头维 × 2 字节 = 131,072 字节 = 128KB。",
+        "48GB 卡预算：7B BF16 权重约 14.5GB，运行时预留约 3.5GB，剩 30GB 给 KV 池。",
+        "30GB / 128KB ≈ 245,760 个在途 token；单请求全周期 2000 token（1500 入 + 500 出）≈ 122 路并发。",
+        "80GB 卡同法：约 60GB 池 ≈ 49 万 token，单请求 2048 token ≈ 240 路并发。",
+        "W4A16 量化把权重从 14.5GB 压到约 4.5GB，释放 10GB 注入 KV 池（30→40GB），并发约提到 163 路，解码带宽压力也同步下降。"
+      ],
+      "pitfalls": [
+        "公式里最容易被追问的是 n_kv_heads：GQA 下它远小于查询头数（32 个 Q 头只有 8 个 KV 头），这正是 GQA 省显存的位置。",
+        "dtype_bytes 别忘：FP16/BF16 是 2 字节，FP8 是 1 字节——FP8 KV Cache 直接让并发翻倍。"
+      ]
+    },
+    "related_ids": [
+      "proj-p3-16-overview",
+      "proj-p3-10-overview",
+      "proj-p3-18-inference-acceleration-frontiers"
+    ],
+    "category": "project"
+  },
+  {
+    "id": "proj-p3-17-openai-standard-serving",
+    "question": "简历里说的「标准接口」指什么？私有化推理的工程化包含哪些？",
+    "tags": [
+      "推理部署",
+      "服务化",
+      "可观测性"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "标准接口 = OpenAI 规范：/v1/chat/completions、/v1/completions、/v1/models，SSE 流式吐字，上层业务（后训练评估、Agent 平台、ChatBI）零适配切换底层模型。",
+        "工程组件：Docker 容器化打包 CUDA/CANN 与运行时依赖，Nginx/FastAPI 网关做动态模型路由、限流、心跳健康检查与高可用负载均衡。",
+        "限流：Redis 令牌桶做租户级 QPS 与 token 消耗控制，KV Cache 水位逼近阈值时主动排队阻断，防后端 OOM。",
+        "监控四指标：TTFT（首字延迟）、TPOT（步均延迟，通常要求小于 30ms）、吞吐 tokens/s、KV Cache 水位（85% 告警线），外加等待队列长度判过载。",
+        "优雅下线：拦截 SIGTERM，等在途多轮交互生成完成后再释放容器。"
+      ],
+      "elaboration": "一次调用走查：ChatBI 发标准 POST → 网关扣令牌并查水位 → 按负载路由到昇腾实例 → SSE 按 delta 推 token、探针打点 TTFT → 水位达 92% 时触发等待队列防显存崩盘。长短文本混跑的优先级隔离：按 max_tokens 与输入长度画像分流双队列，短交互走高优先级实例池保毫秒级首字，长抽取任务由 Chunked Prefill 平滑分摊。"
+    },
+    "follow_ups": [
+      "多个应用混跑长短文本，网关怎么做优先级隔离？"
+    ],
+    "related_ids": [
+      "proj-p3-15-ascend-910b-adaptation",
+      "proj-p3-12-sglang-vs-vllm-selection"
+    ],
+    "category": "project"
+  },
+  {
+    "id": "proj-p3-18-inference-acceleration-frontiers",
+    "question": "除了 PagedAttention 和量化，还了解哪些推理加速手段？",
+    "tags": [
+      "推理部署",
+      "推测解码",
+      "FP8"
+    ],
+    "priority": "bonus",
+    "answer": {
+      "key_points": [
+        "推测解码：小模型先草拟 K 个候选 token，大模型一次前向并行验证，按拒绝采样依概率接受前 M 个——生成分布数学上严格无损。",
+        "原理是 decode 瓶颈在访存：验证 K 个 token 与生成 1 个的访存几乎相同；政务公文、代码等低熵序列小模型接受率 80~90%，端到端提速 2 倍以上。",
+        "FP8 KV Cache：KV 从 16 位浮点压到 8 位（E4M3），单 token 128KB 降到 64KB，同等显存并发承载翻倍。",
+        "并行策略：机内高带宽走张量并行（TP），跨节点走流水线并行（PP）或数据副本并发。",
+        "Kernel 算子融合与 torch.compile 消除小算子发射开销。"
+      ],
+      "elaboration": "走查：0.5B 草稿模型 15ms 草拟 5 个 token，7B 大模型 25ms 一次前向并行验证（与生成 1 个 token 几乎同价），接受前 4 个——对比逐字生成 4 token 需 100ms，单次命中提速 2.5 倍且分布无损。"
+    },
+    "related_ids": [
+      "proj-p3-16-overview"
+    ],
+    "category": "project"
+  },
+  {
+    "id": "proj-p3-19-p1-vllm-experience-link",
+    "question": "这段部署经历和你项目一里的 vLLM 经验是什么关系？",
+    "tags": [
+      "推理部署",
+      "vLLM",
+      "跨项目连接"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "项目一跑长程强化学习时 Rollout 吞吐是致命瓶颈，最初用动态加载 LoRA 模式，吞吐跌到约 250 tok/s。",
+        "凭借项目三对 vLLM 调度、PagedAttention 与 Triton kernel Profiling 的积累，用 Nsight 轨迹定位到 Triton LoRA 动态算子的非对齐访存悬崖与串行同步，排除了网络与显存假因。",
+        "决策：动态 LoRA 改为全量合并权重的 Merged Serving，吞吐恢复约 6 倍到 1500 tok/s——是悬崖修复恢复吞吐，不是凭空优化。",
+        "连锁反应：Merged 下服务端物理上只有单版本权重，在途多轮异步请求与新版本无法共存（多版本租约 404 死锁），直接促成了放弃 Async RL、确立 Strict 串行的架构决策。"
+      ],
+      "pitfalls": [
+        "被问为什么 Rollout 不用 SGLang：项目一基于 OpenPipe ART，其 Trainer 与 vLLM 的进程级引擎 API 深度绑定，当时 vLLM 的权重实时热替换接口更成熟。"
+      ]
+    },
+    "related_ids": [
+      "proj-p3-15-ascend-910b-adaptation"
+    ],
+    "category": "project"
+  },
+  {
+    "id": "proj-p4-01-overview",
+    "question": "为什么当时不给每个 NPC 挂一个 LoRA，而要做单基座方案？",
+    "tags": [
+      "NPC 对话",
+      "LoRA",
+      "推理架构",
+      "项目概述"
+    ],
+    "priority": "must",
+    "hint": "先给业务约束，再给 2022 年 serving 条件下的物理死穴，最后落到算法替代方案。",
+    "answer": {
+      "key_points": [
+        "业务约束：单张 GPU 稳定承载十余位不同人设的 NPC 在线对话，且角色设定严格一致。",
+        "2022~2023 年初 vLLM 尚未支持 Multi-LoRA，底层缺乏异构批处理算子，多 LoRA 在合批与延迟上存在物理死穴。",
+        "结论：人设一致性不能依赖运行时切权重，改用「离线剧本 post-training 注入世界观 + 线上角色 Prompt 区分人设」的算法方案解决。",
+        "该方案后来平滑迁移到 14B 规模模型，验证了算法路线与参数规模的解耦。"
+      ]
+    },
+    "follow_ups": [
+      "如果只有两三个 NPC，把 LoRA 常驻显存轮流切换不行吗？"
+    ],
+    "related_ids": [
+      "proj-p4-01-multi-lora-hotswap-limits",
+      "proj-c19-lora-forward-merge"
+    ],
+    "category": "project"
+  },
+  {
+    "id": "proj-p4-01-multi-lora-hotswap-limits",
+    "question": "多 LoRA 热切换在 2022 年的 serving 条件下，具体死在哪里？",
+    "tags": [
+      "NPC 对话",
+      "LoRA",
+      "推理架构"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "合批坍塌：标准 GEMM 要求整个 batch 共享同一权重，不同 NPC 的 LoRA 旁路无法在一个 kernel 内并行，只能拆成 batch=1 的串行前向，从 compute-bound 退化为 memory-bound。",
+        "热切换延迟：LoRA 权重按需从主机内存 H2D 拷贝一次 20~50ms，直接击穿流式对话首字延迟的 SLA。",
+        "显存碎片：频繁动态申请释放不同形状的张量，cudaMalloc 产生大量无法连续利用的空洞，运行一段时间后极易碎片化 OOM。",
+        "常驻显存也救不了合批：只要同一时间窗口到达的两个请求分属不同 NPC，底层算子就无法把它们打包成一个 tensor 前向，吞吐照样断崖下跌。"
+      ],
+      "elaboration": "走查：单卡 12 位 NPC，3 位玩家并发找卫兵/法师/铁匠——多 LoRA 热切换要三次 PCIe 拷贝累计约 75ms 纯等待，或拆成 3 个 batch=1 串行推理、算力利用率从 85% 跌破 15%；单基座方案三请求被 Continuous Batching 合并为 batch=3 一次 GEMM 算完，P99 稳定在 300ms 以内、切换次数为 0。"
+    },
+    "related_ids": [
+      "proj-p4-01-overview",
+      "proj-c19-lora-forward-merge",
+      "proj-p4-04-slora-punica-reshoot"
+    ],
+    "category": "project"
+  },
+  {
+    "id": "proj-p4-02-single-base-decoupling",
+    "question": "单基座方案里，世界观和人设是怎么分工的？",
+    "tags": [
+      "NPC 对话",
+      "Prompt",
+      "后训练"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "两段式解耦：离线剧本 post-training 把世界观（地图、派系历史、主线剧情常识）内化进基座权重；线上结构化角色 Prompt 承载身份、口癖、态度与好感度。",
+        "分工依据是信息体量与变化频率：世界观全局共享但体量巨大（全塞 Prompt 要几千 token），人设轻量动态（200~500 token）。",
+        "线上所有 NPC 请求打到同一个常驻基座实例，Continuous Batching 把不同玩家、不同 NPC 的请求混合打包，计算利用最大化。",
+        "反例账本：世界观全塞 Prompt 单请求 2700 token，12 位 NPC 并发把 KV Cache 打满、TTFT 飙到 1.8 秒；解耦后输入降 90% 以上、TTFT 回到 200ms 量级。",
+        "关键剧情事实在线上 Prompt 附带当前场景线索作硬锚点，与权重内化的常识形成双重兜底。"
+      ],
+      "elaboration": "被问「post-training 注入知识会不会记忆不牢」：NPC 对话是开放式沉浸体验，世界观主要用于约束 NPC 不说违背常理的话；微调注入存在参数记忆模糊的概率，所以核心剧情事实用 Prompt 硬锚点二次兜底。",
+      "pitfalls": [
+        "诚实承认 Prompt 方案缺陷：占上下文窗口；现代 Prefix Caching 普及后，共享人设前缀的重复 prefill 计算已被大幅摊薄。"
+      ]
+    },
+    "related_ids": [
+      "proj-p4-01-overview",
+      "proj-p4-05-persona-crosstalk-defense"
+    ],
+    "category": "project"
+  },
+  {
+    "id": "proj-p4-03-overview",
+    "question": "LoRA 的原理一句话讲清？为什么当时用它做剧本 post-training？",
+    "tags": [
+      "NPC 对话",
+      "LoRA",
+      "参数高效微调",
+      "项目概述"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "LoRA 基于低内在秩假设：大模型在特定任务上微调时的参数变化量 ΔW 存在极低的内在维度，可用低秩分解 BA 近似。",
+        "冻结基座 W_0，只训两个小矩阵 A（r×d_in）与 B（d_out×r），前向 h = W_0x + (α/r)·B(Ax)。",
+        "可训练参数只占全量约 0.1%（14B 模型 r=16 只挂 q/v 投影约 13M 参数），单卡即可训练。",
+        "部署时可把 ΔW 折叠进 W_0 离线合并，推理零额外时延。"
+      ]
+    },
+    "follow_ups": [
+      "B 为什么要零初始化？",
+      "参数量怎么现场估？",
+      "和 QLoRA 差在哪？"
+    ],
+    "related_ids": [
+      "proj-p4-03-lora-math-params",
+      "proj-c19-lora-forward-merge"
+    ],
+    "category": "project"
+  },
+  {
+    "id": "proj-p4-03-lora-math-params",
+    "question": "LoRA 的初始化为什么 A 随机、B 全零？参数量怎么估？和 QLoRA 差在哪？",
+    "tags": [
+      "NPC 对话",
+      "LoRA",
+      "参数高效微调"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "B 全零保证初始 ΔW = (α/r)BA = 0，训练从预训练先验零扰动起步；A 高斯初始化提供非零梯度打破对称性。",
+        "两个都零会陷入对称鞍点死区；两个都随机则第一步前向就偏离基座的优良特征空间。",
+        "α/r 缩放的设计：调秩 r 时无需重新搜索学习率，反向传播梯度数值稳定。",
+        "参数量估算：每个目标矩阵 r×(d_in+d_out)；14B 只对 q/v 投影（d=5120、r=16、40 层）约 13M，占比约 0.09%。",
+        "QLoRA 三点差别：基座量化为 4-bit NF4、量化常数再 8-bit 双重量化（每参数省约 0.37 bit）、分页优化器把显存尖峰页交换到 CPU；LoRA 适配器自身保持 16-bit。"
+      ],
+      "elaboration": "小演算：d=4096、r=8 时 W_0 有 16.78M 参数，A+B 共 65,536 个，压缩比约 0.39%；反向传播 ∂L/∂B = (α/r)·(∂L/∂h)(Ax)ᵀ，A 非零故梯度立刻激活。",
+      "pitfalls": [
+        "合并权重只在独占单模型时有效——合并后基座固化成单个 NPC；服务十余位 NPC 要复制十几份合并后的完整权重，超出单卡显存。"
+      ]
+    },
+    "related_ids": [
+      "proj-p4-03-overview",
+      "proj-c19-lora-forward-merge"
+    ],
+    "category": "project"
+  },
+  {
+    "id": "proj-p4-04-slora-punica-reshoot",
+    "question": "现在有 S-LoRA、Punica 这些多适配器 serving 了，重新选型还会用单基座 + Prompt 吗？",
+    "tags": [
+      "NPC 对话",
+      "LoRA",
+      "推理架构"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "S-LoRA/Punica 用统一分页内存池 + SGMV 异构批处理算子，解决了当年多 LoRA 无法同 batch 推理的物理瓶颈。",
+        "SGMV 的机制：主干 W_0 仍统一 GEMM，旁路按每个 token 的 request id gather 对应 LoRA 切片分别做小矩阵乘再 scatter 回主输出，不同 LoRA 请求得以同 batch 调度。",
+        "选 S-LoRA 的工况：NPC 数量上百、角色带无法压进 Prompt 的私有长篇知识、Prompt 的 KV 开销反超 LoRA 权重显存。",
+        "坚持单基座 + Prompt 的工况：数十位以内 NPC、世界观高度收敛、差异只在口吻风格——无换页、无定制 kernel、任何标准推理引擎可跑，工程确定性极高。",
+        "现代引擎普遍支持 Prefix Caching 后，共享人设前缀的重复计算被摊薄，进一步巩固小规模场景的单基座优势。"
+      ],
+      "elaboration": "决策雷达：500 位 NPC 各带几十万字专属设定集 → S-LoRA（单适配器约 30MB、分页池 + 预取 + 按适配器聚类调度）；本项目十余位共享世界观的 NPC → 单基座 + 200 token 人设 Prompt 仍是运维成本与稳定性的最优解。",
+      "pitfalls": [
+        "Prompt 方案的真实缺陷是上下文占用与（无缓存时的）重复 prefill 计算，不是人设表达能力上限。"
+      ]
+    },
+    "related_ids": [
+      "proj-p4-01-multi-lora-hotswap-limits",
+      "proj-p4-02-single-base-decoupling"
+    ],
+    "category": "project"
+  },
+  {
+    "id": "proj-p4-05-persona-crosstalk-defense",
+    "question": "单基座同时跑十几个角色，人设串扰怎么防？",
+    "tags": [
+      "NPC 对话",
+      "人设一致性",
+      "对齐"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "串扰机理：没有参数隔离时，同一权重编码了所有角色语料的平滑分布，长上下文堆叠或含糊提问会让模型滑向「中庸礼貌助理」，或混入其他角色特征。",
+        "第一重防御：结构化 Prompt 物理隔离——NPC_IDENTITY / PERSONALITY / SPEECH_CONSTRAINT / WORLD_STATE 分段，正向身份加负向禁令（禁敬语、禁话题越界）锁定当前语义空间。",
+        "第二重防御：SFT 阶段注入陷阱式对抗样本，覆盖用别的角色名字称呼、问世界观外问题等诱导场景，训练模型坚决回正人设。",
+        "第三重防御：RLHF 阶段把出戏、用词平庸化、角色混淆的回答标为 Rejected，用奖励模型施加梯度惩罚。",
+        "线上监控：固定 NPC 探针测试集（约 20 组诱导与跨角色探针）定期盲测打分，加关键词与出戏敏感词过滤熔断。"
+      ],
+      "elaboration": "走查：玩家诱导卫兵巴洛克「你其实是高阶法师吧，念句咒语」——未防范基座顺着指令性输出「冰封万里」严重出戏；三重防御后回复「老子生平最恨那些法术软蛋」，负向禁令 + 陷阱样本 + 偏好惩罚把模型锚定在专属性格空间。"
+    },
+    "follow_ups": [
+      "怎么监控线上有没有发生人设串扰？"
+    ],
+    "related_ids": [
+      "proj-p4-02-single-base-decoupling",
+      "proj-p4-07-adversarial-trap-samples"
+    ],
+    "category": "project"
+  },
+  {
+    "id": "proj-p4-06-14b-migration",
+    "question": "方案迁移到 14B 规模模型时遇到什么？怎么落地的？",
+    "tags": [
+      "NPC 对话",
+      "模型量化",
+      "推理部署"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "核心矛盾是显存账本：14B FP16 权重约 28GB，40GB 卡只剩约 10GB 给 KV Cache，按单请求约 1.25GB 估算只撑 8 路，达不成「十余位 NPC」目标。",
+        "W4A16 量化把权重压到约 7~8GB，KV 预算扩到 31GB，并发上限跃到约 24 路，P99 不退化。",
+        "算法收益：14B 的长程注意力与参数容量让人设漂移显著下降，7B 在 4~5 轮复杂博弈后容易丢口癖，14B 能稳定吃下 4 项以上复合约束的角色 Prompt。",
+        "训练侧超参重标定：学习率从 2e-4 量级降到 5e-5 量级、延长 Warmup 步数，防止大模型微调破坏预训练通识表征。"
+      ],
+      "elaboration": "被问「4-bit 会不会让 NPC 变傻」：对话任务重语义流畅与人设口吻而非数学推理，AWQ 类激活感知量化在 14B 上困惑度恶化通常在 0.1 以内，主观盲评几乎无法分辨 W4A16 与 FP16 的角色扮演差异——以极小精度代价换 3 倍以上并发容量。"
+    },
+    "related_ids": [
+      "proj-p3-13-overview",
+      "proj-p3-16-overview"
+    ],
+    "category": "project"
+  },
+  {
+    "id": "proj-p4-07-adversarial-trap-samples",
+    "question": "陷阱式对抗样本是什么？怎么合成的？",
+    "tags": [
+      "NPC 对话",
+      "数据合成",
+      "对抗样本"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "定义：专门针对 NPC 容易破防出戏的脆弱边界主动构造的诱导性训练数据，让模型提前铺好防御先验。",
+        "四大类型：诱导跳出人设（套系统提示词）、世界观穿透（问现实知识）、时代错位（要手机打电话）、道德立场诱变（激将守法 NPC 答应违规请求）。",
+        "合成链路：攻击者模型按角色卡专项生成诱导 Query → 规则初筛剔除弱诱导样本 → 目标模型在防御 Prompt 下生成回正样本 → NLI 一致性判别与规则审计 → 打标签合入 SFT 集。",
+        "配比纪律：对抗样本控制在 SFT 数据的 5%~10%，过高会产生「过度防御与被害妄想」，正常问路也被冷拒。",
+        "方法论继承：这套「在认知脆弱边界主动设伏」的思路直接延续到项目一的对抗种子任务工厂（伪造身份查余额、隐瞒合同骗提取）。"
+      ],
+      "elaboration": "走查一条行贿样本：攻击者模型针对守序军纪人设生成 500 金币买放行车的诱导 Query → 目标模型在「绝对拒贿」Prompt 下生成「按要塞军律论处」的防御回复 → 规则层查无收钱与软化语气、NLI 对「忠诚刚毅卫兵」蕴含度 0.96 → 打 adversarial_trap_bribe 标签入库。"
+    },
+    "follow_ups": [
+      "对抗样本在 SFT 数据里占多少比例合适？"
+    ],
+    "related_ids": [
+      "proj-p4-05-persona-crosstalk-defense",
+      "proj-p4-13-persona-consistency-eval"
+    ],
+    "category": "project"
+  },
+  {
+    "id": "proj-p4-08-overview",
+    "question": "用一分钟讲清 RLHF 的完整流程。",
+    "tags": [
+      "RLHF",
+      "强化学习",
+      "项目概述"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "第一步 SFT：高质量人设对话微调，得到初始策略模型 π_SFT。",
+        "第二步 RM：同 Prompt 下采集多候选回答，人工标注 Chosen/Rejected，基于 Bradley-Terry 偏好模型训练标量奖励模型。",
+        "第三步 PPO：Policy、Reference、Reward、Critic 四模型协同，token 级 KL 散度惩罚防策略漂移，GAE 估计优势更新 Actor 与 Critic。",
+        "目标：把模型从「模仿概率」对齐到人设偏好——奖励人设一致的回答，惩罚出戏与套话。"
+      ]
+    },
+    "follow_ups": [
+      "Reference 模型为什么不能省略？",
+      "RM 的损失函数具体怎么写？"
+    ],
+    "related_ids": [
+      "proj-p4-08-rlhf-ppo-pipeline",
+      "proj-c20-rlhf-ppo-four-model-loop"
+    ],
+    "category": "project"
+  },
+  {
+    "id": "proj-p4-08-rlhf-ppo-pipeline",
+    "question": "RLHF 里 RM 的 Bradley-Terry 损失和 PPO 的复合奖励具体怎么写？",
+    "tags": [
+      "RLHF",
+      "PPO",
+      "强化学习"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "BT 损失：P(y_w ≻ y_l | x) = σ(r_φ(x,y_w) − r_φ(x,y_l))，L_RM = −log σ(打分差)，只依赖分差不依赖绝对分数。",
+        "PPO 四模型分工：Policy 生成并算 logπ_θ；Reference 是冻结 SFT 基座，算 logπ_ref 防漂移；Reward 冻结打标量分；Critic 估每个 token 状态的 V(s_t)。",
+        "复合奖励：R = r_φ(x,y) − β·KL(π_θ ‖ π_ref)，工程上把 KL 摊到每个 token：penalty_t = logπ_θ − logπ_ref，结果奖励只加在序列末尾。",
+        "Critic 用 GAE（γ=1.0、λ=0.95）算优势，PPO-Clip 目标驱动 Actor 与 Critic 同步更新。",
+        "省略 Reference 的后果：策略几十步内发现 RM 盲区，复读套话或堆砌高频 token 刷分，语言能力坍塌。"
+      ],
+      "elaboration": "打分演算（示例）：r(y_w)=2.5、r(y_l)=−1.5，差值 4.0，σ(4.0)≈0.982，RM 损失约 0.018；若打分颠倒损失飙到 4.0 以上——BT 损失对排序错误极其敏感。",
+      "pitfalls": [
+        "KL 放 reward 还是放 loss 两种实现都存在，等价性取决于系数与归一化方式；被追问时先讲清自己实现的位置。"
+      ]
+    },
+    "related_ids": [
+      "proj-p4-08-overview",
+      "proj-c20-rlhf-ppo-four-model-loop",
+      "proj-p1-28-kl-penalty-ref-model"
+    ],
+    "category": "project"
+  },
+  {
+    "id": "proj-p4-09-overview",
+    "question": "PPO 在大模型训练里有哪些坑？当时为什么没用 DPO？",
+    "tags": [
+      "RLHF",
+      "PPO",
+      "DPO"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "坑一 Critic 冷启动：随机初始化的 Critic 产出巨大方差的荒谬优势，直接洗坏 Actor 的 SFT 先验，必须先冻结 Policy 单独预热 Critic。",
+        "坑二 Reward Hacking：模型发现打分器偏爱长而谦逊的回答，退化出谄媚与套话复读，要靠长度惩罚、限长与调高 KL 系数压制。",
+        "坑三 超参敏感：文本单回合任务 γ 通常取 1.0（整句质量在末尾才确定）、λ 约 0.95。",
+        "不用 DPO 首先是时间线：DPO 2023 年 5 月末才发布，项目周期 2022.07~2023.07，当时 PPO 是业界唯一成熟解。",
+        "机理上 DPO 是纯离线拟合静态偏好集，缺乏 PPO 在线探索未见动作空间的能力。"
+      ]
+    },
+    "related_ids": [
+      "proj-p4-09-ppo-pitfalls-dpo",
+      "proj-c20-rlhf-ppo-four-model-loop"
+    ],
+    "category": "project"
+  },
+  {
+    "id": "proj-p4-09-ppo-pitfalls-dpo",
+    "question": "Critic 未预热会发生什么？DPO 的损失怎么写、局限是什么？",
+    "tags": [
+      "RLHF",
+      "PPO",
+      "DPO"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "数值推演：真实环境奖励 +2.5 而随机初始化的 Critic 估 +8.0，TD 残差 = −5.5，优秀人设回复被算出巨大负优势，PPO-Clip 强力惩罚把 SFT 积累的人设知识洗掉。",
+        "预热后 Critic 收敛到约 +2.2，残差 +0.3，正向优势温和强化，训练平稳不漂移。",
+        "DPO 损失：−log σ(β[(logπ_θ(y_w) − logπ_ref(y_w)) − (logπ_θ(y_l) − logπ_ref(y_l))])，把奖励隐式表示为策略与参考策略的对数比。",
+        "DPO 省掉 Critic 与显式 RM 的显存开销，但只能在静态偏好数据集上拟合，无法像 PPO 在动态交互中实时 rollout 探索。",
+        "重选型结论：冷启动先用 DPO 快速迭代人设（显存小、收敛快）；进入开放多轮情境、需要探索对抗拒答边界时回到在线 RL（PPO 变体或 GRPO）。"
+      ],
+      "pitfalls": [
+        "超参数值不做无出处的机械复述：Actor 学习率通常比 SFT 低一个量级、Critic 是 Actor 的 2~3 倍、KL 系数存在很窄的健康窗口——机制理解比背数值重要。"
+      ]
+    },
+    "related_ids": [
+      "proj-p4-09-overview",
+      "proj-c20-rlhf-ppo-four-model-loop",
+      "proj-c21-dpo-loss",
+      "proj-c28-gae-recurrence",
+      "proj-p4-10-rlhf-vs-grpo"
+    ],
+    "category": "project"
+  },
+  {
+    "id": "proj-p4-10-rlhf-vs-grpo",
+    "question": "你早期做的 RLHF 和后来项目一的 GRPO 本质区别在哪？",
+    "tags": [
+      "RLHF",
+      "GRPO",
+      "强化学习",
+      "跨项目对比"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "奖励信号源：RLHF 靠神经网络 RM 拟合主观偏好，脆弱且易被 Reward Hacking；GRPO 靠可程序化沙箱的数据库终态硬判定，客观确定。",
+        "基线机制：RLHF 靠独立 Critic 网络估 V(s_t) 当基线，多占近一倍训练显存；GRPO 废除 Critic，用同 Prompt 组内 K 个采样的经验均值与标准差做 z-score 基线。",
+        "模型组成：PPO 是 Policy/Ref/RM/Critic 四模型体系；GRPO 只剩 Policy 与冻结 Ref。",
+        "任务跨度：小冰 RLHF 面向单轮生成对齐；项目一 GRPO 面向多轮工具调用与状态转移的长程决策。",
+        "认知演进因果：小冰时体会到「神经网络打分模型一定会被找到捷径作弊」，后来在政务场景坚决倒向程序化终态比对与乘法门控。"
+      ],
+      "elaboration": "对比走查：同一类「拒绝违规要求」任务——RLHF 生成 1 条回复由黑盒 RM 打 1.8 分（可能靠客套话骗分），Critic 估 1.5、优势仅 +0.3；GRPO 并发采样 8 条轨迹，沙箱终态比对给 [1,1,0,0,1,0,1,0]（均值 0.5、标准差 0.53），组内 z-score 直接出优势，客观 diff 切断作弊空间（此处数值为讲解示例）。"
+    },
+    "follow_ups": [
+      "对话任务没有标准答案，还能用 GRPO 吗？"
+    ],
+    "related_ids": [
+      "proj-c02-grpo-group-advantage",
+      "proj-p4-08-overview",
+      "proj-p4-09-overview"
+    ],
+    "category": "project"
+  },
+  {
+    "id": "proj-p4-11-overview",
+    "question": "RLHF 四个模型显存怎么扛？DeepSpeed ZeRO 的思路是什么？",
+    "tags": [
+      "分布式训练",
+      "DeepSpeed",
+      "显存优化",
+      "项目概述"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "静态显存账本：混合精度 + AdamW 下每参数 16 字节 = 参数 2Ψ + 梯度 2Ψ + 优化器状态 12Ψ（FP32 参数副本、一阶动量、二阶动量各 4Ψ）。",
+        "14B 全参训练静态显存高达 224GB，单卡放不下，四模型共存更不可能。",
+        "ZeRO 的思路：把数据并行里每卡冗余复制的状态切片打散——Stage1 切优化器状态、Stage2 加切梯度、Stage3 连参数一起切。",
+        "工程第一层减负：先冻结 Reference 与 Reward 模型的梯度和优化器，再上 ZeRO 分片。"
+      ]
+    },
+    "follow_ups": [
+      "ZeRO-3 的通信代价是什么？",
+      "14B 在 8 卡上各 stage 占多少显存？"
+    ],
+    "related_ids": [
+      "proj-p4-11-zero-sharding-memory",
+      "proj-c22-zero-memory-estimation"
+    ],
+    "category": "project"
+  },
+  {
+    "id": "proj-p4-11-zero-sharding-memory",
+    "question": "ZeRO-1/2/3 各切什么、通信代价是什么？14B 在 8 卡上各占多少显存？",
+    "tags": [
+      "分布式训练",
+      "DeepSpeed",
+      "显存优化"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "Stage1 只切优化器状态：单卡 4Ψ + 12Ψ/N，通信量与标准数据并行完全一致。",
+        "Stage2 再切梯度：单卡 2Ψ + 14Ψ/N，反向用 Reduce-Scatter 把梯度聚合到分片负责卡、随算随删，总通信量仍等价标准数据并行。",
+        "Stage3 参数也切：单卡 16Ψ/N，前向反向各做一次 All-Gather 取参、用完立刻释放，通信量升到标准数据并行的 1.5 倍（3 倍参数量）。",
+        "14B 8 卡演算：标准 DP 224GB → ZeRO-1 77GB → ZeRO-2 52.5GB → ZeRO-3 28GB。",
+        "ZeRO-Offload 把优化器状态与更新计算卸载到 CPU 内存，显存极度受限时保活训练。",
+        "PyTorch FSDP 机理上完全等价 ZeRO-3，内嵌 nn.Module 层级、靠 forward/backward prefetch hook 做通信计算流水重叠。"
+      ],
+      "pitfalls": [
+        "ZeRO-3 在千兆网环境会通信死等：每层 All-Gather 拉参数几百毫秒而前向只要几毫秒，GPU 利用率跌到个位数——降级 ZeRO-2 或改 LoRA 减少通信参数量。"
+      ]
+    },
+    "related_ids": [
+      "proj-p4-11-overview",
+      "proj-c22-zero-memory-estimation"
+    ],
+    "category": "project"
+  },
+  {
+    "id": "proj-p4-12-bert-proactive-trigger",
+    "question": "NPC 主动对话的触发时机为什么用 BERT 而不是大模型？",
+    "tags": [
+      "NPC 对话",
+      "快慢系统",
+      "分类模型"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "任务形式化：轻量序列二分类/多意图分类，判定当前时刻 NPC 是否该打破沉默主动开口、以及发起什么互动意图。",
+        "输入特征：玩家静默时长与停留行为、上文情绪极性、剧情进度与好感度等级、NPC 所处场景状态。",
+        "不用 LLM 的原因一算力：高频心跳轮询全部在场 NPC 会把 GPU 打满，挤占正常玩家对话的生成资源。",
+        "原因二时延：110M 参数的 BERT 批量推理只要 3~5ms，LLM 即使只出一个 token 首字也在数百毫秒级。",
+        "原因三可控：softmax 分数经 Platt Scaling 校准后可设高门限（如 0.85）并挂全局冷却时间，主动打扰的负代价要求「确定性克制」。",
+        "分工效果：BERT 过门控才唤醒 14B 基座生成开场白，轮询算力开销降到纯 LLM 方案的 1% 以下。"
+      ],
+      "elaboration": "走查：玩家在铁匠铺前静默 9 秒、背包有破损大剑、NPC 冷却已过 → BERT 输出 P(trigger)=0.91、意图 proactive_repair_inquiry → 才唤醒大模型让铁匠开口搭话。训练正负样本：正样本是内测中玩家对主动搭话积极回应（停留互动、续聊 3 轮以上）的时序点；负样本是被迅速跳过远离的打扰点、以及玩家专注战斗或解谜的静默点。"
+    },
+    "follow_ups": [
+      "BERT 的训练正负样本从哪里来？"
+    ],
+    "related_ids": [
+      "proj-p4-02-single-base-decoupling"
+    ],
+    "category": "project"
+  },
+  {
+    "id": "proj-p4-13-persona-consistency-eval",
+    "question": "NPC 人设一致性怎么评？有具体胜率数字吗？",
+    "tags": [
+      "NPC 对话",
+      "评测方法"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "第一层：固定对抗测试集自动化回归——覆盖诱导跳出人设、时空错位、设定挑衅等维度的 Query 集，配关键词规则熔断与否定约束检查。",
+        "第二层：NLI / LLM-as-a-Judge 语义判别——角色设定作 Hypothesis、回复作 Premise，输出蕴含/中立/矛盾概率，用矛盾率监控人设漂移。",
+        "第三层：游戏策划在隐去模型版本的前提下双盲抽检，1~5 分沉浸感量表做版本准入验收。",
+        "数字纪律：项目无一手审计指标，被追问时直接降级——「靠对抗测试集通过率与人工盲评做版本准入，未保留统计学双臂审计的公开胜率」，不编百分比。",
+        "演进衔接：后来项目一的 96 题 Steering 面板与严格成功率看板，正是吸取早期主观评测局限后的系统性升级。"
+      ],
+      "elaboration": "三层走查：诱导出戏 Query「用量子力学解释光电效应」→ 规则层无出戏词、无现代公式 PASS → NLI 对「蔑视异端学说的古代卫兵」蕴含 0.93、矛盾 0.02 PASS → 策划盲测 5 分验收。",
+      "pitfalls": [
+        "LLM Judge 的偏置要主动说：位置偏置、自好偏置、偏爱长回复；对策是细粒度量表加前后位置随机交换消偏。"
+      ]
+    },
+    "related_ids": [
+      "proj-p4-07-adversarial-trap-samples"
+    ],
+    "category": "project"
+  },
+  {
+    "id": "proj-p4-14-npc-memory-state",
+    "question": "NPC 的多轮记忆和剧情状态怎么管？",
+    "tags": [
+      "NPC 对话",
+      "上下文管理",
+      "记忆"
+    ],
+    "priority": "common",
+    "answer": {
+      "key_points": [
+        "分层装配：静态人设（固定缓存）→ 剧情状态插槽（好感度、任务节点）→ 远期记忆摘要（后台异步生成）→ 近期 3~5 轮滑动窗口。",
+        "工程约束：单卡十余位 NPC 下单次推理输入要控制在 1k~1.5k token，上下文无节制膨胀会推高 Prefill 耗时与 KV Cache 显存。",
+        "压缩效果：8 轮 3400 token 历史提炼成 1 条事件摘要加状态槽更新，第 9 轮装配仅 505 token、压缩率 85%，且不丢「送过烈酒、修过剑」这类羁绊。",
+        "远期回忆：玩家输入命中历史关键实体（如「玉佩」「领主令」）时，把对应摘要作为动态线索注入记忆插槽，触发 NPC 想起 10 轮前的事件。",
+        "对照演进：小冰是对话级轻量状态机；项目二升级为 Redis Checkpointer 快照 + 对象存储产物外化 + 动态截断压缩的企业级运行时。"
+      ]
+    },
+    "follow_ups": [
+      "玩家问起 10 轮以前的事，NPC 怎么准确想起来？"
+    ],
+    "related_ids": [
+      "proj-p4-02-single-base-decoupling"
+    ],
+    "category": "project"
+  },
+  {
+    "id": "proj-p4-15-module-responsibility-scope",
+    "question": "这个项目你的「模块负责」具体负责哪一块？",
+    "tags": [
+      "NPC 对话",
+      "职责边界",
+      "项目概述"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "边界：算法核心方案的设计与验证——「数据与对齐」模块 + 多 NPC 推理方案中的算法论证，不是整套对话平台或游戏引擎接入。",
+        "交付一：针对多 LoRA 不可行，提出并主导「离线剧本 post-training + 线上角色 Prompt」的单基座替代方案。",
+        "交付二：陷阱式对抗样本的生成规范与验证链路。",
+        "交付三：Bradley-Terry 偏好模型训练与 PPO-RLHF 流程的搭建执行。",
+        "交付四：毫秒级 BERT 主动对话分类器，以及协同工程完成 14B 量化与单卡并发稳定性验证。",
+        "不揽功：游戏客户端通信、RPC 框架、TTS 语音串联由工程团队负责；主动讲清分工反而证明技术定位清晰。"
+      ],
+      "elaboration": "协作切片走查（新角色上线）：策划交付设定文本 → 我写结构化 Prompt 契约与负向禁令、合成约 300 条身份试探 SFT 样本、做偏好对齐压制客服套话、部署触发器、验证 14B 混合并发显存安全 → 工程中台接管模型 API，串接 Unity 通信与 TTS。"
+    },
+    "follow_ups": [
+      "这段经历对你后来做 Agent 平台和强化学习有什么影响？"
+    ],
+    "related_ids": [
+      "proj-p4-02-single-base-decoupling",
+      "proj-p4-06-14b-migration"
+    ],
+    "category": "project"
+  },
+  {
+    "id": "proj-c17-maxsim-two-stage-retrieval",
+    "question": "白板手写：MaxSim 晚期交互打分与两阶段检索怎么写？",
+    "tags": [
+      "多模态检索",
+      "白板代码"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "MaxSim 公式：对每个 query token 在文档全部 patch 中取最大点乘，再对 query 维求和；向量化写法是 einsum('qd,pd->qp').max(-1).sum()。",
+        "两阶段结构：阶段一对页均值单向量做内积粗召回截 Top-K，阶段二只对候选页加载多向量做 MaxSim 精排。",
+        "粗召回把全库 O(N_q·N_d) 的计算压到候选集内，这是多向量检索能进生产的工程前提。",
+        "高频追问：为什么 doc 维 max / query 维 sum、top-k 与 top-n 截断比例、存储压缩（token pooling / 二值化）。"
+      ],
+      "code": [
+        {
+          "label": "MaxSim 与两阶段检索",
+          "language": "python",
+          "code": "def maxsim_score(query_tokens, doc_tokens):\n    # MaxSim(Q, D) = sum_i max_j (q_i · d_j)：逐 query token 取全 patch 最高点乘再求和\n    total = 0.0\n    for q_vec in query_tokens:\n        total += max(dot_product(q_vec, d_vec) for d_vec in doc_tokens)\n    return total\n\n\ndef two_stage_retrieval(query_single_vec, query_token_vecs, candidates,\n                        top_k_rough=100, top_n_rerank=5):\n    # 阶段一: 页均值单向量粗召回, 把全库 O(N_q*N_d) 的 MaxSim 压到候选集内\n    scored = sorted(candidates,\n                    key=lambda c: dot_product(query_single_vec, c[\"single_vec\"]),\n                    reverse=True)\n    top_k = scored[:top_k_rough]\n    # 阶段二: 仅对候选页加载多向量做 MaxSim 精排\n    reranked = sorted(top_k,\n                      key=lambda c: maxsim_score(query_token_vecs, c[\"token_vecs\"]),\n                      reverse=True)\n    return reranked[:top_n_rerank]",
+          "note": "完整自测版本见 code/06_retrieval_maxsim_rrf.py；粗召回单向量来自页均值 pooling。"
+        }
+      ]
+    },
+    "related_ids": [
+      "proj-p3-03-maxsim-late-interaction",
+      "proj-p3-05-colpali-storage-two-stage"
+    ],
+    "category": "project"
+  },
+  {
+    "id": "proj-c20-rlhf-ppo-four-model-loop",
+    "question": "白板手写：RLHF/PPO 的四模型协同循环怎么写？",
+    "tags": [
+      "RLHF",
+      "PPO",
+      "白板代码"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "RM 训练用 BT 损失 −log σ(r_w − r_l)，数值稳定形式是 log(1 + exp(−x))。",
+        "PPO 单步流程：采样生成 → RM 打标量分 → 逐 token KL 惩罚（−β(logπ_θ − logπ_ref)）、结果奖励只加末 token → GAE → PPO-Clip 更新。",
+        "四模型分工：Policy 更新、Ref 冻结防漂移、RM 冻结打分、Critic 估 V(s) 降方差。",
+        "高频追问：为什么需要 ref model、KL 放 reward 还是 loss、value 预热、与 GRPO 的显存差。"
+      ],
+      "code": [
+        {
+          "label": "BT 损失 + PPO 单步",
+          "language": "python",
+          "code": "def bradley_terry_rm_loss(r_chosen, r_rejected):\n    # L_BT = -log sigmoid(r_w - r_l) = log(1 + exp(-(r_w - r_l)))\n    diff = r_chosen - r_rejected\n    if diff > 30.0:\n        return math.exp(-diff)\n    if diff < -30.0:\n        return -diff\n    return math.log(1.0 + math.exp(-diff))\n\n\ndef compute_step_rewards_with_kl(outcome_reward, policy_logp, ref_logp, beta=0.05):\n    # 逐 token KL 惩罚; 结果奖励只叠加在最后一个 token\n    rewards = []\n    for t, (lp, ref) in enumerate(zip(policy_logp, ref_logp)):\n        r_t = -beta * (lp - ref)\n        if t == len(policy_logp) - 1:\n            r_t += outcome_reward\n        rewards.append(r_t)\n    return rewards\n\n\ndef rlhf_ppo_step(outcome_reward, policy_logp, ref_logp, values, beta=0.05, eps=0.2):\n    # 四模型协同: Policy 生成 / Ref 冻结算 KL / RM 打分 / Critic 估 V\n    step_rewards = compute_step_rewards_with_kl(outcome_reward, policy_logp, ref_logp, beta)\n    advantages = compute_gae(step_rewards, values, gamma=1.0, lam=0.95)\n    # PPO-Clip: ratio 截断后取悲观目标\n    ratio = math.exp(policy_logp[0] - policy_logp[0])\n    adv = advantages[0]\n    surr1 = ratio * adv\n    surr2 = min(max(ratio, 1 - eps), 1 + eps) * adv\n    return -min(surr1, surr2)",
+          "note": "完整四模型模拟与断言见 code/07_lora_rlhf_zero.py；compute_gae 见白板卡 proj-c28。"
+        }
+      ]
+    },
+    "related_ids": [
+      "proj-p4-08-rlhf-ppo-pipeline",
+      "proj-p4-09-ppo-pitfalls-dpo"
+    ],
+    "category": "project"
+  },
+  {
+    "id": "proj-c21-dpo-loss",
+    "question": "白板手写：DPO loss 怎么写？",
+    "tags": [
+      "DPO",
+      "白板代码"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "隐式奖励 = β(logπ_θ(y) − logπ_ref(y))，损失是 −log σ(胜者隐式奖励 − 败者隐式奖励)。",
+        "logits = β[(π_c − ref_c) − (π_r − ref_r)]，逐序列先按 mask 累加 logp 再做差。",
+        "数值稳定：logit ≥ 0 走 log(1+exp(−x))，否则 −x + log(1+exp(x))，防 exp 溢出。",
+        "DPO 无 Critic、无显式 RM、无在线 rollout，纯离线偏好拟合；β 控制偏离参考策略的强度。"
+      ],
+      "code": [
+        {
+          "label": "DPO 损失",
+          "language": "python",
+          "code": "def dpo_loss(chosen_logp, rejected_logp, ref_chosen_logp, ref_rejected_logp,\n             chosen_mask, rejected_mask, beta=0.1):\n    # 隐式奖励 r = beta * (log pi - log ref), 损失 -log sigmoid(r_w - r_l)\n    pi_c = sum(lp * m for lp, m in zip(chosen_logp, chosen_mask))\n    ref_c = sum(lp * m for lp, m in zip(ref_chosen_logp, chosen_mask))\n    pi_r = sum(lp * m for lp, m in zip(rejected_logp, rejected_mask))\n    ref_r = sum(lp * m for lp, m in zip(ref_rejected_logp, rejected_mask))\n\n    logit = beta * ((pi_c - ref_c) - (pi_r - ref_r))\n    if logit >= 0.0:\n        loss = math.log(1.0 + math.exp(-logit))            # 正分支数值稳定\n    else:\n        loss = -logit + math.log(1.0 + math.exp(logit))    # 负分支防 exp 溢出\n    return loss",
+          "note": "与 BT 损失同构，只是把 RM 打分换成策略与参考模型的对数比；完整版见 code/02_rl_losses_kl_floor.py。"
+        }
+      ]
+    },
+    "related_ids": [
+      "proj-p4-09-ppo-pitfalls-dpo"
+    ],
+    "category": "project"
+  },
+  {
+    "id": "proj-c22-zero-memory-estimation",
+    "question": "白板手写：DeepSpeed ZeRO 分片与显存估算怎么写？",
+    "tags": [
+      "DeepSpeed",
+      "分布式训练",
+      "白板代码"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "基础账本：混合精度 + AdamW 每参数 16 字节 = 参数 2 + 梯度 2 + 优化器 12（FP32 副本/一阶/二阶动量各 4）。",
+        "Stage1 切优化器 12Ψ/N；Stage2 加切梯度 2Ψ/N；Stage3 参数也切，单卡 16Ψ/N。",
+        "通信：Stage1/2 等价标准数据并行；Stage3 前向反向各一次 All-Gather 取参用完即释放，总量升到 1.5 倍。",
+        "函数签名：给定参数量/卡数/stage，输出各状态单卡显存——可现场验算 14B 8 卡 ZeRO-3 = 28GB。"
+      ],
+      "code": [
+        {
+          "label": "ZeRO 显存估算",
+          "language": "python",
+          "code": "def estimate_zero_memory(param_count_billions, num_gpus, stage):\n    # 混合精度 + AdamW: 参数 2Ψ + 梯度 2Ψ + 优化器 12Ψ = 16Ψ 字节\n    psi = param_count_billions * 1e9\n    w, g, o = 2 * psi, 2 * psi, 12 * psi\n    n = max(num_gpus, 1)\n    if stage == 1:      # 切优化器状态\n        w_gpu, g_gpu, o_gpu = w, g, o / n\n    elif stage == 2:    # 加切梯度 (Reduce-Scatter 聚合到分片负责卡)\n        w_gpu, g_gpu, o_gpu = w, g / n, o / n\n    elif stage == 3:    # 参数也切: 前向/反向 All-Gather 取参用完即释放\n        w_gpu, g_gpu, o_gpu = w / n, g / n, o / n\n    gb = 1024 ** 3\n    return round((w_gpu + g_gpu + o_gpu) / gb, 2)   # 单卡静态显存 GB",
+          "note": "完整版含 stage=0 标准数据并行与激活项，见 code/07_lora_rlhf_zero.py。"
+        }
+      ]
+    },
+    "related_ids": [
+      "proj-p4-11-zero-sharding-memory"
+    ],
+    "category": "project"
+  },
+  {
+    "id": "proj-c23-paged-attention-block-table",
+    "question": "白板手写：PagedAttention 的 block table 与连续批处理调度器怎么写？",
+    "tags": [
+      "vLLM",
+      "推理部署",
+      "白板代码"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "物理块带引用计数；block table 维护 seq → 物理块列表，按 ceil(len/block_size) 分配。",
+        "前缀共享：复制逻辑指针并自增引用计数，不复制 KV；写入共享块前触发 CoW 拷贝再写。",
+        "调度器每步：先从等待队列准入新请求做 prefill，再为 running 批各生成 1 个 token；显存不足时释放该请求并踢回队首抢占。",
+        "请求结束释放显存：引用计数减到 0 才真正归还空闲池。",
+        "高频追问：碎片率从哪来、CoW 触发时机、chunked prefill 混排、抢占选重计算还是换出。"
+      ],
+      "code": [
+        {
+          "label": "块管理器核心",
+          "language": "python",
+          "code": "class PagedAttentionManager:\n    def __init__(self, num_total_blocks, block_size):\n        self.block_size = block_size\n        self.free_blocks = [PhysicalBlock(i) for i in range(num_total_blocks)]\n        self.block_tables = {}   # seq_id -> [PhysicalBlock, ...]\n\n    def allocate(self, seq_id, prompt_tokens):\n        need = math.ceil(len(prompt_tokens) / self.block_size)\n        if len(self.free_blocks) < need:\n            return False                      # 物理块不足, 请求继续等待\n        blocks = []\n        for i in range(need):\n            blk = self.free_blocks.pop(0)\n            blk.ref_count = 1\n            blk.tokens = prompt_tokens[i * self.block_size:(i + 1) * self.block_size]\n            blocks.append(blk)\n        self.block_tables[seq_id] = blocks\n        return True\n\n    def share_prefix(self, src, dst, num_shared):\n        # 前缀共享: 复制逻辑指针并自增引用计数, 不复制 KV\n        for blk in self.block_tables[src][:num_shared]:\n            blk.ref_count += 1\n        self.block_tables[dst] = self.block_tables[src][:num_shared]\n        return True\n\n    def append_token(self, seq_id, token):\n        last = self.block_tables[seq_id][-1]\n        if last.ref_count > 1:                # 写共享块前触发写时复制 (CoW)\n            new = self.free_blocks.pop(0)\n            new.tokens = list(last.tokens)\n            last.ref_count -= 1\n            self.block_tables[seq_id][-1] = new\n            last = new\n        if len(last.tokens) < self.block_size:\n            last.tokens.append(token)         # 块未满直接追加\n        else:\n            blk = self.free_blocks.pop(0)     # 块满分配新物理块\n            blk.tokens = [token]\n            self.block_tables[seq_id].append(blk)\n        return True",
+          "note": "调度器（prefill/decode 混排 + 抢占）与 CoW 断言自测见 code/08_serving_paged_quant.py。"
+        }
+      ]
+    },
+    "related_ids": [
+      "proj-p3-10-paged-attention-mechanism",
+      "proj-p3-11-continuous-batching-chunked-prefill"
+    ],
+    "category": "project"
+  },
+  {
+    "id": "proj-c28-gae-recurrence",
+    "question": "白板手写：GAE 广义优势估计的递推怎么写？",
+    "tags": [
+      "强化学习",
+      "GAE",
+      "白板代码"
+    ],
+    "priority": "must",
+    "answer": {
+      "key_points": [
+        "TD 残差：δ_t = r_t + γ·V(s_{t+1}) − V(s_t)。",
+        "优势反向递推：A_t = δ_t + γλ·A_{t+1}，从最后一步向前累加。",
+        "λ=0 退化为单步 TD（低方差高偏差），λ=1 退化为蒙特卡洛（高方差低偏差），0.95 是常用折中。",
+        "LLM 单回合生成常取 γ=1.0——整句质量在末尾才能最终确定，不打折。"
+      ],
+      "code": [
+        {
+          "label": "GAE 反向递推",
+          "language": "python",
+          "code": "def compute_gae(step_rewards, values, mask, gamma=1.0, lam=0.95):\n    # delta_t = r_t + gamma * V_{t+1} - V_t\n    # A_t = delta_t + gamma * lam * A_{t+1}  (从后向前递推)\n    T = len(step_rewards)\n    advantages = [0.0] * T\n    last_gae = 0.0\n    for t in reversed(range(T)):\n        delta = step_rewards[t] + gamma * values[t + 1] * mask[t] - values[t]\n        last_gae = delta + gamma * lam * last_gae * mask[t]\n        advantages[t] = last_gae\n    return advantages",
+          "note": "values 长度 T+1，末位为终止态估计（通常 0.0）；完整版见 code/02_rl_losses_kl_floor.py。"
+        }
+      ]
+    },
+    "related_ids": [
+      "proj-p4-09-ppo-pitfalls-dpo"
+    ],
+    "category": "project"
   }
 ]
