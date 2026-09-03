@@ -43,3 +43,11 @@ next-env.d.ts
 # python
 __pycache__/
 *.py[cod]
+
+# 备份文件
+*.bak
+
+# .scratch：只入面试题集的追踪资料（tickets/PRD/素材/code），其余忽略
+.scratch/*
+!.scratch/interview-deck/
+.scratch/interview-deck/agentic-gov-recap/
