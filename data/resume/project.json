@@ -5089,7 +5089,8 @@
     },
     "related_ids": [
       "proj-c23-pagedattention-continuous-batching",
-      "proj-c24-gptq-awq-quantization"
+      "proj-c24-gptq-awq-quantization",
+      "proj-c26-rope-rotate-half"
     ]
   },
   {
@@ -6320,7 +6321,8 @@
     "related_ids": [
       "proj-p3-13-overview",
       "proj-p3-17-openai-standard-serving",
-      "proj-p3-19-p1-vllm-experience-link"
+      "proj-p3-19-p1-vllm-experience-link",
+      "proj-c26-rope-rotate-half"
     ],
     "category": "project"
   },
@@ -7189,6 +7191,41 @@
     },
     "related_ids": [
       "proj-p4-09-ppo-pitfalls-dpo"
+    ],
+    "category": "project"
+  },
+  {
+    "id": "proj-c26-rope-rotate-half",
+    "question": "白板手写：RoPE 的 rotate_half 与旋转位置编码怎么实现？为什么注意力内积只依赖相对位置？",
+    "tags": [
+      "推理优化",
+      "位置编码",
+      "白板代码"
+    ],
+    "priority": "common",
+    "hint": "先写 rotate_half 的切片拼接，再写 x⊙cos + rotate_half(x)⊙sin，最后说清内积里绝对位置为什么消掉。",
+    "answer": {
+      "key_points": [
+        "RoPE 是作用在 q/k 上的旋转矩阵：位置 m 的 token 按各维频率 mθ_i 旋转，V 不旋转。",
+        "rotate_half 把特征对半劈开：x = [x1, x2] → [-x2, x1]，用两次切片拼接实现相邻二维平面共轭旋转。",
+        "旋转逐元素写成 RoPE(x) = x ⊙ cos(mθ) + rotate_half(x) ⊙ sin(mθ)，等价于每两维一个平面旋转。",
+        "旋转后 q_m·k_n 只依赖相对距离 m−n：cos/sin 展开后交叉项里绝对位置 m、n 抵消成 m−n。",
+        "半劈 [-x2, x1] 相比相邻交错配对在内存上是两段连续切片，硬件访存更友好（vLLM 等实现采用此形式）。",
+        "位置内积只看相对距离使长文本外推失效于训练长度之外的绝对位置；NTK/YaRN 通过频段缩放改造 θ 缓解长文本 OOD 崩溃。"
+      ],
+      "code": [
+        {
+          "label": "rotate_half 与相对位置偏移",
+          "language": "python",
+          "code": "def rotate_half(x: list[float]) -> list[float]:\n    # 向量切半: x = [x1, x2] -> rotate_half(x) = [-x2, x1]\n    # 两段连续切片拼接, 相比相邻交错配对硬件访存更友好\n    mid = len(x) // 2\n    x1, x2 = x[:mid], x[mid:]\n    return [-v for v in x2] + x1\n\n\ndef apply_rotary_pos_emb(q, k, cos, sin):\n    \"\"\"逐元素向量化旋转: x_rot = x * cos + rotate_half(x) * sin\"\"\"\n    # 公式: RoPE(x) = x ⊙ cos + rotate_half(x) ⊙ sin\n    # 等价于每两维一个平面旋转; q/k 旋转, V 不旋转\n    q_rot_half, k_rot_half = rotate_half(q), rotate_half(k)\n    q_embed = [q_i * c_i + q_r * s_i for q_i, c_i, q_r, s_i in zip(q, cos, q_rot_half, sin)]\n    k_embed = [k_i * c_i + k_r * s_i for k_i, c_i, k_r, s_i in zip(k, cos, k_rot_half, sin)]\n    return q_embed, k_embed",
+          "note": "内积只依赖相对距离有自测断言（m=2,n=1 与 m=5,n=4 点积相等）；完整版见 code/08_serving_paged_quant.py。"
+        }
+      ],
+      "elaboration": "白板实现见 code/08_serving_paged_quant.py 的 rotate_half 与 apply_rotary_pos_emb，含 rotate_half 数值断言与相对位置内积不变性自测。"
+    },
+    "related_ids": [
+      "proj-m-10-skill-serving-and-ascend",
+      "proj-p3-15-ascend-910b-adaptation"
     ],
     "category": "project"
   }

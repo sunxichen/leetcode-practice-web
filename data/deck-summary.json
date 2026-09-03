@@ -299,7 +299,7 @@
       }
     },
     "resume": {
-      "cardCount": 282,
+      "cardCount": 283,
       "cardIds": [
         "proj-c01-reward-terminal-gating",
         "proj-c02-grpo-group-advantage",
@@ -582,16 +582,17 @@
         "proj-c21-dpo-loss",
         "proj-c22-zero-memory-estimation",
         "proj-c23-paged-attention-block-table",
-        "proj-c28-gae-recurrence"
+        "proj-c28-gae-recurrence",
+        "proj-c26-rope-rotate-half"
       ],
       "byCategory": {
-        "project": 282,
+        "project": 283,
         "tech-stack": 0,
         "dl-basics": 0
       },
       "byPriority": {
         "must": 104,
-        "common": 123,
+        "common": 124,
         "bonus": 55
       }
     }
